@@ -1,0 +1,40 @@
+# Ignore local agent instructions and project metadata
+AGENTS.md
+
+# Rust and Cargo
+/target/
+**/*.rs.bk
+
+# Node.js and pnpm
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.npm/
+*.tsbuildinfo
+
+# Tauri build output
+src-tauri/target/
+src-tauri/gen/
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# IDEs and editors
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
