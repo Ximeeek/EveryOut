@@ -16,6 +16,15 @@ This directory contains project decision records and contributor-facing design d
   signals, provisional confidence scoring and unchecked lower-confidence candidates.
 - [Classification rules](architecture/04-classification-rules.md): app/browser/shared identity
   ownership, overlap, global account mode and selection/confirmation defaults.
+- [Wipe sequence](architecture/05-wipe-sequence.md): review gates, process closing, partial errors,
+  metadata verification, category reports and conditional idempotence.
+- [Permission model](architecture/06-permission-model.md): first-run account choice, on-demand
+  elevated helper, UAC fallback and conservative other-user eligibility.
+- [Sync and identity](architecture/07-sync-and-identity.md): closed-profile editing direction,
+  restoration warnings, preservation blockers and the unimplemented policy alternative.
+- [What V1 will not do](architecture/08-not-doing.md): explicit local-only scope and limitations.
+- [V2 extension points](architecture/09-v2-extension-points.md): roadmap-only triggers, reserved
+  provider revocation and possible recovery, each subject to a named feasibility spike.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.
 - [ADR 0003: Rust command boundary](adr/0003-rust-command-capability-boundary.md): verified Tauri 2
   capabilities/scopes and critical-operation placement.
