@@ -1,0 +1,49 @@
+name: False positive report
+description: Report an antivirus or EDR detection of an EveryOut file.
+title: "[False positive]: "
+labels: [false positive]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not upload executables or include passwords, tokens, cookies, or other secrets.
+        Share a scan report link only if it is safe for public access.
+  - type: input
+    id: vendor-product
+    attributes:
+      label: Antivirus/EDR vendor and product
+    validations:
+      required: true
+  - type: input
+    id: detection-name
+    attributes:
+      label: Detection name
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: EveryOut app version
+    validations:
+      required: true
+  - type: input
+    id: file-sha256
+    attributes:
+      label: SHA-256 of the file
+      description: Provide the 64-character hexadecimal hash, not the file itself.
+      placeholder: 64 hexadecimal characters
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Windows version
+    validations:
+      required: true
+  - type: input
+    id: scan-report
+    attributes:
+      label: Scan report link
+      description: Link to a report that does not expose private files or personal information.
+    validations:
+      required: false

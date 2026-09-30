@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible problem in EveryOut.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include passwords, tokens, cookies, or other secrets. Report security
+        vulnerabilities privately using the instructions in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: EveryOut version
+      placeholder: Pre-release version or commit
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Windows version
+      placeholder: For example, Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include only details needed to reproduce the problem; omit session contents.
+      placeholder: 1. Open EveryOut...\n2. Select...\n3. Choose...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Remove personal information and all secrets before sharing.
+    validations:
+      required: false

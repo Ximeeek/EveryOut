@@ -1,0 +1,73 @@
+:root {
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  color: #eff4f5;
+  background: #101820;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem;
+  background: radial-gradient(ellipse at 50% 35%, #1d3441 0%, #101820 68%);
+}
+
+.card {
+  width: min(100%, 30rem);
+  padding: 3.5rem 2.75rem;
+  border: 1px solid #344650;
+  border-radius: 1.25rem;
+  background: rgb(16 24 32 / 82%);
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 24%);
+  text-align: center;
+}
+
+.mark {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 2rem;
+  place-items: center;
+  border: 1px solid #62d6c7;
+  border-radius: 1rem;
+  color: #62d6c7;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: #91a5ad;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 9vw, 3.25rem);
+  letter-spacing: -0.055em;
+}
+
+.status {
+  margin: 1.2rem 0 0;
+  color: #c0cdd1;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}

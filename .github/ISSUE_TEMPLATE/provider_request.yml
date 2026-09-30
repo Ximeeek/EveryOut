@@ -1,0 +1,45 @@
+name: Provider request
+description: Propose support for an app or browser session provider.
+title: "[Provider]: "
+labels: [provider request]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include session files, passwords, tokens, cookies, or other secrets. Provider
+        support must use a manifest and preserve EveryOut's local-only wipe design.
+  - type: input
+    id: app-name
+    attributes:
+      label: App name
+      description: Include the official product name and publisher if known.
+    validations:
+      required: true
+  - type: textarea
+    id: session-location
+    attributes:
+      label: Where is the session stored?
+      description: Give official documentation or a high-level local path pattern; never attach session contents.
+    validations:
+      required: true
+  - type: textarea
+    id: logout-method
+    attributes:
+      label: Official logout method
+      description: Link official instructions or describe the supported sign-out or invalidation action.
+    validations:
+      required: true
+  - type: textarea
+    id: permanent-loss
+    attributes:
+      label: What might the user permanently lose?
+      description: Describe local-only data or access that cannot be recovered by signing in again.
+    validations:
+      required: true
+  - type: input
+    id: sources
+    attributes:
+      label: Official sources
+      description: URLs supporting the session location and logout behavior.
+    validations:
+      required: true
