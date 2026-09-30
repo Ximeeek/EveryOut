@@ -54,6 +54,23 @@ Show the selected apps and the expected sign-out or local-data consequences befo
 confirms a wipe. This makes irreversible effects visible at the point of decision.
 ```
 
+## Running the app
+
+Install Rust using the version pinned in [`rust-toolchain.toml`](rust-toolchain.toml), including
+the MSVC toolchain, Node.js (LTS), pnpm, Microsoft C++ Build Tools with the **Desktop development
+with C++** workload, and the Microsoft Edge WebView2 Runtime.
+
+From the repository root, run:
+
+```powershell
+pnpm install
+pnpm tauri dev
+pnpm tauri build
+```
+
+`pnpm tauri dev` starts the Vite development server and desktop app. `pnpm tauri build` creates a
+release application bundle.
+
 ## Quality checks
 
 Run the same checks used by CI from the repository root before opening a pull request:
