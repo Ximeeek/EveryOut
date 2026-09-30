@@ -25,6 +25,12 @@ This directory contains project decision records and contributor-facing design d
 - [What V1 will not do](architecture/08-not-doing.md): explicit local-only scope and limitations.
 - [V2 extension points](architecture/09-v2-extension-points.md): roadmap-only triggers, reserved
   provider revocation and possible recovery, each subject to a named feasibility spike.
+- [Threat model](architecture/10-threat-model.md): abuse and target scenarios, destructive-path
+  confinement, catalog/helper trust boundaries and the AV/EDR false-positive mitigation plan.
+- [Test strategy](architecture/11-test-strategy.md): confined synthetic fixtures, snapshot VMs,
+  three test tiers and claim-specific catalog verification/confidence requirements.
+- [Catalog update design](architecture/12-catalog-update-design.md): signed manifest-only bundles,
+  embedded trust, anti-rollback, changelog review and offline wipe independence.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.
 - [ADR 0003: Rust command boundary](adr/0003-rust-command-capability-boundary.md): verified Tauri 2
   capabilities/scopes and critical-operation placement.
