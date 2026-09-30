@@ -54,6 +54,25 @@ Show the selected apps and the expected sign-out or local-data consequences befo
 confirms a wipe. This makes irreversible effects visible at the point of decision.
 ```
 
+## Quality checks
+
+Run the same checks used by CI from the repository root before opening a pull request:
+
+```powershell
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm format:check
+pnpm build
+pnpm commitlint --from <base> --to <head>
+```
+
+Replace `<base>` and `<head>` with the commit IDs at the start and end of the range to check.
+Every commit needs a body with at least 20 characters of description.
+
 ## Pull requests
 
 - Keep each pull request focused and describe its motivation and user impact.

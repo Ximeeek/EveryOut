@@ -9,8 +9,8 @@ data, credentials, tokens, or cookies.
 
 ## Supported versions
 
-| Version | Supported |
-| --- | --- |
+| Version     | Supported          |
+| ----------- | ------------------ |
 | Pre-release | Latest `main` only |
 
 ## Scope and guarantees

@@ -21,6 +21,6 @@ history remains clear.
 
 ## Records
 
-| Number | Title | Status |
-| --- | --- | --- |
+| Number                  | Title                                                | Status   |
+| ----------------------- | ---------------------------------------------------- | -------- |
 | [0001](0001-license.md) | License the project under GNU GPL version 3 or later | Accepted |
