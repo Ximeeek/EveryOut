@@ -96,3 +96,7 @@ were checked on 2026-09-30; they do not establish secret-free file-edit support.
 | Recreated metadata / restoration cause and independent support          | UNKNOWN |
 | Per-criterion verdict / failures / blockers / architecture notes        | NOT RUN |
 | Supported scope / warning text / outstanding vendor decisions           | UNKNOWN |
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `tree-snapshot` crate test suite passed (8 tests) on the development PC using synthetic temporary trees. Firefox and Edge were not launched; no profile, account, sync, SSO, or network arm was run. S4 remains PENDING USER EXECUTION.

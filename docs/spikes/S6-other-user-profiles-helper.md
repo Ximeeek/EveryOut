@@ -135,3 +135,7 @@ No VM experiment has been executed. Status remains PENDING USER EXECUTION.
 [RegLoadKeyW](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regloadkeyw)
 and [RegUnLoadKeyW](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regunloadkeyw)
 provide the mount/unmount contracts; they do not resolve EveryOut's ownership or session races.
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `identity-probe` crate test suite passed (10 tests) on the development PC using synthetic parser and metadata fixtures. No live ProfileList/HKU inventory, other-user access, hive mount, elevation, helper IPC, or cross-session process trial was run. The reviewed lab harness remains unavailable; those arms remain blocked and S6 remains PENDING USER EXECUTION.

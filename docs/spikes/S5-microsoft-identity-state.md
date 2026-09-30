@@ -109,3 +109,7 @@ A1–A5 individually: NOT RUN (PASS / FAIL / INCONCLUSIVE / UNSUPPORTED / NOT AP
 Decision / remaining coverage / user guidance / evidence labels: NOT RUN
 
 No experiment has been executed. Status remains PENDING USER EXECUTION.
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `identity-probe` crate test suite passed (10 tests) on the development PC. Tests covered synthetic parsers and temporary metadata fixtures; the `inspect-lab` inventory was not run, and no live registry, profile, identity store, account, or credential inventory was accessed. S5 remains PENDING USER EXECUTION.

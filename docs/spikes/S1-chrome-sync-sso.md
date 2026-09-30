@@ -88,3 +88,7 @@ must have separate anonymous test labels; one does not establish the other.
 
 Do not attach profiles, account labels or secret payloads. Status remains pending until actual
 results and a review are provided.
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `tree-snapshot` crate test suite passed (8 tests) on the development PC. These tests used synthetic temporary trees only; no browser profile was captured, no browser was launched, and no Sync, SSO, account or wipe arm was run. S1 remains PENDING USER EXECUTION.

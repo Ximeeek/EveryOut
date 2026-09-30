@@ -78,3 +78,7 @@ No DBSC service/site/harness is implemented by this phase.
 | No-wipe and non-adopted controls / preservation evidence                | NOT RUN |
 | Criterion verdicts / failures / unavailable capability / blockers       | NOT RUN |
 | Supported metadata scope / unresolved keys-authentication / warning     | UNKNOWN |
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `tree-snapshot` crate test suite passed (8 tests) on the development PC using synthetic temporary trees. No browser profile, DBSC state, key, or application data was inspected or changed. S3 remains PENDING USER EXECUTION.

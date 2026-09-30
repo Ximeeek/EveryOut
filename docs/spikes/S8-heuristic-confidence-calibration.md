@@ -103,3 +103,7 @@ unobserved roots and incomplete scans; do not discard false positives as unsuppo
 Record reviewers, disagreement resolution, unique-unit counts, sampling/selection biases,
 unrepresented app classes, confidence distribution and proposed follow-ups separately. Tests are
 tool-boundary evidence, not a measured false-positive rate; status remains pending.
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `heuristic-scan` crate test suite passed (7 tests) on the development PC using synthetic temporary fixtures. It checked scoring gates, metadata-only observations, sharing-denied payload handling and junction rejection. `scan-lab` was not run, no installed-app inventory was collected, and no labeled corpus or false-positive rate was measured. S8 remains PENDING USER EXECUTION.
