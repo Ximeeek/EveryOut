@@ -108,3 +108,7 @@ not a validated EveryOut implementation or an excuse to substitute a global task
 
 Use the register's result vocabulary. Unit/integration tests with spawned dummies validate tool
 boundaries only; they do not populate this table or change the pending status.
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `process-close` crate test suite passed on the development PC: 3 tests passed and the helper test was invoked by its parent integration test. Integration coverage used only test subprocesses spawned by that test: it exercised Restart Manager, WM_CLOSE, direct termination, exact-image refusal, same-image sibling preservation, refusal without escalation, and the two-second escalation timing. No real application or unrelated process was targeted. These are tool safety tests, not the VM target-app trials or measured success-rate/data-loss results; S7 remains PENDING USER EXECUTION.

@@ -96,3 +96,7 @@ distinguishes stopping sync from account sign-out. Other versioned leads are in
 | Selected versus unselected profile/user effects                             | NOT RUN |
 | Identity / sync / restoration; criteria verdicts and blockers               | UNKNOWN |
 | Feasible V1 method or unsupported reason; architecture conflict note        | UNKNOWN |
+
+## Local tool verification — 2026-09-30 (not spike execution)
+
+The `tree-snapshot` crate test suite passed (8 tests) on the development PC using synthetic temporary trees. No browser preference or policy was read or changed, and no browser was launched. S2 remains PENDING USER EXECUTION.
