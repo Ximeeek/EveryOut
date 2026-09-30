@@ -1,3 +1,5 @@
 pnpm-lock.yaml
 spikes/tree-snapshot/target/
 spikes/identity-probe/target/
+spikes/heuristic-scan/target/
+spikes/process-close/target/
