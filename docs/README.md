@@ -31,6 +31,8 @@ This directory contains project decision records and contributor-facing design d
   three test tiers and claim-specific catalog verification/confidence requirements.
 - [Catalog update design](architecture/12-catalog-update-design.md): signed manifest-only bundles,
   embedded trust, anti-rollback, changelog review and offline wipe independence.
+- [Core foundation](architecture/13-core-foundation.md): implemented workspace libraries,
+  provider types, manifest validation and the boundary with future system operations.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.
 - [ADR 0003: Rust command boundary](adr/0003-rust-command-capability-boundary.md): verified Tauri 2
   capabilities/scopes and critical-operation placement.

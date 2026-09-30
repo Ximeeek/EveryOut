@@ -1,0 +1,7 @@
+//! Trusted manifest configuration parsed from memory; no discovery or system I/O.
+#![forbid(unsafe_code)]
+
+pub mod manifest;
+pub mod validation;
+pub use manifest::*;
+pub use validation::{load_manifest, ManifestError, ManifestErrorKind};

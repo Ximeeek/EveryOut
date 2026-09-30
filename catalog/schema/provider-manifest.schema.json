@@ -1,0 +1,692 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "enum": ["file", "directory", "registry-key", "registry-value"],
+      "type": "string"
+    },
+    "Availability": {
+      "enum": ["available", "unavailable", "unknown"],
+      "type": "string"
+    },
+    "Category": {
+      "enum": ["application", "browser", "windows-microsoft-and-dev-tools"],
+      "type": "string"
+    },
+    "CleaningMethod": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "blockers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "companions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effects": {
+              "items": {
+                "type": "string"
+              },
+              "type": ["array", "null"]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "delete-file-family",
+              "type": "string"
+            }
+          },
+          "required": ["kind", "id", "companions", "blockers"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "blockers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effects": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "exclusions": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "delete-directory-family",
+              "type": "string"
+            }
+          },
+          "required": ["kind", "id", "blockers", "effects", "exclusions"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "blockers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effects": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "delete-registry-target",
+              "type": "string"
+            }
+          },
+          "required": ["kind", "id", "blockers", "effects"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "blockers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effects": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "local-api-operation",
+              "type": "string"
+            },
+            "operation_id": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "id", "operation_id", "blockers", "effects"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "adapter_id": {
+              "type": "string"
+            },
+            "blockers": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effects": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "exception-adapter",
+              "type": "string"
+            }
+          },
+          "required": ["kind", "id", "adapter_id", "blockers", "effects"],
+          "type": "object"
+        }
+      ]
+    },
+    "Compatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "os": {
+          "items": {
+            "$ref": "#/$defs/WindowsVersion"
+          },
+          "type": "array"
+        },
+        "product_versions": {
+          "type": "string"
+        }
+      },
+      "required": ["os", "channel", "product_versions"],
+      "type": "object"
+    },
+    "Confidence": {
+      "enum": ["high", "medium", "low"],
+      "type": "string"
+    },
+    "Detection": {
+      "additionalProperties": false,
+      "properties": {
+        "require_exclusive_owner": {
+          "type": "boolean"
+        },
+        "signals": {
+          "items": {
+            "$ref": "#/$defs/Signal"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["require_exclusive_owner", "signals"],
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "accessed": {
+          "type": ["string", "null"]
+        },
+        "dossier": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": ["string", "null"]
+        },
+        "source": {
+          "type": ["string", "null"]
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "dossier", "status"],
+      "type": "object"
+    },
+    "EvidenceConfidence": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "version_coverage": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["level", "rationale"],
+      "type": "object"
+    },
+    "EvidenceFamily": {
+      "enum": ["ownership", "installation", "package", "process", "storage"],
+      "type": "string"
+    },
+    "Identity": {
+      "additionalProperties": false,
+      "properties": {
+        "browser_id": {
+          "type": ["string", "null"]
+        },
+        "installation_id": {
+          "type": ["string", "null"]
+        },
+        "package_id": {
+          "type": ["string", "null"]
+        },
+        "process_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["process_names"],
+      "type": "object"
+    },
+    "LogoutSurface": {
+      "enum": ["local-app", "browser-identity", "remote"],
+      "type": "string"
+    },
+    "LossAssessment": {
+      "enum": ["known", "none", "unknown"],
+      "type": "string"
+    },
+    "ObservationKind": {
+      "enum": ["exists", "exists-and-size"],
+      "type": "string"
+    },
+    "Ownership": {
+      "enum": [
+        "application",
+        "browser-profile",
+        "shared-identity",
+        "developer-tool"
+      ],
+      "type": "string"
+    },
+    "Preservation": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_families": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "shared_dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": ["array", "null"]
+        }
+      },
+      "required": ["artifact_families"],
+      "type": "object"
+    },
+    "Profiles": {
+      "additionalProperties": false,
+      "properties": {
+        "directory_patterns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metadata_adapter": {
+          "type": ["string", "null"]
+        },
+        "root": {
+          "type": "string"
+        }
+      },
+      "required": ["root", "directory_patterns"],
+      "type": "object"
+    },
+    "RegistryHive": {
+      "enum": ["current-user"],
+      "type": "string"
+    },
+    "RiskAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "affected_data": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "confirmations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "flags": {
+          "items": {
+            "$ref": "#/$defs/RiskFlag"
+          },
+          "type": "array"
+        },
+        "permanent_data_loss": {
+          "$ref": "#/$defs/LossAssessment"
+        },
+        "reason": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": [
+        "flags",
+        "affected_data",
+        "permanent_data_loss",
+        "confirmations",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "RiskFlag": {
+      "enum": [
+        "local-only-documents",
+        "drafts-or-offline-messages",
+        "settings-or-profiles",
+        "wallet-or-key-material",
+        "vault-or-2fa-recovery",
+        "saved-passwords-passkeys-autofill-history",
+        "shared-store",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "Root": {
+      "description": "The initial conservative known-folder allowlist is per-user Local/Roaming AppData.\nRegistry roots name a selected owner's HKCU scope, never an ambient elevated hive.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "const": "local-app-data",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "relative": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "relative", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "const": "roaming-app-data",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "relative": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "relative", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "const": "registry",
+              "type": "string"
+            },
+            "hive": {
+              "$ref": "#/$defs/RegistryHive"
+            },
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "hive", "key", "scope", "owner"],
+          "type": "object"
+        }
+      ]
+    },
+    "Scope": {
+      "enum": ["os-user", "installation", "profile"],
+      "type": "string"
+    },
+    "SessionLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_family": {
+          "type": ["string", "null"]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "method": {
+          "type": "string"
+        },
+        "observe": {
+          "$ref": "#/$defs/ObservationKind"
+        },
+        "ownership": {
+          "$ref": "#/$defs/Ownership"
+        },
+        "relative": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        }
+      },
+      "required": [
+        "id",
+        "root",
+        "scope",
+        "relative",
+        "kind",
+        "observe",
+        "ownership",
+        "method"
+      ],
+      "type": "object"
+    },
+    "Signal": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "type": ["string", "null"]
+        },
+        "family": {
+          "$ref": "#/$defs/EvidenceFamily"
+        },
+        "id": {
+          "type": "string"
+        },
+        "observe": {
+          "$ref": "#/$defs/ObservationKind"
+        },
+        "root": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["id", "family", "observe"],
+      "type": "object"
+    },
+    "Support": {
+      "enum": ["candidate", "validated"],
+      "type": "string"
+    },
+    "TrueLogout": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Availability"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mechanism": {
+          "type": "string"
+        },
+        "surface": {
+          "$ref": "#/$defs/LogoutSurface"
+        }
+      },
+      "required": ["availability", "surface", "mechanism", "evidence"],
+      "type": "object"
+    },
+    "WindowsVersion": {
+      "enum": ["windows-10", "windows-11"],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "$ref": "#/$defs/Category"
+    },
+    "cleaning_methods": {
+      "items": {
+        "$ref": "#/$defs/CleaningMethod"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "compatibility": {
+      "$ref": "#/$defs/Compatibility"
+    },
+    "confidence": {
+      "$ref": "#/$defs/EvidenceConfidence"
+    },
+    "detection": {
+      "$ref": "#/$defs/Detection"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "format_version": {
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/Identity"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "open_spikes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "preserve": {
+      "$ref": "#/$defs/Preservation"
+    },
+    "profiles": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Profiles"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revision": {
+      "format": "uint64",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "risks": {
+      "$ref": "#/$defs/RiskAssessment"
+    },
+    "roots": {
+      "items": {
+        "$ref": "#/$defs/Root"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "session_locations": {
+      "items": {
+        "$ref": "#/$defs/SessionLocation"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "support": {
+      "$ref": "#/$defs/Support"
+    },
+    "true_logout": {
+      "$ref": "#/$defs/TrueLogout"
+    }
+  },
+  "required": [
+    "format_version",
+    "id",
+    "revision",
+    "name",
+    "category",
+    "support",
+    "compatibility",
+    "identity",
+    "detection",
+    "roots",
+    "session_locations",
+    "cleaning_methods",
+    "preserve",
+    "true_logout",
+    "risks",
+    "confidence",
+    "evidence",
+    "limitations",
+    "open_spikes"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}
