@@ -21,6 +21,8 @@ history remains clear.
 
 ## Records
 
-| Number                  | Title                                                | Status   |
-| ----------------------- | ---------------------------------------------------- | -------- |
-| [0001](0001-license.md) | License the project under GNU GPL version 3 or later | Accepted |
+| Number                                           | Title                                                | Status   |
+| ------------------------------------------------ | ---------------------------------------------------- | -------- |
+| [0001](0001-license.md)                          | License the project under GNU GPL version 3 or later | Accepted |
+| [0002](0002-retain-tauri-rust-stack.md)          | Retain Tauri 2.x with a Rust system layer            | Accepted |
+| [0003](0003-rust-command-capability-boundary.md) | Keep critical operations behind scoped Rust commands | Accepted |
