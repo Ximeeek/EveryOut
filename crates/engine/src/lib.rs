@@ -180,14 +180,14 @@ pub struct Inventory<'a> {
     current_user: UserId,
 }
 impl Inventory<'_> {
-    /// Select all resolved detections in this category; heuristic candidates stay unchecked.
+    /// Select resolved known providers regardless of catalog support/confidence.
+    /// All heuristic results stay unchecked until S8 passes; selection is not approval.
     pub fn default_selection(&self, category: Category) -> Vec<InstanceId> {
         self.entries
             .iter()
             .filter(|entry| {
                 entry.description.descriptor.category == category
-                    && entry.instance.confidence == Confidence::High
-                    && entry.description.descriptor.support == Support::Validated
+                    && entry.instance.detection_origin.default_selected(true)
             })
             .map(|entry| entry.instance.instance_id.clone())
             .collect()
@@ -287,6 +287,16 @@ impl<'a> Engine<'a> {
             for instance in &inventory.instances {
                 if instance.owner.user_id != self.current_user {
                     return Err(ErrorKind::ScopeViolation);
+                }
+                if instance.owner.installation_id.0.trim().is_empty()
+                    || instance.owner.root_id.0.trim().is_empty()
+                    || instance
+                        .issues
+                        .iter()
+                        .any(|issue| issue.kind == ErrorKind::OwnershipConflict)
+                {
+                    // Unresolved candidates belong in discovery, never an executable inventory.
+                    return Err(ErrorKind::OwnershipConflict);
                 }
                 let description = provider.describe(instance);
                 if description.instance_id != instance.instance_id

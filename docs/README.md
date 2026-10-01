@@ -41,6 +41,9 @@ This directory contains project decision records and contributor-facing design d
   and registry primitives, confined fixture evidence and remaining verification gates.
 - [Current-account wipe engine](architecture/16-wipe-engine.md): immutable dry-run review,
   category/risk confirmations, process prerequisites, partial outcomes and metadata reports.
+- [Detection and classification](architecture/17-detection-classification.md): bounded registry,
+  shortcut/package inventory, manifest probes, unverified heuristic scoring, physical ownership
+  overlaps and unchecked heuristic selection until S8 passes.
 - [ADR 0004: Windows bindings](adr/0004-windows-metadata-and-deletion-bindings.md): official
   metadata/deletion bindings and their operating limits.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.

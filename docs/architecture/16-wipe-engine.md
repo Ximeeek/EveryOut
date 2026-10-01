@@ -11,9 +11,12 @@ never the fixture feature or arbitrary caller roots.
 
 `Engine::scan` calls metadata-only detection and pure description for a requested category.
 It rejects foreign owners, duplicate instance IDs and mismatched description identities.
-`Inventory::default_selection` selects all resolved, validated, high-confidence instances in
-that category. Medium/low heuristic candidates remain unchecked, following the architecture
-selection rule. Explicit selections cannot name unknown instances or another category.
+Phase 19 updates `Inventory::default_selection` to select all resolved known-provider instances
+in that category regardless of catalog support/confidence. Explicit `detection_origin` keeps all
+heuristic instances unchecked, including high, until S8 passes; missing provenance in old JSON
+defaults to heuristic. Selection does not waive supported-scope validation or review gates.
+Explicit selections cannot name unknown instances or another category. See
+[detection and scope clarifications](17-detection-classification.md).
 
 `Engine::prepare` fixes the inventory, instance/profile selection, manifest revision, owner,
 actions, shared effects, risks, process identities and close policy. It checks the logical

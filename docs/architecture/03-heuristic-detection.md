@@ -66,13 +66,15 @@ layout has been validated.
 
 ## Presentation and execution eligibility
 
-Only high-confidence heuristic detections are pre-selected. Medium/low detections appear in a
-separate unchecked section with evidence and missing ownership/coverage information. Selecting
+Phase 19 keeps **all heuristic detections unchecked, including high**, until S8 calibration
+passes. High/medium/low detections appear in a separate unchecked section with evidence and
+missing ownership/coverage information. The numerical gates above remain unverified. Selecting
 one cannot manufacture a provider cleaning rule. Even a high-confidence app identity has no
 executable plan until a validated manifest or exception adapter defines safe session scope.
 
-Curated supported detections and high-confidence heuristic detections follow the default selection
-rules in [04](04-classification-rules.md). Heuristic identity confidence, catalog evidence confidence
+Resolved known-provider detections follow the default selection rules in
+[04](04-classification-rules.md), independently of catalog support/confidence. Heuristic identity
+confidence, catalog evidence confidence
 and executable scope validation are separate fields; none implies the others.
 
 ## AV/EDR and anti-cheat constraints
@@ -101,3 +103,6 @@ proof of AV exemption. Process-closing policy belongs to Phase 9.
 
 See the [central register](00-overview.md#open-decisions) for evidence and interim rules. These name
 future spikes; this phase does not define a test strategy or perform security-product experiments.
+
+See [Phase 19 implementation and scope clarifications](17-detection-classification.md) for bounded
+inventory coverage, exact blocked metadata exceptions and provenance-based engine selection.

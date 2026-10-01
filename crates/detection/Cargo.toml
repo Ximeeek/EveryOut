@@ -1,0 +1,17 @@
+[package]
+name = "everyout-detection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Bounded metadata-only discovery and ownership classification for EveryOut"
+
+[dependencies]
+everyout-core-model = { path = "../core-model" }
+everyout-providers = { path = "../providers" }
+everyout-platform-windows = { path = "../platform-windows" }
+serde.workspace = true
+
+[dev-dependencies]
+everyout-platform-windows = { path = "../platform-windows", features = ["test-fixtures"] }
+serde_json.workspace = true

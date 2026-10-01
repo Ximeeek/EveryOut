@@ -205,8 +205,26 @@ pub struct ProviderInstance {
     pub owner: OwnerIdentity,
     pub profiles: Vec<ProfileScope>,
     pub confidence: Confidence,
+    /// Missing provenance is conservatively treated as heuristic, including old JSON.
+    #[serde(default)]
+    pub detection_origin: DetectionOrigin,
     pub evidence: Vec<EvidenceRef>,
     pub issues: Vec<ProviderIssue>,
+}
+
+/// Identity confidence and catalog support cannot substitute for detection provenance.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum DetectionOrigin {
+    KnownProvider,
+    #[default]
+    Heuristic,
+}
+impl DetectionOrigin {
+    /// S8 has not passed; even high-confidence heuristics remain unchecked.
+    pub fn default_selected(self, resolved_owner: bool) -> bool {
+        resolved_owner && self == Self::KnownProvider
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct MetadataObservation {

@@ -127,8 +127,16 @@ impl Handle {
         Ok(())
     }
     pub(crate) fn children(&self) -> Result<Vec<(OsString, bool)>> {
+        self.enumerate_children(true).map(|(entries, _)| entries)
+    }
+    pub(crate) fn discovery_children(&self) -> Result<(Vec<(OsString, bool)>, bool)> {
+        self.enumerate_children(false)
+    }
+    fn enumerate_children(&self, reject_reparse: bool) -> Result<(Vec<(OsString, bool)>, bool)> {
         self.info()?;
         let mut result = Vec::new();
+        let mut omitted = false;
+        let mut count = 0;
         let mut buffer = vec![0u64; 8192];
         let mut class = FileIdBothDirectoryRestartInfo;
         loop {
@@ -184,12 +192,17 @@ impl Handle {
                     )
                 });
                 if name != "." && name != ".." {
-                    if entry.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-                        return Err(PlatformError::new(ErrorKind::ScopeViolation));
-                    }
-                    result.push((name, entry.FileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0));
-                    if result.len() > 10_000 {
+                    count += 1;
+                    if count > 10_000 {
                         return Err(PlatformError::new(ErrorKind::Unsupported));
+                    }
+                    if entry.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                        if reject_reparse {
+                            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+                        }
+                        omitted = true;
+                    } else {
+                        result.push((name, entry.FileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0));
                     }
                 }
                 if entry.NextEntryOffset == 0 {
@@ -203,7 +216,7 @@ impl Handle {
                 offset += next;
             }
         }
-        Ok(result)
+        Ok((result, omitted))
     }
 }
 

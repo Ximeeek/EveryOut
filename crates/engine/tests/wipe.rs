@@ -105,6 +105,9 @@ struct LabProvider {
     category: Category,
     flags: Vec<RiskFlag>,
     confidence: Confidence,
+    detection_origin: DetectionOrigin,
+    support: Support,
+    resolved_owner: bool,
     revision: Cell<u64>,
     close_error: Cell<Option<ErrorKind>>,
     close_calls: Cell<usize>,
@@ -125,6 +128,9 @@ impl LabProvider {
             category,
             flags: vec![],
             confidence: Confidence::High,
+            detection_origin: DetectionOrigin::KnownProvider,
+            support: Support::Validated,
+            resolved_owner: true,
             revision: Cell::new(1),
             close_error: Cell::new(None),
             close_calls: Cell::new(0),
@@ -147,9 +153,17 @@ impl Provider for LabProvider {
             instances: vec![ProviderInstance {
                 provider_id: ProviderId("test-only".into()),
                 instance_id: InstanceId(self.instance.into()),
-                owner: owner(),
+                owner: if self.resolved_owner {
+                    owner()
+                } else {
+                    OwnerIdentity {
+                        root_id: RootId(String::new()),
+                        ..owner()
+                    }
+                },
                 profiles: vec![],
                 confidence: self.confidence,
+                detection_origin: self.detection_origin,
                 evidence: vec![],
                 issues: vec![],
             }],
@@ -171,7 +185,7 @@ impl Provider for LabProvider {
                 name: "Synthetic fixture".into(),
                 category: self.category,
                 revision: self.revision.get(),
-                support: Support::Validated,
+                support: self.support,
                 evidence: vec![],
                 limitations: vec!["dbsc-key-reference-coverage-unknown".into()],
             },
@@ -186,7 +200,7 @@ impl Provider for LabProvider {
             plan_id: PlanId("fixture-plan".into()),
             provider_id: ProviderId("test-only".into()),
             manifest_revision: self.revision.get(),
-            support: Support::Validated,
+            support: self.support,
             selection: selected.clone(),
             actions: self
                 .files
@@ -651,10 +665,52 @@ fn inaccessible_verification_and_counterfeit_success_never_claim_completion() {
 }
 
 #[test]
+fn provenance_controls_selection_independently_of_confidence_and_support() {
+    let (_fixture, ops) = setup();
+    let engine = Engine::new(owner().user_id, &ops);
+    for category in [
+        Category::Application,
+        Category::Browser,
+        Category::WindowsMicrosoftAndDevTools,
+    ] {
+        for confidence in [Confidence::High, Confidence::Medium, Confidence::Low] {
+            for support in [Support::Validated, Support::Candidate] {
+                for origin in [DetectionOrigin::KnownProvider, DetectionOrigin::Heuristic] {
+                    let mut provider = LabProvider::new(category);
+                    provider.confidence = confidence;
+                    provider.support = support;
+                    provider.detection_origin = origin;
+                    let inventory = engine.scan(&[&provider], category, &mut |_| {}).unwrap();
+                    assert_eq!(
+                        inventory.default_selection(category).len(),
+                        usize::from(origin == DetectionOrigin::KnownProvider)
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!(ops.mutations.get(), 0);
+}
+
+#[test]
+fn unresolved_owner_cannot_enter_the_executable_inventory() {
+    let (_fixture, ops) = setup();
+    let engine = Engine::new(owner().user_id, &ops);
+    let mut provider = LabProvider::new(Category::Application);
+    provider.resolved_owner = false;
+    assert!(matches!(
+        engine.scan(&[&provider], Category::Application, &mut |_| {}),
+        Err(ErrorKind::OwnershipConflict)
+    ));
+    assert_eq!(ops.mutations.get(), 0);
+}
+
+#[test]
 fn medium_confidence_is_unchecked_and_preservation_risk_cannot_be_confirmed_away() {
     let (_fixture, ops) = setup();
     let mut provider = LabProvider::new(Category::Application);
     provider.confidence = Confidence::Medium;
+    provider.detection_origin = DetectionOrigin::Heuristic;
     let engine = Engine::new(owner().user_id, &ops);
     let inventory = engine
         .scan(&[&provider], Category::Application, &mut |_| {})
@@ -663,6 +719,7 @@ fn medium_confidence_is_unchecked_and_preservation_risk_cannot_be_confirmed_away
         .default_selection(Category::Application)
         .is_empty());
     provider.confidence = Confidence::High;
+    provider.detection_origin = DetectionOrigin::KnownProvider;
     provider.flags = vec![RiskFlag::SavedPasswordsPasskeysAutofillHistory];
     let run = prepare(&engine, &provider, &mut |_| {});
     let approval = Approval {

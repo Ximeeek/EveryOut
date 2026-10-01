@@ -794,6 +794,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "everyout-detection"
+version = "0.1.0"
+dependencies = [
+ "everyout-core-model",
+ "everyout-platform-windows",
+ "everyout-providers",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "everyout-engine"
 version = "0.1.0"
 dependencies = [
@@ -811,6 +822,7 @@ dependencies = [
  "everyout-platform-windows",
  "everyout-test-support",
  "tempfile",
+ "windows",
  "windows-sys 0.61.2",
 ]
 

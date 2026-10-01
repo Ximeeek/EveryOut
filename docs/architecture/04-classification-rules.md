@@ -82,22 +82,23 @@ selection; disclose the indivisible scope instead.
 
 **Everything detected is pre-selected by default**, including known data-loss risks and the
 Windows/Microsoft + developer-tools category, subject to the explicit heuristic exception:
-medium/low-confidence heuristic candidates remain in a separate unchecked section. Unknown
+all heuristic candidates, including high confidence, remain in a separate unchecked section
+until S8 passes. Known-provider selection does not depend on catalog support/confidence. Unknown
 folders below the detector's minimum signal requirement are suppressed, not list items.
 
 “Select all” selects all resolved detected provider items and does not silently deselect risky
-ones. The medium/low candidate section has a separate explicit selection control; the main
+ones. The heuristic candidate section has a separate explicit selection control; the main
 control preserves its unchecked default. Selection expresses intent, not execution eligibility:
 selected unsupported/blocked observations stay visibly selected with no executable action.
 
-| Selected item                                                      | Initial selection                                                           | Additional execution requirement                                            |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Supported curated detection or high-confidence heuristic detection | Checked                                                                     | Validated scope and normal plan review                                      |
-| Medium/low heuristic candidate                                     | Unchecked, separate section                                                 | Explicit selection plus ownership and supported-scope validation            |
-| Known permanent-data-loss risk                                     | Checked                                                                     | Additional explicit confirmation naming affected data and provider/profile  |
-| Windows/Microsoft + developer-tools                                | Checked                                                                     | Separate category confirmation naming the included targets and consequences |
-| Both special category and permanent loss                           | Checked                                                                     | Both confirmations required; neither substitutes for the other              |
-| Unsupported or unresolved cleaning scope                           | Checked if resolved detection; unresolved candidate follows confidence rule | Blocked; confirmation cannot authorize unsupported deletion                 |
+| Selected item                                           | Initial selection                                                           | Additional execution requirement                                            |
+| ------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Resolved known-provider detection                       | Checked                                                                     | Validated scope and normal plan review                                      |
+| Any heuristic candidate, including high until S8 passes | Unchecked, separate section                                                 | Explicit selection plus ownership and supported-scope validation            |
+| Known permanent-data-loss risk                          | Checked                                                                     | Additional explicit confirmation naming affected data and provider/profile  |
+| Windows/Microsoft + developer-tools                     | Checked                                                                     | Separate category confirmation naming the included targets and consequences |
+| Both special category and permanent loss                | Checked                                                                     | Both confirmations required; neither substitutes for the other              |
+| Unsupported or unresolved cleaning scope                | Checked if resolved detection; unresolved candidate follows confidence rule | Blocked; confirmation cannot authorize unsupported deletion                 |
 
 Confirmations attach to the reviewed plan and its exact selected scopes. Changing scopes or effects
 invalidates affected confirmations. Declining a confirmation blocks the affected actions without
