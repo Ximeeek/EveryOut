@@ -11,24 +11,24 @@ fn setup() -> (FixtureFolders, AllowedRoot) {
 
 #[test]
 fn metadata_and_dry_run_then_real_deletion() {
-    let fixture = FixtureFolders::profiles(17).unwrap();
-    let root = fixture.resolve(KnownFolder::LocalAppData).unwrap();
+    let (fixture, root) = setup();
+    fs::create_dir_all(fixture.path().join("żółć space/nested")).unwrap();
+    fs::write(fixture.path().join("żółć space/a"), b"opaque").unwrap();
+    fs::write(fixture.path().join("żółć space/nested/b"), b"fake").unwrap();
     let before = fixture.snapshot().unwrap();
-    let file = root
-        .path("Chromium/User Data/Default/Network/Cookies")
-        .unwrap();
+    let file = root.path("żółć space/a").unwrap();
     assert!(file.exists().unwrap());
     assert!(!file.is_directory().unwrap());
-    assert_eq!(file.size().unwrap(), 64);
+    assert_eq!(file.size().unwrap(), 6);
     assert!(file.modified().unwrap().is_some());
     assert_eq!(
         file.delete_file(true).unwrap().status,
         ActionStatus::WouldApply
     );
     assert!(file.exists().unwrap());
-    let tree = root.path("Chromium/User Data/Default/Network").unwrap();
+    let tree = root.path("żółć space").unwrap();
     assert!(tree.is_directory().unwrap());
-    assert_eq!(tree.size().unwrap(), 88);
+    assert_eq!(tree.size().unwrap(), 10);
     assert_eq!(tree.delete_tree(true).unwrap().objects, 4);
     before.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
     assert_eq!(tree.delete_tree(false).unwrap().objects, 4);
@@ -37,10 +37,10 @@ fn metadata_and_dry_run_then_real_deletion() {
     before.assert_nothing_else_changed(
         &after,
         &[
-            "LocalAppData/Chromium/User Data/Default/Network/",
-            "LocalAppData/Chromium/User Data/Default/Network/Cookies",
-            "LocalAppData/Chromium/User Data/Default/Network/Cookies-wal",
-            "LocalAppData/Chromium/User Data/Default/Network/Cookies-shm",
+            "żółć space/",
+            "żółć space/a",
+            "żółć space/nested/",
+            "żółć space/nested/b",
         ],
     );
     assert_eq!(
