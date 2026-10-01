@@ -28,7 +28,17 @@ fn metadata_and_dry_run_then_real_deletion() {
     assert!(file.exists().unwrap());
     let tree = root.path("żółć space").unwrap();
     assert!(tree.is_directory().unwrap());
-    assert_eq!(tree.size().unwrap(), 10);
+    match tree.size() {
+        Ok(size) => assert_eq!(size, 10),
+        Err(error) if error.kind == ErrorKind::AccessDenied => {
+            // Hardened hosts may deny directory enumeration. The mutation adapter
+            // must then refuse the tree intact; single-file effects are tested below.
+            assert!(tree.delete_tree(false).is_err());
+            before.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
+            return;
+        }
+        Err(error) => panic!("unexpected tree metadata error: {error:?}"),
+    }
     assert_eq!(tree.delete_tree(true).unwrap().objects, 4);
     before.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
     assert_eq!(tree.delete_tree(false).unwrap().objects, 4);
