@@ -78,7 +78,7 @@ Run the same checks used by CI from the repository root before opening a pull re
 ```powershell
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace -- --test-threads=1 --nocapture
+cargo test --workspace
 pnpm install --frozen-lockfile
 pnpm lint
 pnpm typecheck

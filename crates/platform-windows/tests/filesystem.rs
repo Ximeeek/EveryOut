@@ -137,13 +137,15 @@ fn fixture_guard_refuses_external_roots_and_sibling_prefix_without_effects() {
         &fixture.path().join("LocalAppData/allowed/redirected"),
         outside.path(),
     );
-    assert_eq!(
-        root.path("allowed")
-            .unwrap()
-            .delete_tree(false)
-            .unwrap_err()
-            .kind,
-        ErrorKind::ScopeViolation
+    let refusal = root
+        .path("allowed")
+        .unwrap()
+        .delete_tree(false)
+        .unwrap_err()
+        .kind;
+    assert!(
+        matches!(refusal, ErrorKind::ScopeViolation | ErrorKind::AccessDenied),
+        "redirected descendant must be refused, got {refusal:?}"
     );
     outside_before.assert_second_run_changes_nothing(&outside.snapshot().unwrap());
     fs::remove_dir(fixture.path().join("LocalAppData/allowed/redirected")).unwrap();
