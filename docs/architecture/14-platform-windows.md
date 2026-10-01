@@ -1,8 +1,8 @@
 # EveryOut Windows platform foundation
 
-Phase 15 implementation and verification checkpoint, 2026-10-01. This phase is not complete:
-the required real symlink integration case is blocked by the local Windows token's permissions.
-No successful full test suite or completed release/commit is claimed.
+Phase 15 implementation and verification record, 2026-10-01. The phase implementation and its
+required local checks completed successfully. The broader `destructive-root-confinement` review
+remains open; local tests do not establish every Windows version or filesystem/filter-driver case.
 
 ## Capabilities and operations
 
@@ -81,12 +81,10 @@ targets and immutable roots. A deterministic private-adapter test attempts subst
 the target open and before disposition. A handle-lifetime regression checks that released probes
 do not block later directory renames.
 
-The real file-symlink test intentionally fails when Windows cannot create its synthetic link.
-The observed result here is OS error 1314 (`ERROR_PRIVILEGE_NOT_HELD`). This is **not** a passed,
-skipped or non-applicable safety case. Microsoft documents the privilege requirement and
+The first file-symlink run returned OS error 1314 (`ERROR_PRIVILEGE_NOT_HELD`) while creating its
+synthetic link. After the user enabled Windows Developer Mode, the unchanged test passed in the
+same workspace. Microsoft documents the privilege requirement and
 [Developer Mode behavior](https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/).
-Run the unchanged test in an appropriately provisioned Windows environment; do not weaken it
-or change host security settings as an automatic workaround.
 
 ```powershell
 cargo build --workspace
@@ -101,28 +99,26 @@ Development dependencies enable the fixture feature for tests automatically. A n
 
 Observed on Windows 11 Home 10.0.26200, 64-bit:
 
-| Check                                                         | Result                                                            |
-| ------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `cargo build --workspace`                                     | Passed                                                            |
-| `cargo clippy --workspace --all-targets -- -D warnings`       | Passed                                                            |
-| `cargo fmt --all -- --check`                                  | Passed                                                            |
-| `cargo test --workspace --no-fail-fast`                       | 28 passed, 1 failed; symlink fixture creation returned error 1314 |
-| Production-source payload/network API search                  | No prohibited API found; content-denied probe test passed         |
-| Registry integration cases                                    | All 3 passed, including real link refusal and unique-key cleanup  |
-| Frozen frontend install, lint, typecheck, format check, build | Passed                                                            |
-| Phase commit, commit lint and push                            | Not performed: the required full test suite did not pass          |
+| Check                                                         | Result                                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `cargo build --workspace`                                     | Passed                                                                           |
+| `cargo clippy --workspace --all-targets -- -D warnings`       | Passed                                                                           |
+| `cargo fmt --all -- --check`                                  | Passed                                                                           |
+| `cargo test --workspace`                                      | All 29 tests passed, including the symlink case after Developer Mode was enabled |
+| Production-source payload/network API search                  | No prohibited API found; content-denied probe test passed                        |
+| Registry integration cases                                    | All 3 passed, including real link refusal and unique-key cleanup                 |
+| Frozen frontend install, lint, typecheck, format check, build | Passed                                                                           |
+| Phase commit, commit lint and push                            | Passed; commit `0f5cad0` is on `origin/feat/core-foundation`                     |
 
-The test command uses `--no-fail-fast` so the known symlink prerequisite failure does not prevent
-the remaining independent test targets from running. No tests are ignored or filtered. The Git
-working tree intentionally retains the uncommitted implementation for review and continuation;
-the branch and remote still point to the Phase 14 commit.
+No tests are ignored or filtered. The phase commit pushed after the checks is `0f5cad0`; its
+parent is the Phase 14 core-foundation commit.
 
 ## Gate status
 
 `destructive-root-confinement` remains **open**. Local fixture evidence does not establish every
 Windows 10/11 version, filesystem/filter-driver interaction, adversarial alias/identity-reuse
-case, reparse conversion interleaving or registry-link/race case. The real symlink case has
-not run successfully here. No production provider or live profile is approved by these tests.
+case or reparse conversion interleaving. The real symlink case passed on this host after Developer
+Mode was enabled. No production provider or live profile is approved by these tests.
 The separate engine/catalog/VM/harness gates in [10](10-threat-model.md) and
 [11](11-test-strategy.md) remain unchanged. This implementation provides a reviewable bounded
 adapter and local evidence, not a claim that all earlier open decisions have been resolved.
