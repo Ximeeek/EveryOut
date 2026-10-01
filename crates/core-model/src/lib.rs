@@ -44,6 +44,13 @@ vocabulary!(AccountMode {
     AllAccounts
 });
 vocabulary!(ExecutionMode { DryRun, Apply });
+/// Ask never escalates. HardKillAfter2s requires caller review of unsaved-work loss.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProcessClosePolicy {
+    Ask,
+    HardKillAfter2s,
+}
 vocabulary!(Support {
     Candidate,
     Validated

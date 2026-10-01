@@ -8,6 +8,8 @@ mod filesystem;
 #[cfg(windows)]
 mod native;
 #[cfg(windows)]
+pub mod process;
+#[cfg(windows)]
 mod registry;
 #[cfg(windows)]
 mod resolver;

@@ -12,6 +12,24 @@ impl PlatformManifest {
     pub fn load(json: &str) -> std::result::Result<Self, ManifestError> {
         load_manifest(json).map(Self)
     }
+    /// Manifest names identify candidates only; installation ownership and explicit
+    /// selection must be reviewed by the caller before passing targets to closing.
+    /// The current manifest schema declares names, not executable paths. Resolved
+    /// installation paths may additionally narrow this match without schema changes.
+    pub fn match_processes<'a>(
+        &self,
+        inventory: &'a everyout_platform_windows::process::ProcessInventory,
+        image_paths: &[std::path::PathBuf],
+    ) -> Vec<&'a everyout_platform_windows::process::Process> {
+        inventory
+            .processes
+            .iter()
+            .filter(|process| {
+                !self.0.identity.process_names.is_empty()
+                    && process.matches(&self.0.identity.process_names, image_paths)
+            })
+            .collect()
+    }
     pub fn file(
         &self,
         artifact_id: &str,
