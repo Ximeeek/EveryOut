@@ -130,7 +130,9 @@ impl Handle {
         self.info()?;
         let mut result = Vec::new();
         let mut buffer = vec![0u64; 8192];
-        let mut class = FileIdBothDirectoryRestartInfo;
+        // FileFullDirectoryInfo supplies the name and attributes used for safe
+        // relative opens without retrieving unused file IDs or short names.
+        let mut class = FileFullDirectoryRestartInfo;
         loop {
             // SAFETY: aligned, writable 64 KiB buffer; directory handle has only
             // FILE_LIST_DIRECTORY/attributes rights, never file-content rights.
@@ -149,12 +151,12 @@ impl Handle {
                 }
                 return Err(e);
             }
-            class = FileIdBothDirectoryInfo;
+            class = FileFullDirectoryInfo;
             let bytes = buffer.len() * 8;
             let mut offset = 0;
             loop {
-                let name_offset = offset_of!(FILE_ID_BOTH_DIR_INFO, FileName);
-                if offset + size_of::<FILE_ID_BOTH_DIR_INFO>() > bytes {
+                let name_offset = offset_of!(FILE_FULL_DIR_INFO, FileName);
+                if offset + size_of::<FILE_FULL_DIR_INFO>() > bytes {
                     return Err(PlatformError::new(ErrorKind::Io));
                 }
                 // SAFETY: checked structure bounds; Windows supplies NextEntryOffset and
@@ -165,7 +167,7 @@ impl Handle {
                             .as_ptr()
                             .cast::<u8>()
                             .add(offset)
-                            .cast::<FILE_ID_BOTH_DIR_INFO>(),
+                            .cast::<FILE_FULL_DIR_INFO>(),
                     )
                 };
                 let length = entry.FileNameLength as usize;
