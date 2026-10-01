@@ -127,11 +127,13 @@ impl Handle {
         Ok(())
     }
     pub(crate) fn children(&self) -> Result<Vec<(OsString, bool)>> {
+        eprintln!("children: info");
         self.info()?;
         let mut result = Vec::new();
         let mut buffer = vec![0u64; 8192];
         let mut class = FileIdBothDirectoryRestartInfo;
         loop {
+            eprintln!("children: query {class:?}");
             // SAFETY: aligned, writable 64 KiB buffer; directory handle has only
             // FILE_LIST_DIRECTORY/attributes rights, never file-content rights.
             if unsafe {
@@ -149,10 +151,12 @@ impl Handle {
                 }
                 return Err(e);
             }
+            eprintln!("children: query succeeded");
             class = FileIdBothDirectoryInfo;
             let bytes = buffer.len() * 8;
             let mut offset = 0;
             loop {
+                eprintln!("children: parse offset {offset}");
                 let name_offset = offset_of!(FILE_ID_BOTH_DIR_INFO, FileName);
                 if offset + size_of::<FILE_ID_BOTH_DIR_INFO>() > bytes {
                     return Err(PlatformError::new(ErrorKind::Io));
