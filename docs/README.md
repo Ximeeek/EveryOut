@@ -29,8 +29,18 @@ This directory contains project decision records and contributor-facing design d
   confinement, catalog/helper trust boundaries and the AV/EDR false-positive mitigation plan.
 - [Test strategy](architecture/11-test-strategy.md): confined synthetic fixtures, snapshot VMs,
   three test tiers and claim-specific catalog verification/confidence requirements.
+- [Windows VM testing guide](testing/vm-guide.md): disposable test accounts, per-case checkpoints,
+  synthetic harness commands, spike tools, sanitized evidence and restoration.
+- [Synthetic test support](../crates/test-support/README.md): five fake profile layouts,
+  injected fixture roots and metadata-only removal/preservation/idempotence assertions.
 - [Catalog update design](architecture/12-catalog-update-design.md): signed manifest-only bundles,
   embedded trust, anti-rollback, changelog review and offline wipe independence.
+- [Core foundation](architecture/13-core-foundation.md): implemented workspace libraries,
+  provider types, manifest validation and the boundary with future system operations.
+- [Windows platform foundation](architecture/14-platform-windows.md): object-bound filesystem
+  and registry primitives, confined fixture evidence and remaining verification gates.
+- [ADR 0004: Windows bindings](adr/0004-windows-metadata-and-deletion-bindings.md): official
+  metadata/deletion bindings and their operating limits.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.
 - [ADR 0003: Rust command boundary](adr/0003-rust-command-capability-boundary.md): verified Tauri 2
   capabilities/scopes and critical-operation placement.

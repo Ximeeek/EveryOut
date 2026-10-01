@@ -1,0 +1,100 @@
+{
+  "format_version": 1,
+  "id": "fixture-browser",
+  "revision": 1,
+  "name": "Fixture Browser",
+  "category": "browser",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "fixture",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "browser_id": "fixture-browser",
+    "process_names": ["fixture.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "user-data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "store-present",
+        "artifact": "session-store",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "user-data",
+      "base": "local-app-data",
+      "relative": "EveryOutFixtures\\Browser",
+      "scope": "os-user",
+      "owner": "fixture-browser"
+    }
+  ],
+  "profiles": {
+    "root": "user-data",
+    "directory_patterns": ["Default", "Profile *"]
+  },
+  "session_locations": [
+    {
+      "id": "session-store",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Storage\\Session",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-store",
+      "artifact_family": "fixture-session"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-store",
+      "kind": "delete-file-family",
+      "companions": ["-wal", "-shm", "-journal"],
+      "blockers": ["candidate-support"]
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "password-stores",
+      "web-data",
+      "history",
+      "passkeys",
+      "encryption-key-metadata"
+    ]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "browser-identity",
+    "mechanism": "none-validated-for-v1",
+    "evidence": ["fixture-evidence"]
+  },
+  "risks": {
+    "flags": ["unknown"],
+    "affected_data": ["fixture-session"],
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-unknown-effects"],
+    "evidence": ["fixture-evidence"]
+  },
+  "confidence": { "level": "low", "rationale": "synthetic-fixture-only" },
+  "evidence": [
+    {
+      "id": "fixture-evidence",
+      "dossier": "fixture#synthetic-only",
+      "status": "hypothesis-fixture"
+    }
+  ],
+  "limitations": ["synthetic-only", "no-authentication-proof"],
+  "open_spikes": ["fixture-closure"]
+}

@@ -1,7 +1,10 @@
 # Testing destructive operations in EveryOut
 
-Phase 10 strategy, 2026-09-30. This specifies future tests; it adds no fixtures, wipe engine,
-test harness or spike execution. Existing scaffold checks do not validate destructive behavior.
+Phase 10 strategy, 2026-09-30. Phase 17 adds the
+[synthetic profile harness](../../crates/test-support/README.md) and
+[manual VM guide](../testing/vm-guide.md), with guarded Windows adapter tests. The wipe engine,
+provider execution and broader acceptance matrix below remain future work. Passing synthetic
+tests does not establish authentication closure or complete destructive-harness validation.
 
 ## Evidence and invariant oracle
 

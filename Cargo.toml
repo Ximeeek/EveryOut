@@ -1,3 +1,15 @@
 [workspace]
-members = ["src-tauri"]
+members = ["src-tauri", "crates/core-model", "crates/providers", "crates/platform-windows", "crates/test-support"]
+exclude = ["spikes/tree-snapshot", "spikes/identity-probe", "spikes/process-close", "spikes/heuristic-scan"]
 resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+license = "GPL-3.0-or-later"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1.2"
