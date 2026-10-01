@@ -4,7 +4,9 @@ Development-only workspace library, `publish = false`. Production packages must 
 this crate or enable the platform's `test-fixtures` feature. The desktop dependency graph does
 not include it. `cargo build --workspace` builds this lab library too, but does not ship it.
 
-`FixtureTree::empty()` owns a fresh temporary directory. `FixtureTree::profiles(seed)` generates
+`FixtureTree::empty()` owns a fresh temporary directory under GitHub Actions' `RUNNER_TEMP` when
+available, or under the checked-out workspace otherwise. It never adopts the parent as an
+allowed root. `FixtureTree::profiles(seed)` generates
 the layout below, with reproducible opaque bytes and invented `profiles.ini` text. There is no
 existing-root constructor, profile import, environment override, network access or payload reader.
 The seed is reproducibility metadata, not cryptographic randomness. These are fake stores, not

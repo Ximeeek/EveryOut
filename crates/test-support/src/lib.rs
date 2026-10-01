@@ -1,5 +1,9 @@
 //! Test-only synthetic trees. No existing directory or user profile can be adopted.
-use std::{collections::BTreeMap, fs, io, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 const PROFILES_INI: &[u8] =
     b"[Profile0]\nName=synthetic\nIsRelative=1\nPath=Profiles/lab.default\n";
@@ -15,12 +19,16 @@ pub struct Snapshot(pub BTreeMap<String, u64>);
 
 impl FixtureTree {
     pub fn empty() -> io::Result<Self> {
+        // Hosted Windows runners provide an isolated scratch directory. Elsewhere,
+        // use a fresh temporary child under the checked-out workspace.
+        let parent = match std::env::var_os("RUNNER_TEMP") {
+            Some(path) => PathBuf::from(path),
+            None => std::env::current_dir()?,
+        };
         Ok(Self {
-            // Keep fixtures on the checked-out local volume. Some hosted Windows
-            // runners expose TEMP through a redirected/non-NTFS profile location.
             directory: tempfile::Builder::new()
                 .prefix("everyout-fixture-")
-                .tempdir_in(std::env::current_dir()?)?,
+                .tempdir_in(parent)?,
         })
     }
 
