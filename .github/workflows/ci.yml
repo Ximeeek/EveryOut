@@ -21,28 +21,7 @@ jobs:
       - uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7 # v2.9.2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Isolate Windows filesystem cases
-        shell: pwsh
-        run: |
-          $cases = @(
-            'metadata_and_dry_run_then_real_deletion',
-            'generated_profiles_resolve_distinct_folders_and_delete_only_selected_files',
-            'fixture_guard_refuses_external_roots_and_sibling_prefix_without_effects',
-            'metadata_does_not_need_content_read_access_and_lock_is_distinct',
-            'traversal_absolute_sibling_prefix_and_hard_links_are_refused',
-            'junctions_at_root_parent_leaf_and_recursive_child_never_redirect',
-            'symlink_leaf_is_refused_or_creation_is_explicitly_unsupported',
-            'target_and_ancestor_substitution_after_dry_run_are_refused',
-            'root_cannot_be_replaced_during_capability_lifetime',
-            'production_modules_contain_no_payload_or_network_api'
-          )
-          foreach ($case in $cases) {
-            Write-Host "Running isolated filesystem case: $case"
-            cargo test -p everyout-platform-windows --test filesystem $case -- --exact --nocapture
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          cargo test --workspace
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: cargo test --workspace
 
   frontend:
     name: Frontend quality
