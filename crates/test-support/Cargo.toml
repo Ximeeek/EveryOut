@@ -1,0 +1,11 @@
+[package]
+name = "everyout-test-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Synthetic profiles and metadata assertions for EveryOut tests"
+
+[dependencies]
+tempfile = "3"

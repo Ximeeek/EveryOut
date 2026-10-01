@@ -29,6 +29,10 @@ This directory contains project decision records and contributor-facing design d
   confinement, catalog/helper trust boundaries and the AV/EDR false-positive mitigation plan.
 - [Test strategy](architecture/11-test-strategy.md): confined synthetic fixtures, snapshot VMs,
   three test tiers and claim-specific catalog verification/confidence requirements.
+- [Windows VM testing guide](testing/vm-guide.md): disposable test accounts, per-case checkpoints,
+  synthetic harness commands, spike tools, sanitized evidence and restoration.
+- [Synthetic test support](../crates/test-support/README.md): five fake profile layouts,
+  injected fixture roots and metadata-only removal/preservation/idempotence assertions.
 - [Catalog update design](architecture/12-catalog-update-design.md): signed manifest-only bundles,
   embedded trust, anti-rollback, changelog review and offline wipe independence.
 - [Core foundation](architecture/13-core-foundation.md): implemented workspace libraries,

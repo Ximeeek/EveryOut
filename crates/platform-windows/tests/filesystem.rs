@@ -11,32 +11,147 @@ fn setup() -> (FixtureFolders, AllowedRoot) {
 
 #[test]
 fn metadata_and_dry_run_then_real_deletion() {
-    let (fixture, root) = setup();
-    fs::create_dir_all(fixture.path().join("żółć space/nested")).unwrap();
-    fs::write(fixture.path().join("żółć space/a"), b"opaque").unwrap();
-    fs::write(fixture.path().join("żółć space/nested/b"), b"fake").unwrap();
-    let file = root.path("żółć space/a").unwrap();
+    let fixture = FixtureFolders::profiles(17).unwrap();
+    let root = fixture.resolve(KnownFolder::LocalAppData).unwrap();
+    let before = fixture.snapshot().unwrap();
+    let file = root
+        .path("Chromium/User Data/Default/Network/Cookies")
+        .unwrap();
     assert!(file.exists().unwrap());
     assert!(!file.is_directory().unwrap());
-    assert_eq!(file.size().unwrap(), 6);
+    assert_eq!(file.size().unwrap(), 64);
     assert!(file.modified().unwrap().is_some());
     assert_eq!(
         file.delete_file(true).unwrap().status,
         ActionStatus::WouldApply
     );
     assert!(file.exists().unwrap());
-    let tree = root.path("żółć space").unwrap();
+    let tree = root.path("Chromium/User Data/Default/Network").unwrap();
     assert!(tree.is_directory().unwrap());
-    assert_eq!(tree.size().unwrap(), 10);
+    assert_eq!(tree.size().unwrap(), 88);
     assert_eq!(tree.delete_tree(true).unwrap().objects, 4);
-    assert!(fixture.path().join("żółć space/nested/b").exists());
+    before.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
     assert_eq!(tree.delete_tree(false).unwrap().objects, 4);
     assert!(!tree.exists().unwrap());
+    let after = fixture.snapshot().unwrap();
+    before.assert_nothing_else_changed(
+        &after,
+        &[
+            "LocalAppData/Chromium/User Data/Default/Network/",
+            "LocalAppData/Chromium/User Data/Default/Network/Cookies",
+            "LocalAppData/Chromium/User Data/Default/Network/Cookies-wal",
+            "LocalAppData/Chromium/User Data/Default/Network/Cookies-shm",
+        ],
+    );
     assert_eq!(
         tree.delete_tree(false).unwrap().status,
         ActionStatus::AlreadyAbsent
     );
+    after.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
     assert!(!root.path("missing/child").unwrap().exists().unwrap());
+}
+
+#[test]
+fn generated_profiles_resolve_distinct_folders_and_delete_only_selected_files() {
+    let fixture = FixtureFolders::profiles(35).unwrap();
+    let before = fixture.snapshot().unwrap();
+    let mut removed = Vec::new();
+    for (folder, base, path) in [
+        (
+            KnownFolder::LocalAppData,
+            "LocalAppData",
+            "Chromium/User Data/Profile 1/Network/Cookies",
+        ),
+        (
+            KnownFolder::RoamingAppData,
+            "RoamingAppData",
+            "Firefox/Profiles/lab.default/cookies.sqlite",
+        ),
+        (
+            KnownFolder::RoamingAppData,
+            "RoamingAppData",
+            "Electron Lab/Network/Cookies",
+        ),
+        (
+            KnownFolder::LocalAppData,
+            "LocalAppData",
+            "Steam/ssfn0000000001",
+        ),
+        (
+            KnownFolder::LocalAppData,
+            "LocalAppData",
+            "Packages/EveryOutLab_synthetic/LocalState/session",
+        ),
+    ] {
+        let root = fixture.resolve(folder).unwrap();
+        let target = root.path(path).unwrap();
+        assert_eq!(
+            target.delete_file(false).unwrap().status,
+            ActionStatus::Applied
+        );
+        assert_eq!(
+            target.delete_file(false).unwrap().status,
+            ActionStatus::AlreadyAbsent
+        );
+        removed.push(format!("{base}/{path}"));
+    }
+    before.assert_nothing_else_changed(
+        &fixture.snapshot().unwrap(),
+        &removed.iter().map(String::as_str).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
+fn fixture_guard_refuses_external_roots_and_sibling_prefix_without_effects() {
+    let fixture = FixtureFolders::profiles(17).unwrap();
+    let outside = everyout_test_support::FixtureTree::empty().unwrap();
+    fs::write(outside.path().join("canary"), b"untouched").unwrap();
+    let before = fixture.snapshot().unwrap();
+    let outside_before = outside.snapshot().unwrap();
+    let root = fixture.resolve(KnownFolder::LocalAppData).unwrap();
+    for escape in [
+        outside.path().join("canary").to_str().unwrap(),
+        "../outside-allowed/canary",
+        "../LocalAppData-other/canary",
+    ] {
+        assert_eq!(
+            root.path(escape).err().unwrap().kind,
+            ErrorKind::ScopeViolation
+        );
+        assert!(AllowedRoot::from_manifest(&fixture, KnownFolder::LocalAppData, escape).is_err());
+    }
+    fs::create_dir_all(fixture.path().join("LocalAppData/allowed-other")).unwrap();
+    fs::write(
+        fixture.path().join("LocalAppData/allowed-other/canary"),
+        b"synthetic",
+    )
+    .unwrap();
+    fs::create_dir(fixture.path().join("LocalAppData/allowed")).unwrap();
+    let allowed =
+        AllowedRoot::from_manifest(&fixture, KnownFolder::LocalAppData, "allowed").unwrap();
+    assert!(allowed.path("../allowed-other/canary").is_err());
+    drop(allowed);
+    let with_sibling = fixture.snapshot().unwrap();
+    // Exercise the actual recursive deletion boundary with a redirected descendant.
+    junction(
+        &fixture.path().join("LocalAppData/allowed/redirected"),
+        outside.path(),
+    );
+    assert_eq!(
+        root.path("allowed")
+            .unwrap()
+            .delete_tree(false)
+            .unwrap_err()
+            .kind,
+        ErrorKind::ScopeViolation
+    );
+    outside_before.assert_second_run_changes_nothing(&outside.snapshot().unwrap());
+    fs::remove_dir(fixture.path().join("LocalAppData/allowed/redirected")).unwrap();
+    with_sibling.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
+    fs::remove_dir(fixture.path().join("LocalAppData/allowed")).unwrap();
+    fs::remove_file(fixture.path().join("LocalAppData/allowed-other/canary")).unwrap();
+    fs::remove_dir(fixture.path().join("LocalAppData/allowed-other")).unwrap();
+    before.assert_second_run_changes_nothing(&fixture.snapshot().unwrap());
 }
 
 #[test]

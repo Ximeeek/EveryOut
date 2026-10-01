@@ -57,20 +57,37 @@ impl RootResolver for CurrentUserFolders {
 #[cfg(feature = "test-fixtures")]
 pub struct FixtureFolders {
     root: Option<AllowedRoot>,
-    directory: tempfile::TempDir,
+    roaming: Option<AllowedRoot>,
+    directory: everyout_test_support::FixtureTree,
 }
 #[cfg(feature = "test-fixtures")]
 impl FixtureFolders {
     pub fn create() -> Result<Self> {
-        let directory = tempfile::Builder::new()
-            .prefix("everyout-platform-")
-            .tempdir()
+        let directory = everyout_test_support::FixtureTree::empty()
             .map_err(|e| crate::native::error(e.raw_os_error().unwrap_or(1) as u32))?;
         let root = AllowedRoot::absolute(directory.path())?;
         Ok(Self {
+            roaming: Some(root.clone()),
             root: Some(root),
             directory,
         })
+    }
+    /// Generate all synthetic profiles and resolve distinct AppData directories.
+    /// No ambient environment variable or existing directory can grant authority.
+    pub fn profiles(seed: u64) -> Result<Self> {
+        let directory = everyout_test_support::FixtureTree::profiles(seed)
+            .map_err(|e| crate::native::error(e.raw_os_error().unwrap_or(1) as u32))?;
+        let root = AllowedRoot::absolute(&directory.path().join("LocalAppData"))?;
+        let roaming = AllowedRoot::absolute(&directory.path().join("RoamingAppData"))?;
+        Ok(Self {
+            root: Some(root),
+            roaming: Some(roaming),
+            directory,
+        })
+    }
+
+    pub fn snapshot(&self) -> std::io::Result<everyout_test_support::Snapshot> {
+        self.directory.snapshot()
     }
     /// Only for seeding and observing synthetic fixtures outside the adapter.
     pub fn path(&self) -> &std::path::Path {
@@ -79,8 +96,12 @@ impl FixtureFolders {
 }
 #[cfg(feature = "test-fixtures")]
 impl RootResolver for FixtureFolders {
-    fn resolve(&self, _folder: KnownFolder) -> Result<AllowedRoot> {
-        Ok(self.root.as_ref().expect("fixture is alive").clone())
+    fn resolve(&self, folder: KnownFolder) -> Result<AllowedRoot> {
+        let root = match folder {
+            KnownFolder::LocalAppData => &self.root,
+            KnownFolder::RoamingAppData => &self.roaming,
+        };
+        Ok(root.as_ref().expect("fixture is alive").clone())
     }
 }
 #[cfg(feature = "test-fixtures")]
@@ -88,5 +109,6 @@ impl Drop for FixtureFolders {
     fn drop(&mut self) {
         // Release the immutable root before TempDir removes the owned fixture.
         self.root.take();
+        self.roaming.take();
     }
 }

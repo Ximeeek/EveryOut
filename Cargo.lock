@@ -799,6 +799,7 @@ version = "0.1.0"
 dependencies = [
  "everyout-core-model",
  "everyout-platform-windows",
+ "everyout-test-support",
  "tempfile",
  "windows-sys 0.61.2",
 ]
@@ -813,6 +814,13 @@ dependencies = [
  "schemars 1.2.2",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "everyout-test-support"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
 ]
 
 [[package]]
