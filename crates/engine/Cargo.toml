@@ -1,0 +1,15 @@
+[package]
+name = "everyout-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Current-account offline wipe orchestration for EveryOut"
+
+[dependencies]
+everyout-core-model = { path = "../core-model" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+everyout-platform-windows = { path = "../platform-windows", features = ["test-fixtures"] }

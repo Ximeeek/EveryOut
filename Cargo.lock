@@ -794,6 +794,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "everyout-engine"
+version = "0.1.0"
+dependencies = [
+ "everyout-core-model",
+ "everyout-platform-windows",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "everyout-platform-windows"
 version = "0.1.0"
 dependencies = [
