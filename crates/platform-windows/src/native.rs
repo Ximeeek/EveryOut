@@ -12,7 +12,7 @@ use windows_sys::{
         Foundation::OBJECT_ATTRIBUTES,
         Storage::FileSystem::{
             NtCreateFile, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_OPEN,
-            FILE_OPEN_REPARSE_POINT,
+            FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
         },
     },
     Win32::{Foundation::*, Storage::FileSystem::*, System::IO::IO_STATUS_BLOCK},
@@ -127,13 +127,11 @@ impl Handle {
         Ok(())
     }
     pub(crate) fn children(&self) -> Result<Vec<(OsString, bool)>> {
-        eprintln!("children: info");
         self.info()?;
         let mut result = Vec::new();
         let mut buffer = vec![0u64; 8192];
         let mut class = FileIdBothDirectoryRestartInfo;
         loop {
-            eprintln!("children: query {class:?}");
             // SAFETY: aligned, writable 64 KiB buffer; directory handle has only
             // FILE_LIST_DIRECTORY/attributes rights, never file-content rights.
             if unsafe {
@@ -151,12 +149,10 @@ impl Handle {
                 }
                 return Err(e);
             }
-            eprintln!("children: query succeeded");
             class = FileIdBothDirectoryInfo;
             let bytes = buffer.len() * 8;
             let mut offset = 0;
             loop {
-                eprintln!("children: parse offset {offset}");
                 let name_offset = offset_of!(FILE_ID_BOTH_DIR_INFO, FileName);
                 if offset + size_of::<FILE_ID_BOTH_DIR_INFO>() > bytes {
                     return Err(PlatformError::new(ErrorKind::Io));
@@ -239,12 +235,22 @@ pub(crate) fn child(
         ..Default::default()
     };
     let options = FILE_OPEN_REPARSE_POINT
+        | if directory == Some(true) {
+            FILE_SYNCHRONOUS_IO_NONALERT
+        } else {
+            0
+        }
         | match directory {
             Some(true) => FILE_DIRECTORY_FILE,
             Some(false) => FILE_NON_DIRECTORY_FILE,
             None => 0,
         };
     let access = FILE_READ_ATTRIBUTES
+        | if directory == Some(true) {
+            SYNCHRONIZE
+        } else {
+            0
+        }
         | if directory == Some(true) {
             FILE_LIST_DIRECTORY
         } else {
