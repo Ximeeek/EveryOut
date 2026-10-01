@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/core-model", "crates/providers"]
+members = ["src-tauri", "crates/core-model", "crates/providers", "crates/platform-windows"]
 exclude = ["spikes/tree-snapshot", "spikes/identity-probe", "spikes/process-close", "spikes/heuristic-scan"]
 resolver = "2"
 

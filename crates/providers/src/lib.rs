@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 pub mod manifest;
+#[cfg(windows)]
+pub mod platform;
 pub mod validation;
 pub use manifest::*;
 pub use validation::{load_manifest, ManifestError, ManifestErrorKind};
