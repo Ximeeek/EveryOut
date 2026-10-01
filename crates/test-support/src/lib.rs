@@ -16,9 +16,11 @@ pub struct Snapshot(pub BTreeMap<String, u64>);
 impl FixtureTree {
     pub fn empty() -> io::Result<Self> {
         Ok(Self {
+            // Keep fixtures on the checked-out local volume. Some hosted Windows
+            // runners expose TEMP through a redirected/non-NTFS profile location.
             directory: tempfile::Builder::new()
                 .prefix("everyout-fixture-")
-                .tempdir()?,
+                .tempdir_in(std::env::current_dir()?)?,
         })
     }
 

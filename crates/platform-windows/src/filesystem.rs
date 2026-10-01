@@ -390,10 +390,7 @@ mod confinement_tests {
 
     #[test]
     fn forced_substitution_between_open_and_disposition_is_blocked() {
-        let fixture = tempfile::Builder::new()
-            .prefix("everyout-race-")
-            .tempdir()
-            .unwrap();
+        let fixture = everyout_test_support::FixtureTree::empty().unwrap();
         let root = AllowedRoot::absolute(fixture.path()).unwrap();
         fs::create_dir(fixture.path().join("parent")).unwrap();
         fs::write(fixture.path().join("parent/file"), b"synthetic").unwrap();
