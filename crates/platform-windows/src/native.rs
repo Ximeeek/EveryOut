@@ -221,13 +221,23 @@ impl Handle {
 }
 
 /// Open exactly one component relative to an already checked directory object.
-/// A file never receives FILE_READ_DATA; the overlapping directory right is only
+/// Generic file opens never receive FILE_READ_DATA; the directory right is only
 /// requested together with FILE_DIRECTORY_FILE, so type substitution fails closed.
 pub(crate) fn child(
     parent: &Handle,
     name: &OsStr,
     directory: Option<bool>,
     delete: bool,
+) -> Result<Handle> {
+    open_child(parent, name, directory, delete, false)
+}
+
+fn open_child(
+    parent: &Handle,
+    name: &OsStr,
+    directory: Option<bool>,
+    delete: bool,
+    profile_config: bool,
 ) -> Result<Handle> {
     parent.info()?;
     let mut name = wide(name);
@@ -248,7 +258,7 @@ pub(crate) fn child(
         ..Default::default()
     };
     let options = FILE_OPEN_REPARSE_POINT
-        | if directory == Some(true) {
+        | if directory == Some(true) || profile_config {
             FILE_SYNCHRONOUS_IO_NONALERT
         } else {
             0
@@ -259,7 +269,7 @@ pub(crate) fn child(
             None => 0,
         };
     let access = FILE_READ_ATTRIBUTES
-        | if directory == Some(true) {
+        | if directory == Some(true) || profile_config {
             SYNCHRONIZE
         } else {
             0
@@ -269,7 +279,8 @@ pub(crate) fn child(
         } else {
             0
         }
-        | if delete { DELETE } else { 0 };
+        | if delete { DELETE } else { 0 }
+        | if profile_config { FILE_READ_DATA } else { 0 };
     let mut handle = ptr::null_mut();
     let mut io = IO_STATUS_BLOCK::default();
     // SAFETY: parent is alive, the name is a single validated component, the Unicode
@@ -302,4 +313,58 @@ pub(crate) fn child(
     let handle = Handle(handle);
     handle.info()?;
     Ok(handle)
+}
+
+/// Sole content exception: fixed non-secret configuration, bounded and opened
+/// relative to a retained root without write/delete sharing or redirect traversal.
+pub(crate) fn firefox_profiles_ini(parent: &Handle) -> Result<String> {
+    let handle = open_child(parent, OsStr::new("profiles.ini"), Some(false), false, true)?;
+    let info = handle.info()?;
+    if info.size > 64 * 1024 {
+        return Err(PlatformError::new(ErrorKind::ScopeViolation));
+    }
+    let mut bytes = vec![0u8; info.size as usize];
+    let mut offset = 0;
+    while offset < bytes.len() {
+        let mut count = 0;
+        // SAFETY: synchronous fixed config handle and bounded writable buffer.
+        // Session-artifact handles never receive content rights.
+        if unsafe {
+            ReadFile(
+                handle.0,
+                bytes[offset..].as_mut_ptr(),
+                (bytes.len() - offset) as u32,
+                &mut count,
+                ptr::null_mut(),
+            )
+        } == 0
+        {
+            return Err(last_error());
+        }
+        if count == 0 {
+            return Err(PlatformError::new(ErrorKind::StalePlan));
+        }
+        offset += count as usize;
+    }
+    String::from_utf8(bytes).map_err(|_| PlatformError::new(ErrorKind::ScopeViolation))
+}
+
+pub(crate) fn directory_path(handle: &Handle) -> Result<String> {
+    let mut buffer = vec![0u16; 32768];
+    // SAFETY: metadata-only path query for a retained directory capability.
+    let count = unsafe {
+        GetFinalPathNameByHandleW(
+            handle.0,
+            buffer.as_mut_ptr(),
+            buffer.len() as u32,
+            FILE_NAME_NORMALIZED | VOLUME_NAME_DOS,
+        )
+    } as usize;
+    if count == 0 {
+        return Err(last_error());
+    }
+    if count >= buffer.len() {
+        return Err(PlatformError::new(ErrorKind::ScopeViolation));
+    }
+    String::from_utf16(&buffer[..count]).map_err(|_| PlatformError::new(ErrorKind::ScopeViolation))
 }

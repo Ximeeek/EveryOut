@@ -1,0 +1,358 @@
+{
+  "format_version": 1,
+  "id": "firefox",
+  "revision": 1,
+  "name": "Mozilla Firefox",
+  "category": "browser",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "browser_id": "firefox",
+    "process_names": ["firefox.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "user-data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "cookies-present",
+        "artifact": "cookies",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "user-data",
+      "base": "roaming-app-data",
+      "relative": "Mozilla/Firefox",
+      "scope": "os-user",
+      "owner": "firefox"
+    }
+  ],
+  "profiles": {
+    "root": "user-data",
+    "directory_patterns": [],
+    "metadata_adapter": "firefox-profiles-ini",
+    "root_profile": false
+  },
+  "session_locations": [
+    {
+      "id": "cookies",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "cookies.sqlite",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "quota",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "storage.sqlite",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["quota"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "webappsstore",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "webappsstore.sqlite",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "chromeappsstore",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "chromeappsstore.sqlite",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "archive-tmp",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "ls-archive-tmp.sqlite",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["quota"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "storage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["quota"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "indexed-db-legacy",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "indexedDB",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "service-workers",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "serviceworker.txt",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-single-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["workers"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "sessionstore",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "sessionstore.jsonlz4",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-single-file",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "sessionstore-backups",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "sessionstore-backups",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions", "session-cookies"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "kind": "delete-file-family",
+      "companions": ["-wal", "-shm", "-journal"],
+      "blockers": ["unverified-version-closure"],
+      "effects": ["local-session-artifact-removal"]
+    },
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "blockers": [
+        "unverified-version-closure",
+        "extension-origin-isolation-unverified"
+      ],
+      "effects": ["local-origin-data-and-offline-document-loss"],
+      "exclusions": []
+    },
+    {
+      "id": "remove-single-file",
+      "kind": "delete-file-family",
+      "companions": [],
+      "blockers": ["unverified-version-closure"],
+      "effects": ["local-session-artifact-removal"]
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "password-stores",
+      "web-data",
+      "history",
+      "passkeys",
+      "encryption-key-metadata",
+      "browser-identity",
+      "sync-configuration",
+      "vendor-wallet-state",
+      "mixed-extension-state",
+      "container-definitions",
+      "permissions",
+      "autofill"
+    ]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "browser-identity",
+    "mechanism": "none-validated-for-v1",
+    "evidence": ["layout"]
+  },
+  "risks": {
+    "flags": ["unknown", "local-only-documents", "settings-or-profiles"],
+    "affected_data": [
+      "offline-origin-data",
+      "container-partitioned-site-data",
+      "extension-origin-data",
+      "session-restore"
+    ],
+    "permanent_data_loss": "unknown",
+    "reason": "shipping-versions-and-mixed-extension-storage-unverified",
+    "confirmations": ["review-origin-data-loss"],
+    "evidence": ["quota", "extensions"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "upstream-paths-only-shipping-layout-and-closure-unverified",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://support.mozilla.org/en-US/kb/profiles-where-firefox-stores-user-data",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "profiles",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/toolkit/profile/nsToolkitProfileService.cpp",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "quota",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/dom/quota/ActorsParent.cpp",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "workers",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/dom/serviceworkers/ServiceWorkerRegistrar.cpp",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "sessions",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/browser/components/sessionstore/SessionFile.sys.mjs",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "session-cookies",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/browser/components/sessionstore/SessionCookies.sys.mjs",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "extensions",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/toolkit/components/extensions/ExtensionStorage.sys.mjs",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "extensions-idb",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://raw.githubusercontent.com/mozilla-firefox/firefox/main/toolkit/components/extensions/ExtensionStorageIDB.sys.mjs",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "containers",
+      "dossier": "docs/research/01-browsers.md#5-firefox-profiles-containers-and-artifacts",
+      "source": "https://support.mozilla.org/en-US/kb/containers",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    }
+  ],
+  "limitations": [
+    "unverified-shipping-browser-support",
+    "no-authentication-proof",
+    "identity-and-sync-reserved-for-phase-22",
+    "only-profiles-ini-location-fields-are-parsed",
+    "profiles-outside-approved-firefox-root-block-discovery",
+    "local-app-data-cache-roots-uncovered",
+    "logins-key-databases-history-autofill-passkeys-and-container-definitions-preserved",
+    "unknown-extension-data-and-opaque-moz-extension-origins-block-profile-scope",
+    "mixed-extension-sync-databases-preserved-and-block-profile-scope",
+    "extension-id-verification-does-not-prove-isolated-safe-cleanup",
+    "container-cookie-and-origin-partitions-removed-with-whole-reviewed-site-stores",
+    "permissions-and-unclassified-auth-cache-residuals-preserved"
+  ],
+  "open_spikes": ["S4", "extension-preservation-boundary"],
+  "extensions": {
+    "stores": ["browser-extension-data"],
+    "unknown": "block",
+    "known": [
+      {
+        "id": "{446900e4-71c2-419f-a6a7-df9c091e268b}",
+        "name": "Bitwarden Password Manager",
+        "flag": "vault-or-2fa-recovery",
+        "source": "https://raw.githubusercontent.com/bitwarden/clients/main/apps/browser/src/manifest.json",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      },
+      {
+        "id": "authenticator@mymindstorm",
+        "name": "Authenticator",
+        "flag": "vault-or-2fa-recovery",
+        "source": "https://raw.githubusercontent.com/Authenticator-Extension/Authenticator/dev/manifests/manifest-firefox.json",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      },
+      {
+        "id": "webextension@metamask.io",
+        "name": "MetaMask",
+        "flag": "wallet-or-key-material",
+        "source": "https://raw.githubusercontent.com/MetaMask/metamask-extension/main/app/manifest/v2/firefox.json",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      }
+    ]
+  }
+}

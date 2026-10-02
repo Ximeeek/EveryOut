@@ -175,3 +175,13 @@ The [central register](00-overview.md#open-decisions) names `browser-artifact-cl
 `app-session-scope`, `metadata-discovery-allowlist` and `extension-preservation-boundary`.
 Until resolved, candidate manifests and unresolved operations remain non-executable. Catalog
 distribution, updates and imported-dataset licensing adoption are reserved for Phase 10.
+
+## Phase 21 Firefox configuration adapter
+
+The implemented JSON schema permits `profiles.metadata_adapter`. The sole reviewed content
+exception is `firefox-profiles-ini`, restricted to the Firefox current-user Roaming AppData
+`Mozilla/Firefox` root. It parses only profile Path/IsRelative fields, with no directory-pattern
+fallback or broader filesystem authority. Other configuration reads remain prohibited. See the
+[Firefox provider contract and content-read audit](19-firefox-provider.md) for bounds, preservation,
+extension-store blockers and fixture evidence. This discovery decision does not resolve S4's
+shipping-version logout, identity or Sync questions.

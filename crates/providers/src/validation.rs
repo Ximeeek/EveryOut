@@ -195,14 +195,30 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
             }
         }
     }
+    if m.profiles
+        .as_ref()
+        .is_some_and(|p| p.metadata_adapter.as_deref() == Some(crate::firefox::ADAPTER))
+        && (m.roots.len() != 1
+            || !matches!(&m.roots[0],
+            Root::RoamingAppData { relative, .. } if relative.replace('\\', "/") == "Mozilla/Firefox"))
+    {
+        return Err(invalid("invalid-firefox-config-root"));
+    }
     if let Some(profiles) = &m.profiles {
         if !roots.contains(profiles.root.as_str())
-            || profiles.directory_patterns.is_empty()
+            || (profiles.directory_patterns.is_empty()
+                && profiles.metadata_adapter.as_deref() != Some(crate::firefox::ADAPTER))
             || profiles
                 .directory_patterns
                 .iter()
                 .any(|p| !profile_pattern(p))
-            || profiles.metadata_adapter.is_some()
+            || profiles.metadata_adapter.as_ref().is_some_and(|adapter| {
+                adapter != crate::firefox::ADAPTER
+                    || m.id != "firefox"
+                    || m.category != Category::Browser
+                    || !profiles.directory_patterns.is_empty()
+                    || profiles.root_profile == Some(true)
+            })
             || m.roots
                 .iter()
                 .any(|r| r.id() == profiles.root && matches!(r, Root::Registry { .. }))
@@ -334,29 +350,35 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
             || policy.unknown != "block"
             || policy.stores.is_empty()
             || policy.stores.iter().any(|p| {
-                !matches!(
-                    p.as_str(),
-                    "Local Extension Settings"
-                        | "Sync Extension Settings"
-                        | "Local App Settings"
-                        | "Sync App Settings"
-                )
+                if m.id == "firefox" {
+                    p != "browser-extension-data"
+                } else {
+                    !matches!(
+                        p.as_str(),
+                        "Local Extension Settings"
+                            | "Sync Extension Settings"
+                            | "Local App Settings"
+                            | "Sync App Settings"
+                    )
+                }
             })
         {
             return Err(invalid("invalid-extension-policy"));
         }
         let mut seen = HashSet::new();
         for entry in &policy.known {
-            if entry.id.len() != 32
-                || !entry.id.bytes().all(|b| (b'a'..=b'p').contains(&b))
-                || !seen.insert(&entry.id)
+            if (if m.id == "firefox" {
+                !crate::firefox::extension_id(&entry.id) || !relative_path(&entry.id)
+            } else {
+                entry.id.len() != 32 || !entry.id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+            }) || !seen.insert(&entry.id)
                 || entry.name.trim().is_empty()
                 || !matches!(
                     entry.flag,
                     RiskFlag::WalletOrKeyMaterial | RiskFlag::VaultOr2faRecovery
                 )
                 || !entry.source.starts_with("https://")
-                || !entry.source.contains(&entry.id)
+                || (m.id != "firefox" && !entry.source.contains(&entry.id))
                 || entry.accessed.is_empty()
                 || !matches!(entry.confidence.as_str(), "verified" | "unverified")
             {

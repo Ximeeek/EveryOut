@@ -1,4 +1,4 @@
-//! Metadata-only declarative execution. Shipping browser rules remain unverified
+//! Declarative execution with a fixed profiles.ini exception. Shipping rules remain unverified
 //! candidates until versioned VM evidence resolves S1-S4 and extension isolation.
 use crate::{load_manifest, CleaningMethod, Manifest, Root};
 use everyout_core_model::*;
@@ -112,6 +112,7 @@ struct Binding {
     root: AllowedRoot,
     profile_names: Vec<String>,
     extension_scopes: Vec<ExtensionScope>,
+    origin_scopes: Vec<(String, Vec<(String, bool)>)>,
 }
 struct ExtensionScope {
     path: Rc<SafePath>,
@@ -199,27 +200,9 @@ impl<'a> ManifestExecutor<'a> {
             issues: vec![],
         };
         let mut profiles = Vec::new();
-        let mut issues = Vec::new();
+        let issues = Vec::new();
         if let Some(p) = &m.profiles {
-            let (children, omitted) = root.discovery_children().map_err(|e| e.kind)?;
-            if omitted {
-                issues.push(self.issue(Phase::Detect, ErrorKind::ScopeViolation, true));
-            }
-            if p.root_profile == Some(true) {
-                profiles.push(String::new());
-            }
-            for (name, directory) in children {
-                if directory
-                    && p.directory_patterns
-                        .iter()
-                        .any(|pattern| profile_matches(pattern, &name))
-                {
-                    profiles.push(name);
-                }
-            }
-            if profiles.len() > 100 {
-                return Err(ErrorKind::ScopeViolation);
-            }
+            profiles = self.discover_profiles(&root, p)?;
         } else {
             profiles.push(String::new());
         }
@@ -231,6 +214,7 @@ impl<'a> ManifestExecutor<'a> {
             root: root.clone(),
             profile_names: profiles.clone(),
             extension_scopes: vec![],
+            origin_scopes: vec![],
         };
         for (index, profile) in profiles.iter().enumerate() {
             let profile_id = ProfileId(format!("{}-profile-{index}", m.id));
@@ -269,7 +253,7 @@ impl<'a> ManifestExecutor<'a> {
                     .as_ref()
                     .is_some_and(|f| m.preserve.artifact_families.contains(f))
                     || (m.category == Category::Browser
-                        && !browser_target(&artifact.relative, artifact.kind))
+                        && !browser_target(&m.id, &artifact.relative, artifact.kind))
                 {
                     blockers.push("preservation-conflict".into());
                 }
@@ -306,6 +290,52 @@ impl<'a> ManifestExecutor<'a> {
                         &blockers,
                         artifact.artifact_family.as_deref(),
                     )?;
+                }
+            }
+            if m.id == "firefox" {
+                // UUID origins and sync databases cannot be mapped to extension IDs
+                // without prohibited prefs/extension payload reads. Block, never guess.
+                for store in ["storage/default", "storage/temporary", "storage/permanent"] {
+                    let path = format!("{profile}/{store}");
+                    let children = self.origin_children(&root, &path)?;
+                    if children
+                        .iter()
+                        .any(|(name, _)| name.starts_with("moz-extension"))
+                    {
+                        binding
+                            .issues
+                            .push(self.issue(Phase::Plan, ErrorKind::Unsupported, true));
+                        if !binding.risks.flags.contains(&RiskFlag::Unknown) {
+                            binding.risks.flags.push(RiskFlag::Unknown);
+                        }
+                        binding.risks.permanent_data_loss = LossAssessment::Unknown;
+                    }
+                    binding.origin_scopes.push((path, children));
+                }
+                for store in ["storage-sync-v2.sqlite", "storage-sync.sqlite"] {
+                    for suffix in ["", "-wal", "-shm", "-journal"] {
+                        let path = root
+                            .path(&format!("{profile}/{store}{suffix}"))
+                            .map_err(|e| e.kind)?;
+                        if path.probe_shallow().map_err(|e| e.kind)?.exists {
+                            if !binding.risks.flags.contains(&RiskFlag::Unknown) {
+                                binding.risks.flags.push(RiskFlag::Unknown);
+                            }
+                            binding.risks.permanent_data_loss = LossAssessment::Unknown;
+                            binding.issues.push(self.issue(
+                                Phase::Plan,
+                                ErrorKind::Unsupported,
+                                true,
+                            ));
+                        }
+                        // These mixed stores are preserved; appearance after review
+                        // invalidates the plan just like a newly added extension store.
+                        binding.extension_scopes.push(ExtensionScope {
+                            path: Rc::new(path),
+                            root: None,
+                            children: vec![],
+                        });
+                    }
                 }
             }
             if let Some(policy) = &m.extensions {
@@ -474,32 +504,74 @@ impl<'a> ManifestExecutor<'a> {
                 .iter()
                 .all(|a| binding.targets.iter().any(|t| &t.action == a))
     }
+    fn discover_profiles(
+        &self,
+        root: &AllowedRoot,
+        profiles: &crate::Profiles,
+    ) -> Result<Vec<String>, ErrorKind> {
+        if profiles.metadata_adapter.as_deref() == Some(crate::firefox::ADAPTER) {
+            return crate::firefox::discover(root);
+        }
+        let (children, omitted) = root.discovery_children().map_err(|e| e.kind)?;
+        if omitted {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        let mut names = Vec::new();
+        if profiles.root_profile == Some(true) {
+            names.push(String::new());
+        }
+        names.extend(
+            children
+                .into_iter()
+                .filter(|(name, directory)| {
+                    *directory
+                        && profiles
+                            .directory_patterns
+                            .iter()
+                            .any(|p| profile_matches(p, name))
+                })
+                .map(|(name, _)| name),
+        );
+        if names.len() > 100 {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        Ok(names)
+    }
+    fn origin_children(
+        &self,
+        root: &AllowedRoot,
+        path: &str,
+    ) -> Result<Vec<(String, bool)>, ErrorKind> {
+        if !root
+            .path(path)
+            .map_err(|e| e.kind)?
+            .probe_shallow()
+            .map_err(|e| e.kind)?
+            .exists
+        {
+            return Ok(vec![]);
+        }
+        let (base, relative) = self.base();
+        let scope = AllowedRoot::from_manifest(self.resolver, base, &format!("{relative}/{path}"))
+            .map_err(|e| e.kind)?;
+        let (children, omitted) = scope.discovery_children().map_err(|e| e.kind)?;
+        if omitted {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        Ok(children)
+    }
     fn revalidate_scope(&self) -> Result<(), ErrorKind> {
         self.processes.revalidate()?;
         let binding = self.binding.borrow();
         let binding = binding.as_ref().ok_or(ErrorKind::StalePlan)?;
         if let Some(profiles) = &self.manifest.profiles {
-            let (children, omitted) = binding.root.discovery_children().map_err(|e| e.kind)?;
-            if omitted {
-                return Err(ErrorKind::ScopeViolation);
+            if self.discover_profiles(&binding.root, profiles)? != binding.profile_names {
+                return Err(ErrorKind::StalePlan);
             }
-            let mut names = Vec::new();
-            if profiles.root_profile == Some(true) {
-                names.push(String::new());
-            }
-            names.extend(
-                children
-                    .into_iter()
-                    .filter(|(name, directory)| {
-                        *directory
-                            && profiles
-                                .directory_patterns
-                                .iter()
-                                .any(|p| profile_matches(p, name))
-                    })
-                    .map(|(name, _)| name),
-            );
-            if names != binding.profile_names {
+        }
+        for (path, expected) in &binding.origin_scopes {
+            let children = self.origin_children(&binding.root, path)?;
+            if children.iter().any(|entry| !expected.contains(entry)) {
                 return Err(ErrorKind::StalePlan);
             }
         }
@@ -539,7 +611,26 @@ fn profile_matches(pattern: &str, name: &str) -> bool {
         None => name == pattern,
     }
 }
-fn browser_target(path: &str, kind: ArtifactKind) -> bool {
+fn browser_target(browser: &str, path: &str, kind: ArtifactKind) -> bool {
+    if browser == "firefox" {
+        return match kind {
+            ArtifactKind::File => matches!(
+                path.replace('\\', "/").as_str(),
+                "cookies.sqlite"
+                    | "storage.sqlite"
+                    | "webappsstore.sqlite"
+                    | "chromeappsstore.sqlite"
+                    | "ls-archive-tmp.sqlite"
+                    | "serviceworker.txt"
+                    | "sessionstore.jsonlz4"
+            ),
+            ArtifactKind::Directory => matches!(
+                path.replace('\\', "/").as_str(),
+                "storage" | "indexedDB" | "sessionstore-backups"
+            ),
+            _ => false,
+        };
+    }
     let path = path.replace('\\', "/");
     match kind {
         ArtifactKind::File => matches!(

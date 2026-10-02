@@ -46,6 +46,8 @@ This directory contains project decision records and contributor-facing design d
   overlaps and unchecked heuristic selection until S8 passes.
 - [Chromium providers](architecture/18-chromium-providers.md): declarative execution, five candidate
   browser manifests, extension loss gates, fixture verification and unverified shipping coverage.
+- [Firefox provider](architecture/19-firefox-provider.md): bounded profiles.ini path discovery,
+  Gecko artifacts, extension risk gates, preservation fixtures and unverified S4 coverage.
 - [ADR 0004: Windows bindings](adr/0004-windows-metadata-and-deletion-bindings.md): official
   metadata/deletion bindings and their operating limits.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.

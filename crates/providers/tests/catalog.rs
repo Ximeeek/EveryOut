@@ -19,7 +19,10 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
                     assert!(!entry.evidence.unwrap().is_empty());
                 }
                 for risk in m.extensions.unwrap().known {
-                    assert!(risk.source.contains(&risk.id));
+                    assert!(risk.source.starts_with("https://"));
+                    if m.id != "firefox" {
+                        assert!(risk.source.contains(&risk.id));
+                    }
                     assert!(matches!(
                         risk.confidence.as_str(),
                         "verified" | "unverified"
@@ -35,7 +38,7 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
             .as_path(),
         &mut count,
     );
-    assert_eq!(count, 5);
+    assert_eq!(count, 6);
 }
 
 #[test]
@@ -68,4 +71,42 @@ fn extension_policy_rejects_escapes_unknown_waivers_and_invalid_ids() {
         *m.pointer_mut(pointer).unwrap() = replacement;
         assert!(load_manifest(&m.to_string()).is_err(), "{pointer}");
     }
+}
+
+#[test]
+fn firefox_adapter_and_extension_policy_are_vendor_scoped() {
+    let initial: serde_json::Value =
+        serde_json::from_str(include_str!("../../../catalog/browsers/firefox.json")).unwrap();
+    for (pointer, replacement) in [
+        (
+            "/profiles/metadata_adapter",
+            serde_json::json!("arbitrary-reader"),
+        ),
+        (
+            "/profiles/directory_patterns",
+            serde_json::json!(["Profile *"]),
+        ),
+        ("/profiles/root_profile", serde_json::json!(true)),
+        ("/roots/0/relative", serde_json::json!("Other/Firefox")),
+        ("/roots/0/base", serde_json::json!("local-app-data")),
+        (
+            "/extensions/stores/0",
+            serde_json::json!("Local Extension Settings"),
+        ),
+        (
+            "/extensions/known/0/id",
+            serde_json::json!("../outside@fixture"),
+        ),
+        ("/extensions/known/0/id", serde_json::json!("{bad-guid}")),
+        ("/extensions/unknown", serde_json::json!("delete")),
+    ] {
+        let mut m = initial.clone();
+        *m.pointer_mut(pointer).unwrap() = replacement;
+        assert!(load_manifest(&m.to_string()).is_err(), "{pointer}");
+    }
+    let mut chrome: serde_json::Value =
+        serde_json::from_str(include_str!("../../../catalog/browsers/chrome.json")).unwrap();
+    chrome["profiles"]["directory_patterns"] = serde_json::json!([]);
+    chrome["profiles"]["metadata_adapter"] = serde_json::json!("firefox-profiles-ini");
+    assert!(load_manifest(&chrome.to_string()).is_err());
 }

@@ -352,11 +352,26 @@ fn root_cannot_be_replaced_during_capability_lifetime() {
 }
 
 #[test]
-fn production_modules_contain_no_payload_or_network_api() {
+fn production_modules_allow_only_fixed_profile_config_and_no_network_api() {
+    let native = include_str!("../src/native.rs");
+    let (before, reader_and_after) = native
+        .split_once("pub(crate) fn firefox_profiles_ini(")
+        .unwrap();
+    let (reader, after) = reader_and_after
+        .split_once("pub(crate) fn directory_path(")
+        .unwrap();
+    assert_eq!(reader.matches("ReadFile(").count(), 1);
+    assert!(reader.contains("OsStr::new(\"profiles.ini\")"));
+    assert!(reader.contains("Some(false), false, true"));
+    assert!(reader.contains("64 * 1024"));
+    assert_eq!(before.matches("open_child(").count(), 2);
+    assert!(before.contains("open_child(parent, name, directory, delete, false)"));
+    assert!(!before.contains("false, true)"));
+    let without_reader = format!("{before}{after}");
     for source in [
         include_str!("../src/lib.rs"),
         include_str!("../src/filesystem.rs"),
-        include_str!("../src/native.rs"),
+        without_reader.as_str(),
         include_str!("../src/registry.rs"),
         include_str!("../src/resolver.rs"),
     ] {
@@ -375,7 +390,8 @@ fn production_modules_contain_no_payload_or_network_api() {
             "Command::",
         ] {
             assert!(
-                !source.contains(forbidden),
+                !source.contains(forbidden)
+                    && (forbidden == "ReadFile(" || !reader.contains(forbidden)),
                 "production source contains {forbidden}"
             );
         }
