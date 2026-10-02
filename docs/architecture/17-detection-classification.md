@@ -7,7 +7,10 @@ fresh Phase 17 fixture roots and synthetic inventory; none calls the live OS inv
 
 ## Phase 19 scope clarification
 
-Resolved known-provider detections are selected regardless of catalog support or confidence.
+Phase 25 leaves low-confidence application candidates unchecked in both scanner and engine,
+including known-provider detections. Typed unresolved desktop roots are reported as incomplete
+coverage without filesystem probing. Other resolved known-provider detections retain the
+Phase 19 selection policy.
 Selection expresses intent; unsupported scope and all existing engine review gates still block
 execution. All heuristic results, including high confidence, remain in a separate unchecked
 candidate group until S8 passes. The weights 4/2/2/3 and high/medium/low gates are unverified

@@ -1,0 +1,255 @@
+{
+  "format_version": 1,
+  "id": "steam",
+  "revision": 1,
+  "name": "Steam",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "steam",
+    "package_id": null,
+    "process_names": ["steam.exe", "steamwebhelper.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "install",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "login-users",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "install",
+      "base": "reviewed-installation",
+      "scope": "os-user",
+      "owner": "steam",
+      "relative": "Steam"
+    },
+    {
+      "id": "registry",
+      "base": "registry",
+      "scope": "os-user",
+      "owner": "steam",
+      "hive": "current-user",
+      "key": "Software/Valve/Steam"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "login-users",
+      "root": "install",
+      "scope": "os-user",
+      "relative": "config/loginusers.vdf",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-file",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "client-config",
+      "root": "install",
+      "scope": "os-user",
+      "relative": "config/config.vdf",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-file",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "steam-guard-files",
+      "root": "install",
+      "scope": "os-user",
+      "relative": "ssfn",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-steam-guard",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified",
+      "name_prefix": "ssfn"
+    },
+    {
+      "id": "auto-login-user",
+      "root": "registry",
+      "scope": "os-user",
+      "relative": "AutoLoginUser",
+      "kind": "registry-value",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-value",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "remember-password",
+      "root": "registry",
+      "scope": "os-user",
+      "relative": "RememberPassword",
+      "kind": "registry-value",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-value",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-file-family",
+      "companions": []
+    },
+    {
+      "id": "remove-steam-guard",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "exception-adapter",
+      "adapter_id": "steam-ssfn-files"
+    },
+    {
+      "id": "remove-value",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-registry-target"
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "game-installations",
+      "game-saves",
+      "password-stores",
+      "encryption-key-metadata",
+      "unlisted-client-data"
+    ]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-client-sign-out-no-reviewed-offline-secret-free-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": [
+      "settings-or-profiles",
+      "vault-or-2fa-recovery",
+      "shared-store",
+      "unknown"
+    ],
+    "affected_data": [
+      "remembered accounts",
+      "Steam Guard machine trust",
+      "offline availability may require online reauthentication",
+      "non-synced client configuration"
+    ],
+    "reason": "mixed stores and authentication closure require version-specific evidence",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-steam-login-trust-settings-offline-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "source paths do not establish exclusive ownership or complete logout; no shipping-version VM validation",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-gaming.md#steam",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/wiki/Platform-Steam",
+      "accessed": "2026-10-02",
+      "status": "verified-source-layout-only-unverified-product-session-closure"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-gaming.md#steam",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/wiki/Platform-Steam",
+      "accessed": "2026-10-02",
+      "status": "verified-manual-logout-only-no-reviewed-secret-free-cli"
+    },
+    {
+      "id": "context-1",
+      "dossier": "docs/catalog/apps-gaming.md#steam",
+      "source": "https://help.steampowered.com/en/faqs/view/0E18-319B-E34B-B2C8",
+      "accessed": "2026-10-02",
+      "status": "source-context-only-unverified-cleaning-effects"
+    },
+    {
+      "id": "context-2",
+      "dossier": "docs/catalog/apps-gaming.md#steam",
+      "source": "https://help.steampowered.com/en/faqs/view/4C93-64EF-517B-3329",
+      "accessed": "2026-10-02",
+      "status": "source-context-only-unverified-cleaning-effects"
+    }
+  ],
+  "sources": [
+    "https://github.com/TCNOco/TcNo-Acc-Switcher/wiki/Platform-Steam",
+    "https://help.steampowered.com/en/faqs/view/0E18-319B-E34B-B2C8",
+    "https://help.steampowered.com/en/faqs/view/4C93-64EF-517B-3329"
+  ],
+  "limitations": [
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "unknown-scriptable-official-logout",
+    "no-network-no-secret-content-reads",
+    "fixture-results-do-not-verify-product-logout",
+    "installation-slot-is-not-an-appdata-path",
+    "installation-ownership-discovery-blocked",
+    "steam-guard-effects-depend-on-client-version"
+  ],
+  "open_spikes": [
+    "gaming-session-closure",
+    "catalog-verification-matrix",
+    "steam-installation-ownership"
+  ],
+  "application": "gaming-launcher",
+  "extensions": null
+}

@@ -54,6 +54,27 @@ fn seed(root: &std::path::Path, relative: &str, bytes: usize) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, vec![17; bytes]).unwrap();
 }
+
+#[test]
+fn steam_installation_research_slot_never_probes_an_appdata_lookalike() {
+    let fixture = FixtureFolders::create().unwrap();
+    seed(fixture.path(), "Steam/config/loginusers.vdf", 64);
+    seed(fixture.path(), "Steam/ssfn123", 64);
+    let input = include_str!("../../../catalog/apps/gaming/steam.json");
+    let manifest = ReviewedManifest::load(input).unwrap();
+    let before = fixture.snapshot().unwrap();
+    let report = scan(
+        &fixture,
+        &InstalledInventory::default(),
+        &[manifest],
+        &|| false,
+    );
+    assert!(report.known.is_empty());
+    assert!(report
+        .coverage
+        .contains(&"steam-installation-scope-unavailable".into()));
+    assert_eq!(before, fixture.snapshot().unwrap());
+}
 #[test]
 fn phase_seventeen_known_fixtures_are_detected_and_selected_without_payload_reads() {
     let fixture = FixtureFolders::profiles(19).unwrap();

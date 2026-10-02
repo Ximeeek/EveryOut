@@ -1,0 +1,128 @@
+{
+  "format_version": 1,
+  "id": "nordvpn",
+  "revision": 1,
+  "name": "NordVPN",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "nordvpn",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "unresolved",
+      "scope": "os-user",
+      "owner": "nordvpn"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "unresolved",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "unresolved-method",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "unresolved-method",
+      "kind": "exception-adapter",
+      "adapter_id": "unresolved-session-scope",
+      "blockers": ["unknown-data-location", "no-reviewed-adapter"],
+      "effects": ["no-authorized-mutation"]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "local-app",
+    "mechanism": "unknown-no-reviewed-offline-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "Potential preferences, profiles and cached authentication; exact loss unknown"
+    ],
+    "reason": "Official Reset app guidance is not a reviewed offline logout API. Exact session store and scriptable logout unknown. Shared service ownership unresolved; no drivers, service state or network reset touched.",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-nordvpn-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#nordvpn",
+      "source": "https://support.nordvpn.com/hc/en-us/articles/37815095197969-I-keep-getting-logged-out-on-Windows",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#nordvpn",
+      "source": "https://support.nordvpn.com/hc/en-us/articles/19472023025169-How-to-install-and-use-the-NordVPN-app-on-Windows",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://support.nordvpn.com/hc/en-us/articles/37815095197969-I-keep-getting-logged-out-on-Windows",
+    "https://support.nordvpn.com/hc/en-us/articles/19472023025169-How-to-install-and-use-the-NordVPN-app-on-Windows"
+  ],
+  "limitations": [
+    "Official Reset app guidance is not a reviewed offline logout API. Exact session store and scriptable logout unknown. Shared service ownership unresolved; no drivers, service state or network reset touched.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": [
+    "desktop-session-closure",
+    "catalog-verification-matrix",
+    "desktop-session-location"
+  ],
+  "application": "desktop-client",
+  "extensions": null
+}

@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "id": "telegram-desktop",
+  "revision": 1,
+  "name": "Telegram Desktop",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "telegram-desktop",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "roaming-app-data",
+      "relative": "Telegram Desktop",
+      "scope": "os-user",
+      "owner": "telegram-desktop"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "tdata",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "exclusions": [],
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation"
+      ],
+      "effects": [
+        "Local cache, settings and device authorization; cloud messages retained; unsynced data effects unknown"
+      ]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-vendor-sign-out-no-reviewed-offline-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "Local cache, settings and device authorization; cloud messages retained; unsynced data effects unknown"
+    ],
+    "reason": "tdata under standard desktop root is an unverified Windows session scope; portable/custom workdir and Store builds excluded. Telegram Desktop does not provide Secret Chats.",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-telegram-desktop-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#telegram-desktop",
+      "source": "https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/platform/win/specific_win.cpp",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#telegram-desktop",
+      "source": "https://telegram.org/faq",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/platform/win/specific_win.cpp",
+    "https://telegram.org/faq"
+  ],
+  "limitations": [
+    "tdata under standard desktop root is an unverified Windows session scope; portable/custom workdir and Store builds excluded. Telegram Desktop does not provide Secret Chats.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "application": "desktop-client",
+  "extensions": null
+}

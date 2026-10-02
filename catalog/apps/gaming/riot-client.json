@@ -1,0 +1,157 @@
+{
+  "format_version": 1,
+  "id": "riot-client",
+  "revision": 1,
+  "name": "Riot Client",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "riot-client",
+    "package_id": null,
+    "process_names": [
+      "RiotClientServices.exe",
+      "RiotClientUx.exe",
+      "RiotClientUxRender.exe"
+    ]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "cookies",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "local-app-data",
+      "scope": "os-user",
+      "owner": "riot-client",
+      "relative": "Riot Games/Riot Client"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "cookies",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Data/Cookies",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "sessions",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Data/Sessions",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-directory-family",
+      "exclusions": []
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "game-installations",
+      "game-saves",
+      "password-stores",
+      "encryption-key-metadata",
+      "unlisted-client-data"
+    ]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "local-app",
+    "mechanism": "manual-client-sign-out-no-reviewed-offline-secret-free-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "remembered authentication and cookie preferences",
+      "other session data and offline effects unknown"
+    ],
+    "reason": "mixed stores and authentication closure require version-specific evidence",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-gaming-settings-offline-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "source paths do not establish exclusive ownership or complete logout; no shipping-version VM validation",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-gaming.md#riot-client",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+      "accessed": "2026-10-02",
+      "status": "verified-source-layout-only-unverified-product-session-closure"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-gaming.md#riot-client",
+      "source": "https://support-leagueoflegends.riotgames.com/hc/en-us/articles/360042286854-Unexpected-Error-With-Login-Session-How-to-Fix",
+      "accessed": "2026-10-02",
+      "status": "unverified-manual-logout"
+    }
+  ],
+  "sources": [
+    "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+    "https://support-leagueoflegends.riotgames.com/hc/en-us/articles/360042286854-Unexpected-Error-With-Login-Session-How-to-Fix"
+  ],
+  "limitations": [
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "unknown-scriptable-official-logout",
+    "no-network-no-secret-content-reads",
+    "fixture-results-do-not-verify-product-logout",
+    "private-settings-and-client-config-preserved",
+    "no-vanguard-processes-services-or-files-touched"
+  ],
+  "open_spikes": ["gaming-session-closure", "catalog-verification-matrix"],
+  "application": "gaming-launcher",
+  "extensions": null
+}

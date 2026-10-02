@@ -1,0 +1,123 @@
+{
+  "format_version": 1,
+  "id": "gcloud",
+  "revision": 1,
+  "name": "Google Cloud CLI",
+  "category": "windows-microsoft-and-dev-tools",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "research",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "gcloud",
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "scope-unresolved",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "unresolved",
+      "scope": "os-user",
+      "owner": "gcloud"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "unresolved-session",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "unresolved",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "developer-tool",
+      "method": "blocked-windows-dev",
+      "artifact_family": "unresolved-windows-dev",
+      "evidence": ["research", "vendor"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "blocked-windows-dev",
+      "kind": "exception-adapter",
+      "adapter_id": "unresolved-windows-dev-scope",
+      "blockers": [
+        "remote-revocation-prohibited-in-v1",
+        "no-reviewed-offline-adapter"
+      ],
+      "effects": ["no-authorized-mutation"]
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "windows-sign-in",
+      "wam-prt-device-registration",
+      "password-stores",
+      "passkeys",
+      "key-material",
+      "unlisted-settings"
+    ],
+    "shared_dependencies": ["windows-sign-in"]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "local-app",
+    "mechanism": "manual-vendor-action-only-no-reviewed-v1-adapter",
+    "evidence": ["vendor"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "Local credentials, named configurations, project/account defaults and preferences on broad deletion"
+    ],
+    "reason": "No reviewed offline operation with proven ownership and preservation.",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-windows-dev-category"],
+    "evidence": ["research", "vendor"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "Dossier and primary-source context do not validate a shipping-version offline cleanup contract.",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "research",
+      "dossier": "docs/research/02-windows-identity-and-multi-account.md#4-developer-tool-credentials",
+      "status": "research-context-not-execution-authority"
+    },
+    {
+      "id": "vendor",
+      "dossier": "docs/catalog/windows-dev.md#gcloud",
+      "source": "https://docs.cloud.google.com/sdk/gcloud/reference/auth/revoke",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-unverified-offline-execution"
+    }
+  ],
+  "sources": ["https://docs.cloud.google.com/sdk/gcloud/reference/auth/revoke"],
+  "limitations": [
+    "Documented storage: %APPDATA%/gcloud; CLOUDSDK_CONFIG override; named configurations and credentials",
+    "Official command (documentation only, never executable): gcloud auth revoke <account>",
+    "Logout effect: User credentials revoked on authorization servers; service/external account removal local only; command blocked in V1",
+    "V1 blocked: remote-revocation-prohibited-in-v1",
+    "No secret reads, network calls, executable resolution or deletion fallback.",
+    "Windows sign-in identity, WAM, PRT and device registration are always excluded."
+  ],
+  "open_spikes": ["windows-dev-offline-scope"],
+  "application": null,
+  "extensions": null
+}

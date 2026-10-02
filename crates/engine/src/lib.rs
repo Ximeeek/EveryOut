@@ -11,6 +11,9 @@ use std::{
 
 static NEXT_RUN: AtomicU64 = AtomicU64::new(1);
 
+/// Category-wide warning, including runs where no supported targets can be planned.
+pub const WINDOWS_DEV_SSO_WARNING: &str = "WARNING: Browsers and Office may silently sign in again through Windows SSO after local cleanup. Full logout may require disconnecting the account from Windows, a separate user decision. EveryOut never disconnects Windows accounts or alters the Windows sign-in identity.";
+
 /// Trusted Rust providers, never UI input. Hooks may only perform reviewed local operations.
 /// Closing must validate the exact planned process set; revalidation must detect relaunch.
 pub trait EngineProvider: Provider {
@@ -86,6 +89,7 @@ pub struct ItemReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CategoryReport {
     pub category: Category,
+    pub warnings: Vec<String>,
     pub aggregate: AggregateStatus,
     pub items: Vec<ItemReport>,
     pub counts: Counts,
@@ -121,6 +125,9 @@ impl RunReport {
         );
         for section in &self.sections {
             let _ = writeln!(text, "{:?}: {:?}", section.category, section.aggregate);
+            for warning in &section.warnings {
+                let _ = writeln!(text, "  {warning}");
+            }
             let _ = writeln!(text, "  succeeded={}, failed={}, skipped={}, locked={}, would-apply={}, already-absent={}", section.counts.succeeded, section.counts.failed, section.counts.skipped, section.counts.locked, section.counts.would_apply, section.counts.already_absent);
             for item in &section.items {
                 let _ = writeln!(text, "  {}: {:?}; identity={:?}; sync={:?}; authentication=unknown; remote-revocation=unsupported", item.instance.0, item.aggregate, item.identity_sync.identity, item.identity_sync.sync);
@@ -180,7 +187,7 @@ pub struct Inventory<'a> {
     current_user: UserId,
 }
 impl Inventory<'_> {
-    /// Select resolved known providers regardless of catalog support/confidence.
+    /// Low-confidence application candidates require explicit selection.
     /// All heuristic results stay unchecked until S8 passes; selection is not approval.
     pub fn default_selection(&self, category: Category) -> Vec<InstanceId> {
         self.entries
@@ -188,6 +195,9 @@ impl Inventory<'_> {
             .filter(|entry| {
                 entry.description.descriptor.category == category
                     && entry.instance.detection_origin.default_selected(true)
+                    && !(category == Category::Application
+                        && entry.description.descriptor.support == Support::Candidate
+                        && entry.instance.confidence == Confidence::Low)
             })
             .map(|entry| entry.instance.instance_id.clone())
             .collect()
@@ -895,9 +905,22 @@ fn review_plan(
     ValidatedPlan::review(plan.clone(), confirmations)
 }
 fn preview_item(item: &PreparedItem<'_>) -> ItemReport {
+    // Enrich the report projection without changing the provider's immutable plan capability.
+    let mut reported_plan = item.plan.clone();
+    if item.entry.description.descriptor.category == Category::WindowsMicrosoftAndDevTools {
+        if let Some(plan) = &mut reported_plan {
+            if !plan
+                .limitations
+                .iter()
+                .any(|s| s == WINDOWS_DEV_SSO_WARNING)
+            {
+                plan.limitations.push(WINDOWS_DEV_SSO_WARNING.into());
+            }
+        }
+    }
     let mut report = ItemReport {
         instance: item.entry.instance.instance_id.clone(),
-        plan: item.plan.clone(),
+        plan: reported_plan,
         aggregate: AggregateStatus::DryRun,
         actions: Vec::new(),
         processes: item.processes.clone(),
@@ -1103,6 +1126,11 @@ fn assemble(
         }
         sections.push(CategoryReport {
             category: c,
+            warnings: if c == category && c == Category::WindowsMicrosoftAndDevTools {
+                vec![WINDOWS_DEV_SSO_WARNING.into()]
+            } else {
+                vec![]
+            },
             aggregate: if c == category {
                 aggregate
             } else {

@@ -1,6 +1,30 @@
 # Declarative provider manifest specification
 
+Phase 23 JSON manifests may select the optional `application` mode (`electron-cef`, `webview2`,
+or `store`). Application execution requires a typed, bounded scope; `identity.package_id` names
+the exact package family for Store mode. See the
+[generic application contract](21-application-providers.md) for root and artifact restrictions.
+
 ## Purpose and evidence
+
+Phase 25 adds `desktop-client` with a fixed provider/root/artifact allowlist, explicit recovery
+loss requirements and per-provider confirmation IDs. It does not expand the generic framework
+storage vocabulary. `roots.base: unresolved` has only ID, owner and scope; it records an unknown
+location without granting path authority. The `unresolved` artifact and
+`unresolved-session-scope` exception are research markers, not filenames or callable adapters.
+They require candidate support and neither the platform binder nor executor can resolve them.
+See the [desktop catalog](../catalog/apps-other.md) for all 17 entries and permanent-loss effects.
+
+Low-confidence application candidates require explicit selection. Desktop validation requires
+high evidence confidence and verified artifact confidence in addition to existing coverage,
+ownership, preservation and risk gates. A fixture-only promotion is never a shipping validation.
+
+Phase 24 adds the fixed `gaming-launcher` application mode, optional `sources` URL list and
+claim references in `evidence`. The Steam-only `reviewed-installation` root is a research slot
+that grants no path authority and cannot be validated or resolved by the generic executor.
+Only Steam's `steam-guard-files` artifact accepts `name_prefix: ssfn`, handled by the confined
+`steam-ssfn-files` exception; ordinary artifact paths still reject wildcards. See the
+[gaming catalog](../catalog/apps-gaming.md) for candidate scopes and remaining production gates.
 
 New application/browser support is expressed in a manifest interpreted by the shared provider.
 Rust code is reserved for reviewed exceptions referenced by stable adapter IDs; manifests cannot
@@ -50,6 +74,12 @@ bounded single-component patterns; recursive drive-wide globs and traversal thro
 are forbidden. Exact registry key/value-name presence may be observed without fetching payloads.
 User-supplied root overrides require a later reviewed discovery decision and cannot be injected
 into an existing executable plan.
+
+Phase 26 permits `unresolved` roots for the fixed Windows/dev research catalog only with
+candidate support and the non-callable `unresolved-windows-dev-scope` research marker.
+The loader refuses any executable promotion or replacement with concrete file/registry roots.
+Official CLI command strings are documentation, not manifest operations. See the
+[revised phase scope](../catalog/windows-dev.md#revised-phase-26-acceptance).
 
 Typed method vocabulary:
 

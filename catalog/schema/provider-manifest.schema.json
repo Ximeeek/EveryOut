@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "ApplicationKind": {
+      "enum": [
+        "electron-cef",
+        "webview2",
+        "store",
+        "gaming-launcher",
+        "desktop-client"
+      ],
+      "type": "string"
+    },
     "ArtifactKind": {
       "enum": ["file", "directory", "registry-key", "registry-value"],
       "type": "string"
@@ -447,6 +457,51 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Explicit absence of a reviewed location; never a filesystem capability.",
+          "properties": {
+            "base": {
+              "const": "unresolved",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Research-only installation slot. It grants no filesystem authority.",
+          "properties": {
+            "base": {
+              "const": "reviewed-installation",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "relative": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "relative", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "base": {
               "const": "local-app-data",
@@ -547,6 +602,9 @@
         "method": {
           "type": "string"
         },
+        "name_prefix": {
+          "type": ["string", "null"]
+        },
         "observe": {
           "$ref": "#/$defs/ObservationKind"
         },
@@ -631,6 +689,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "application": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationKind"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "category": {
       "$ref": "#/$defs/Category"
     },
@@ -731,6 +800,13 @@
       },
       "minItems": 1,
       "type": "array"
+    },
+    "sources": {
+      "default": null,
+      "items": {
+        "type": "string"
+      },
+      "type": ["array", "null"]
     },
     "support": {
       "$ref": "#/$defs/Support"

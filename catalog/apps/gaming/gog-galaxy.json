@@ -1,0 +1,176 @@
+{
+  "format_version": 1,
+  "id": "gog-galaxy",
+  "revision": 1,
+  "name": "GOG Galaxy",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "gog-galaxy",
+    "package_id": null,
+    "process_names": ["GalaxyClient.exe", "GalaxyCommunication.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "client-config",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "local-app-data",
+      "scope": "os-user",
+      "owner": "gog-galaxy",
+      "relative": "GOG.com/Galaxy"
+    },
+    {
+      "id": "registry",
+      "base": "registry",
+      "scope": "os-user",
+      "owner": "gog-galaxy",
+      "hive": "current-user",
+      "key": "Software/GOG.com/Galaxy"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "client-config",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Configuration/config.json",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-file",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "refresh-token",
+      "root": "registry",
+      "scope": "os-user",
+      "relative": "refreshToken",
+      "kind": "registry-value",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-value",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-file-family",
+      "companions": []
+    },
+    {
+      "id": "remove-value",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-registry-target"
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "game-installations",
+      "game-saves",
+      "password-stores",
+      "encryption-key-metadata",
+      "unlisted-client-data"
+    ]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-client-sign-out-no-reviewed-offline-secret-free-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "locally stored launcher configuration",
+      "remembered account authentication",
+      "integration sessions and offline client features unknown"
+    ],
+    "reason": "mixed stores and authentication closure require version-specific evidence",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-gaming-settings-offline-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "source paths do not establish exclusive ownership or complete logout; no shipping-version VM validation",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-gaming.md#gog-galaxy",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+      "accessed": "2026-10-02",
+      "status": "verified-source-layout-only-unverified-product-session-closure"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-gaming.md#gog-galaxy",
+      "source": "https://docs.gog.com/quality-assurance/",
+      "accessed": "2026-10-02",
+      "status": "verified-manual-logout-only-no-reviewed-secret-free-cli"
+    }
+  ],
+  "sources": [
+    "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+    "https://docs.gog.com/quality-assurance/"
+  ],
+  "limitations": [
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "unknown-scriptable-official-logout",
+    "no-network-no-secret-content-reads",
+    "fixture-results-do-not-verify-product-logout",
+    "programdata-webcache-databases-and-integration-credentials-are-uncovered",
+    "drm-free-game-files-and-saves-preserved",
+    "multi-root-engine-execution-blocked"
+  ],
+  "open_spikes": ["gaming-session-closure", "catalog-verification-matrix"],
+  "application": "gaming-launcher",
+  "extensions": null
+}

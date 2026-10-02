@@ -1,0 +1,139 @@
+{
+  "format_version": 1,
+  "id": "slack",
+  "revision": 1,
+  "name": "Slack",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "slack",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "roaming-app-data",
+      "relative": "Slack",
+      "scope": "os-user",
+      "owner": "slack"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Local Storage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "exclusions": [],
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation"
+      ],
+      "effects": [
+        "Local workspace preferences and possibly unsent drafts; complete effects unknown"
+      ]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-vendor-sign-out-no-reviewed-offline-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "Local workspace preferences and possibly unsent drafts; complete effects unknown"
+    ],
+    "reason": "Standard-install root and Local Storage session role unverified; Store package storage and persistent partitions excluded.",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-slack-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#slack",
+      "source": "https://slack.com/help/articles/212475728-Deploy-Slack-for-Windows",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#slack",
+      "source": "https://slack.com/help/articles/214613347-Sign-out-of-Slack",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    },
+    {
+      "id": "source-2",
+      "dossier": "docs/catalog/apps-other.md#slack",
+      "source": "https://www.electronjs.org/docs/latest/api/app",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://slack.com/help/articles/212475728-Deploy-Slack-for-Windows",
+    "https://slack.com/help/articles/214613347-Sign-out-of-Slack",
+    "https://www.electronjs.org/docs/latest/api/app"
+  ],
+  "limitations": [
+    "Standard-install root and Local Storage session role unverified; Store package storage and persistent partitions excluded.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "application": "desktop-client",
+  "extensions": null
+}

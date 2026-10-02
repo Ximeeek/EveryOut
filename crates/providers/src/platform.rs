@@ -42,6 +42,9 @@ impl PlatformManifest {
             .iter()
             .find(|a| a.id == artifact_id)
             .ok_or_else(scope)?;
+        if artifact.name_prefix.is_some() {
+            return Err(scope());
+        }
         let root = self
             .0
             .roots
