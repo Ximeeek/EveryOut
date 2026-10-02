@@ -1,5 +1,8 @@
 # Application manifest examples
 
+The [gaming catalog](../../docs/catalog/apps-gaming.md) adds seven real-product research entries
+under `gaming/`. All remain unverified candidates; fixture deletion is not proof of product logout.
+
 The Electron/CEF, WebView2 and Store entries are synthetic candidate manifests used by tests.
 They are not real catalog support and cannot execute as distributed. Actual application entries
 require version-specific ownership, storage, preservation and loss evidence in later phases.

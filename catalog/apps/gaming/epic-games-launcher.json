@@ -1,0 +1,199 @@
+{
+  "format_version": 1,
+  "id": "epic-games-launcher",
+  "revision": 1,
+  "name": "Epic Games Launcher",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "epic-games-launcher",
+    "package_id": null,
+    "process_names": ["EpicGamesLauncher.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "client-settings",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "local-app-data",
+      "scope": "os-user",
+      "owner": "epic-games-launcher",
+      "relative": "EpicGamesLauncher"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "client-settings",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Saved/Config/WindowsEditor/GameUserSettings.ini",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-file",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "webcache",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Saved/webcache",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "gaming-session",
+      "evidence": ["cache"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "webcache-4147",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Saved/webcache_4147",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "gaming-session",
+      "evidence": ["cache"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "webcache-4430",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "Saved/webcache_4430",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "gaming-session",
+      "evidence": ["cache"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-file-family",
+      "companions": []
+    },
+    {
+      "id": "remove-directory",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-directory-family",
+      "exclusions": []
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "game-installations",
+      "game-saves",
+      "password-stores",
+      "encryption-key-metadata",
+      "unlisted-client-data"
+    ]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-client-sign-out-no-reviewed-offline-secret-free-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "launcher preferences in mixed GameUserSettings.ini",
+      "cached web preferences and unknown offline data"
+    ],
+    "reason": "mixed stores and authentication closure require version-specific evidence",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-gaming-settings-offline-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "source paths do not establish exclusive ownership or complete logout; no shipping-version VM validation",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-gaming.md#epic-games-launcher",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+      "accessed": "2026-10-02",
+      "status": "verified-source-layout-only-unverified-product-session-closure"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-gaming.md#epic-games-launcher",
+      "source": "https://www.epicgames.com/help/en-US/c-Category_EpicGamesStore/c-EpicGamesStore_LauncherSupport/how-do-i-log-out-of-the-epic-game-launcher-a000085831?lang=en-US",
+      "accessed": "2026-10-02",
+      "status": "verified-manual-logout-only-no-reviewed-secret-free-cli"
+    },
+    {
+      "id": "cache",
+      "dossier": "docs/catalog/apps-gaming.md#epic-games-launcher",
+      "source": "https://www.epicgames.com/help/c-32735058/c-36403860/a20673770?lang=en-US",
+      "accessed": "2026-10-02",
+      "status": "verified-cache-path-only-not-session-closure"
+    }
+  ],
+  "sources": [
+    "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+    "https://www.epicgames.com/help/en-US/c-Category_EpicGamesStore/c-EpicGamesStore_LauncherSupport/how-do-i-log-out-of-the-epic-game-launcher-a000085831?lang=en-US",
+    "https://www.epicgames.com/help/c-32735058/c-36403860/a20673770?lang=en-US"
+  ],
+  "limitations": [
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "unknown-scriptable-official-logout",
+    "no-network-no-secret-content-reads",
+    "fixture-results-do-not-verify-product-logout"
+  ],
+  "open_spikes": ["gaming-session-closure", "catalog-verification-matrix"],
+  "application": "gaming-launcher",
+  "extensions": null
+}

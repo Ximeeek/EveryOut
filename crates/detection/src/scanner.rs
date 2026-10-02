@@ -354,6 +354,14 @@ fn manifest(
     coverage: &mut Vec<String>,
     cancelled: &dyn Fn() -> bool,
 ) {
+    if manifest
+        .roots
+        .iter()
+        .any(|r| matches!(r, Root::ReviewedInstallation { .. }))
+    {
+        coverage.push(format!("{}-installation-scope-unavailable", manifest.id));
+        return;
+    }
     let mut profiles = vec![None];
     if let Some(configuration) = &manifest.profiles {
         let Some(root) = manifest.roots.iter().find(|r| r.id() == configuration.root) else {
@@ -598,7 +606,9 @@ fn file_root(root: &Root) -> (KnownFolder, &str) {
     match root {
         Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
         Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
-        Root::Registry { .. } => unreachable!("registry roots are excluded before file detection"),
+        Root::Registry { .. } | Root::ReviewedInstallation { .. } => {
+            unreachable!("non-AppData roots are excluded before file detection")
+        }
     }
 }
 fn matches_pattern(name: &str, pattern: &str) -> bool {

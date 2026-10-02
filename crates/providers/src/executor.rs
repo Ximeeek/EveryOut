@@ -148,7 +148,10 @@ impl<'a> ManifestExecutor<'a> {
         if manifest.roots.len() != 1
             || user.0.is_empty()
             || installation.0.is_empty()
-            || matches!(manifest.roots[0], Root::Registry { .. })
+            || matches!(
+                manifest.roots[0],
+                Root::Registry { .. } | Root::ReviewedInstallation { .. }
+            )
         {
             return Err(ErrorKind::Unsupported);
         }
@@ -202,7 +205,9 @@ impl<'a> ManifestExecutor<'a> {
         match &self.manifest.roots[0] {
             Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
             Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
-            Root::Registry { .. } => unreachable!("constructor refuses registry roots"),
+            Root::Registry { .. } | Root::ReviewedInstallation { .. } => {
+                unreachable!("constructor refuses non-AppData roots")
+            }
         }
     }
     fn discover(&self) -> Result<Binding, ErrorKind> {

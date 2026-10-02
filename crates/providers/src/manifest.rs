@@ -76,11 +76,14 @@ pub struct Manifest {
     pub extensions: Option<ExtensionPolicy>,
     #[serde(default)]
     pub application: Option<ApplicationKind>,
+    #[serde(default)]
+    pub sources: Option<Vec<String>>,
 }
 vocabulary!(ApplicationKind {
     ElectronCef,
     Webview2,
-    Store
+    Store,
+    GamingLauncher
 });
 model!(Compatibility { os: Vec<WindowsVersion>, channel: String, product_versions: String });
 model!(Identity {
@@ -97,6 +100,13 @@ model!(Signal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "base", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Root {
+    /// Research-only installation slot. It grants no filesystem authority.
+    ReviewedInstallation {
+        id: String,
+        relative: String,
+        scope: Scope,
+        owner: String,
+    },
     LocalAppData {
         id: String,
         relative: String,
@@ -120,27 +130,32 @@ pub enum Root {
 impl Root {
     pub fn id(&self) -> &str {
         match self {
-            Self::LocalAppData { id, .. }
+            Self::ReviewedInstallation { id, .. }
+            | Self::LocalAppData { id, .. }
             | Self::RoamingAppData { id, .. }
             | Self::Registry { id, .. } => id,
         }
     }
     pub fn relative(&self) -> &str {
         match self {
-            Self::LocalAppData { relative, .. } | Self::RoamingAppData { relative, .. } => relative,
+            Self::ReviewedInstallation { relative, .. }
+            | Self::LocalAppData { relative, .. }
+            | Self::RoamingAppData { relative, .. } => relative,
             Self::Registry { key, .. } => key,
         }
     }
     pub fn owner(&self) -> &str {
         match self {
-            Self::LocalAppData { owner, .. }
+            Self::ReviewedInstallation { owner, .. }
+            | Self::LocalAppData { owner, .. }
             | Self::RoamingAppData { owner, .. }
             | Self::Registry { owner, .. } => owner,
         }
     }
     pub fn scope(&self) -> Scope {
         match self {
-            Self::LocalAppData { scope, .. }
+            Self::ReviewedInstallation { scope, .. }
+            | Self::LocalAppData { scope, .. }
             | Self::RoamingAppData { scope, .. }
             | Self::Registry { scope, .. } => *scope,
         }
@@ -150,7 +165,8 @@ model!(Profiles { root: String, directory_patterns: Vec<String>, metadata_adapte
 model!(SessionLocation {
     id: String, root: String, scope: Scope, relative: String, kind: ArtifactKind,
     observe: ObservationKind, ownership: Ownership, method: String,
-    artifact_family: Option<String>, evidence: Option<Vec<EvidenceRef>>, confidence: Option<String>
+    artifact_family: Option<String>, evidence: Option<Vec<EvidenceRef>>, confidence: Option<String>,
+    name_prefix: Option<String>
 });
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]

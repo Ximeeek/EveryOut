@@ -7,6 +7,13 @@ the exact package family for Store mode. See the
 
 ## Purpose and evidence
 
+Phase 24 adds the fixed `gaming-launcher` application mode, optional `sources` URL list and
+claim references in `evidence`. The Steam-only `reviewed-installation` root is a research slot
+that grants no path authority and cannot be validated or resolved by the generic executor.
+Only Steam's `steam-guard-files` artifact accepts `name_prefix: ssfn`, handled by the confined
+`steam-ssfn-files` exception; ordinary artifact paths still reject wildcards. See the
+[gaming catalog](../catalog/apps-gaming.md) for candidate scopes and remaining production gates.
+
 New application/browser support is expressed in a manifest interpreted by the shared provider.
 Rust code is reserved for reviewed exceptions referenced by stable adapter IDs; manifests cannot
 contain scripts, arbitrary commands, SQL or executable expressions. The exact parser and schema

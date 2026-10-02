@@ -1,7 +1,7 @@
 {
   "$defs": {
     "ApplicationKind": {
-      "enum": ["electron-cef", "webview2", "store"],
+      "enum": ["electron-cef", "webview2", "store", "gaming-launcher"],
       "type": "string"
     },
     "ArtifactKind": {
@@ -451,6 +451,30 @@
       "oneOf": [
         {
           "additionalProperties": false,
+          "description": "Research-only installation slot. It grants no filesystem authority.",
+          "properties": {
+            "base": {
+              "const": "reviewed-installation",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "relative": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "relative", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "properties": {
             "base": {
               "const": "local-app-data",
@@ -550,6 +574,9 @@
         },
         "method": {
           "type": "string"
+        },
+        "name_prefix": {
+          "type": ["string", "null"]
         },
         "observe": {
           "$ref": "#/$defs/ObservationKind"
@@ -746,6 +773,13 @@
       },
       "minItems": 1,
       "type": "array"
+    },
+    "sources": {
+      "default": null,
+      "items": {
+        "type": "string"
+      },
+      "type": ["array", "null"]
     },
     "support": {
       "$ref": "#/$defs/Support"

@@ -11,7 +11,8 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
                     visit(&path, count);
                 }
             } else if path.extension().is_some_and(|e| e == "json") {
-                let m = load_manifest(&fs::read_to_string(&path).unwrap()).unwrap();
+                let m = load_manifest(&fs::read_to_string(&path).unwrap())
+                    .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
                 *count += 1;
                 assert_eq!(m.confidence.status.as_deref(), Some("unverified"));
                 for entry in m.session_locations {
@@ -38,7 +39,7 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
             .as_path(),
         &mut count,
     );
-    assert_eq!(count, 9);
+    assert_eq!(count, 16);
 }
 
 #[test]

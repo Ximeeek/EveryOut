@@ -4,6 +4,9 @@ This directory contains project decision records and contributor-facing design d
 
 ## Index
 
+- [Gaming launcher catalog](catalog/apps-gaming.md): seven candidate manifests, exact Steam
+  cleanup names, manual logout evidence, loss risks and synthetic fixture limits.
+
 - [Architecture Decision Records](adr/README.md): process and index for durable project decisions.
 - [ADR 0001: License](adr/0001-license.md): rationale for the GNU GPL version 3 or later.
 - [Architecture overview](architecture/00-overview.md): components, proposed Cargo workspace,

@@ -1,0 +1,149 @@
+{
+  "format_version": 1,
+  "id": "ea-app",
+  "revision": 1,
+  "name": "EA app",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "ea-app",
+    "package_id": null,
+    "process_names": ["EADesktop.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "cef-cookies",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "local-app-data",
+      "scope": "os-user",
+      "owner": "ea-app",
+      "relative": "Electronic Arts/EA Desktop"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "cef-cookies",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "CEF/BrowserCache/EADesktop/Cookies",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "application",
+      "method": "remove-file",
+      "artifact_family": "gaming-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unknown-permanent-loss"
+      ],
+      "effects": [
+        "declared-local-container-removal",
+        "may-remove-mixed-preferences-and-offline-access"
+      ],
+      "kind": "delete-file-family",
+      "companions": []
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "game-installations",
+      "game-saves",
+      "password-stores",
+      "encryption-key-metadata",
+      "unlisted-client-data"
+    ]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-client-sign-out-no-reviewed-offline-secret-free-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "cookie preferences if the hypothesized store exists",
+      "offline entitlement and additional local data effects unknown"
+    ],
+    "reason": "mixed stores and authentication closure require version-specific evidence",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-gaming-settings-offline-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "source paths do not establish exclusive ownership or complete logout; no shipping-version VM validation",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-gaming.md#ea-app",
+      "source": "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+      "accessed": "2026-10-02",
+      "status": "unverified-cookies-path-inference-from-implementation-cef-cache-root"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-gaming.md#ea-app",
+      "source": "https://help.ea.com/en/articles/orders-and-rewards/ea-app-find-missing-games/",
+      "accessed": "2026-10-02",
+      "status": "verified-manual-logout-only-no-reviewed-secret-free-cli"
+    },
+    {
+      "id": "context-1",
+      "dossier": "docs/catalog/apps-gaming.md#ea-app",
+      "source": "https://help.ea.com/en/articles/technical-issues/clear-cache/",
+      "accessed": "2026-10-02",
+      "status": "source-context-only-unverified-cleaning-effects"
+    }
+  ],
+  "sources": [
+    "https://github.com/TCNOco/TcNo-Acc-Switcher/blob/148ed80a303d56b691e22d54992031916eddede7/Platforms.json",
+    "https://help.ea.com/en/articles/orders-and-rewards/ea-app-find-missing-games/",
+    "https://help.ea.com/en/articles/technical-issues/clear-cache/"
+  ],
+  "limitations": [
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "unknown-scriptable-official-logout",
+    "no-network-no-secret-content-reads",
+    "fixture-results-do-not-verify-product-logout",
+    "exact-cookies-file-is-unverified-inference-from-cef-cache-root",
+    "programdata-and-user-ini-stores-outside-declared-scope",
+    "app-recovery-is-cache-repair-not-a-reviewed-logout-cli"
+  ],
+  "open_spikes": ["gaming-session-closure", "catalog-verification-matrix"],
+  "application": "gaming-launcher",
+  "extensions": null
+}

@@ -837,6 +837,7 @@ dependencies = [
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

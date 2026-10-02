@@ -181,6 +181,13 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         return Err(invalid("conflicting-category-identity"));
     }
     for root in &m.roots {
+        if matches!(root, Root::ReviewedInstallation { .. })
+            && (m.id != "steam"
+                || m.application != Some(ApplicationKind::GamingLauncher)
+                || m.support != Support::Candidate)
+        {
+            return Err(invalid("unreviewed-installation-root"));
+        }
         if !relative_path(root.relative()) || root.scope() == Scope::Profile || root.owner() != m.id
         {
             return Err(invalid("invalid-root-scope-or-path"));
@@ -244,6 +251,15 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     for artifact in &m.session_locations {
+        if artifact.name_prefix.is_some()
+            && !(m.id == "steam"
+                && artifact.id == "steam-guard-files"
+                && artifact.name_prefix.as_deref() == Some("ssfn")
+                && artifact.relative == "ssfn"
+                && artifact.method == "remove-steam-guard")
+        {
+            return Err(invalid("unsupported-artifact-prefix"));
+        }
         if let Some(e) = &artifact.evidence {
             refs(e, &evidence)?;
         }
