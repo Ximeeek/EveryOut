@@ -18,7 +18,7 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
                     assert_eq!(entry.confidence.as_deref(), Some("unverified"));
                     assert!(!entry.evidence.unwrap().is_empty());
                 }
-                for risk in m.extensions.unwrap().known {
+                for risk in m.extensions.into_iter().flat_map(|p| p.known) {
                     assert!(risk.source.starts_with("https://"));
                     if m.id != "firefox" {
                         assert!(risk.source.contains(&risk.id));
@@ -38,7 +38,7 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
             .as_path(),
         &mut count,
     );
-    assert_eq!(count, 6);
+    assert_eq!(count, 9);
 }
 
 #[test]

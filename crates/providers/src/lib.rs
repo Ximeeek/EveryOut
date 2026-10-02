@@ -1,6 +1,7 @@
 //! Trusted manifests and bounded provider execution; only Firefox profiles.ini paths may be read.
 #![forbid(unsafe_code)]
 
+pub mod application;
 #[cfg(windows)]
 pub mod executor;
 mod firefox;

@@ -6,6 +6,27 @@ use everyout_detection::{
 use everyout_providers::Ownership;
 
 #[test]
+fn browser_installed_pwa_wrapper_keeps_the_canonical_browser_owner() {
+    let browser = Claim {
+        owner: "edge-profile-owner".into(),
+        ownership: Ownership::BrowserProfile,
+    };
+    let wrapper = Claim {
+        owner: "edge-profile-owner".into(),
+        ownership: Ownership::Application,
+    };
+    assert_eq!(
+        classify(&[browser.clone(), wrapper]),
+        Some(("edge-profile-owner".into(), Category::Browser))
+    );
+    let independent = Claim {
+        owner: "independent-msix-host".into(),
+        ownership: Ownership::Application,
+    };
+    assert_eq!(classify(&[browser, independent]), None);
+}
+
+#[test]
 fn unverified_score_gates_require_independent_families_and_ownership() {
     for bits in 0u8..16 {
         let e = Evidence {

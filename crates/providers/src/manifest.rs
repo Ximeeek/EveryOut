@@ -74,7 +74,14 @@ pub struct Manifest {
     pub open_spikes: Vec<String>,
     #[serde(default)]
     pub extensions: Option<ExtensionPolicy>,
+    #[serde(default)]
+    pub application: Option<ApplicationKind>,
 }
+vocabulary!(ApplicationKind {
+    ElectronCef,
+    Webview2,
+    Store
+});
 model!(Compatibility { os: Vec<WindowsVersion>, channel: String, product_versions: String });
 model!(Identity {
     browser_id: Option<String>, installation_id: Option<String>, package_id: Option<String>,

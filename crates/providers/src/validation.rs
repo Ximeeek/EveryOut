@@ -127,6 +127,9 @@ fn unknown_coverage(value: &str) -> bool {
     )
 }
 fn validate(m: &Manifest) -> Result<(), ManifestError> {
+    if m.application.is_some() && !crate::application::valid_scope(m) {
+        return Err(invalid("invalid-application-scope"));
+    }
     if m.confidence
         .status
         .as_ref()

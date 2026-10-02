@@ -1,0 +1,148 @@
+{
+  "format_version": 1,
+  "id": "example-store",
+  "revision": 1,
+  "name": "Synthetic store application",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "fixture",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "synthetic-store",
+    "package_id": "EveryOutFixture.Store_abcdefghijklm",
+    "process_names": ["fixture.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "user-data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "store-present",
+        "artifact": "session",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "user-data",
+      "base": "local-app-data",
+      "relative": "Packages/EveryOutFixture.Store_abcdefghijklm",
+      "scope": "os-user",
+      "owner": "example-store"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session",
+      "root": "user-data",
+      "scope": "os-user",
+      "relative": "LocalState/Session",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "application-session",
+      "evidence": ["fixture-evidence"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "cached-session",
+      "root": "user-data",
+      "scope": "os-user",
+      "relative": "LocalCache/Session",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "application-session",
+      "evidence": ["fixture-evidence"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "roaming-session",
+      "root": "user-data",
+      "scope": "os-user",
+      "relative": "RoamingState/Session",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "application-session",
+      "evidence": ["fixture-evidence"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "kind": "delete-file-family",
+      "companions": ["-wal", "-shm", "-journal"],
+      "blockers": ["fixture-only"],
+      "effects": ["local-session-container-removal"]
+    },
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "blockers": ["fixture-only"],
+      "effects": ["session-container-and-offline-data-loss"],
+      "exclusions": []
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "password-stores",
+      "web-data",
+      "history",
+      "passkeys",
+      "encryption-key-metadata"
+    ]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "local-app",
+    "mechanism": "none-validated-for-v1",
+    "evidence": ["fixture-evidence"]
+  },
+  "risks": {
+    "flags": ["unknown"],
+    "affected_data": ["fixture-session"],
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-unknown-effects"],
+    "evidence": ["fixture-evidence"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "synthetic-fixture-only",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "fixture-evidence",
+      "dossier": "docs/research/03-apps-detection-process-av.md#2-storemsix-applications-and-browser-installed-pwas",
+      "status": "hypothesis-fixture"
+    }
+  ],
+  "limitations": [
+    "synthetic-only",
+    "no-authentication-proof",
+    "local-state-preserved",
+    "reviewed-exclusive-installation-required",
+    "custom-and-shared-roots-unsupported",
+    "partitions-require-explicit-manifests"
+  ],
+  "open_spikes": ["fixture-closure"],
+  "application": "store",
+  "extensions": null
+}

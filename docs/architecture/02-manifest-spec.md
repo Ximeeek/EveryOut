@@ -1,5 +1,10 @@
 # Declarative provider manifest specification
 
+Phase 23 JSON manifests may select the optional `application` mode (`electron-cef`, `webview2`,
+or `store`). Application execution requires a typed, bounded scope; `identity.package_id` names
+the exact package family for Store mode. See the
+[generic application contract](21-application-providers.md) for root and artifact restrictions.
+
 ## Purpose and evidence
 
 New application/browser support is expressed in a manifest interpreted by the shared provider.

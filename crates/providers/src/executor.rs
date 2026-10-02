@@ -141,6 +141,10 @@ impl<'a> ManifestExecutor<'a> {
         processes: &'a dyn ProcessGate,
     ) -> Result<Self, ErrorKind> {
         let manifest = load_manifest(json).map_err(|_| ErrorKind::InvalidManifest)?;
+        if manifest.category == Category::Application && !crate::application::valid_scope(&manifest)
+        {
+            return Err(ErrorKind::Unsupported);
+        }
         if manifest.roots.len() != 1
             || user.0.is_empty()
             || installation.0.is_empty()

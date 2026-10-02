@@ -1,5 +1,9 @@
 {
   "$defs": {
+    "ApplicationKind": {
+      "enum": ["electron-cef", "webview2", "store"],
+      "type": "string"
+    },
     "ArtifactKind": {
       "enum": ["file", "directory", "registry-key", "registry-value"],
       "type": "string"
@@ -631,6 +635,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "application": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationKind"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "category": {
       "$ref": "#/$defs/Category"
     },
