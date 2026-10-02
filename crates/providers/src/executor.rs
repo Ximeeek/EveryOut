@@ -2,7 +2,7 @@
 //! candidates until versioned VM evidence resolves S1-S4 and extension isolation.
 use crate::{load_manifest, CleaningMethod, Manifest, Root};
 use everyout_core_model::*;
-use everyout_engine::{EngineProvider, ProcessPreview};
+use everyout_engine::{EngineProvider, IdentitySync, ProcessPreview};
 use everyout_platform_windows::{AllowedRoot, KnownFolder, RootResolver, SafePath};
 use std::{cell::RefCell, rc::Rc};
 
@@ -113,6 +113,7 @@ struct Binding {
     profile_names: Vec<String>,
     extension_scopes: Vec<ExtensionScope>,
     origin_scopes: Vec<(String, Vec<(String, bool)>)>,
+    identity_observations: Vec<crate::identity::Observation>,
 }
 struct ExtensionScope {
     path: Rc<SafePath>,
@@ -169,6 +170,30 @@ impl<'a> ManifestExecutor<'a> {
             blocked,
         }
     }
+    fn limitations(&self, profiles: Option<&[ProfileId]>) -> Vec<String> {
+        let mut result = self.manifest.limitations.clone();
+        if self.manifest.category == Category::Browser {
+            for limitation in [
+                crate::identity::WARNING,
+                "identity-removal-unsupported-until-validated",
+                "sync-profile-edit-unsupported-until-validated",
+            ] {
+                if !result.iter().any(|item| item == limitation) {
+                    result.push(limitation.into());
+                }
+            }
+        }
+        if let Some(binding) = self.binding.borrow().as_ref() {
+            result.extend(
+                binding
+                    .identity_observations
+                    .iter()
+                    .filter(|o| profiles.is_none_or(|ids| ids.contains(&o.profile)))
+                    .map(|o| o.summary.clone()),
+            );
+        }
+        result
+    }
     fn base(&self) -> (KnownFolder, &str) {
         match &self.manifest.roots[0] {
             Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
@@ -215,6 +240,11 @@ impl<'a> ManifestExecutor<'a> {
             profile_names: profiles.clone(),
             extension_scopes: vec![],
             origin_scopes: vec![],
+            identity_observations: if m.category == Category::Browser {
+                crate::identity::observe(&root, &m.id, &profiles)
+            } else {
+                vec![]
+            },
         };
         for (index, profile) in profiles.iter().enumerate() {
             let profile_id = ProfileId(format!("{}-profile-{index}", m.id));
@@ -791,7 +821,7 @@ impl Provider for ManifestExecutor<'_> {
                     .iter()
                     .map(|e| EvidenceRef(e.id.clone()))
                     .collect(),
-                limitations: self.manifest.limitations.clone(),
+                limitations: self.limitations(None),
             },
             instance_id: instance.instance_id.clone(),
             profiles: instance.profiles.clone(),
@@ -849,7 +879,7 @@ impl Provider for ManifestExecutor<'_> {
                 vec![]
             },
             confirmations: vec![],
-            limitations: self.manifest.limitations.clone(),
+            limitations: self.limitations(Some(&selection.profiles)),
         }))
     }
     fn execute(
@@ -988,6 +1018,20 @@ impl Provider for ManifestExecutor<'_> {
     }
 }
 impl EngineProvider for ManifestExecutor<'_> {
+    fn identity_sync(&self, plan: &ValidatedPlan) -> Result<Option<IdentitySync>, ErrorKind> {
+        if !self.matches_plan(plan.plan()) {
+            return Err(ErrorKind::StalePlan);
+        }
+        if self.manifest.category != Category::Browser {
+            return Ok(None);
+        }
+        self.revalidate_scope()?;
+        // No mutation is authorized by metadata presence or unverified shipping rules.
+        Ok(Some(IdentitySync {
+            identity: Uncertainty::Unsupported,
+            sync: Uncertainty::Unsupported,
+        }))
+    }
     fn process_preview(&self, plan: &ProposedPlan) -> Result<Vec<ProcessPreview>, ErrorKind> {
         if !self.matches_plan(plan) {
             return Err(ErrorKind::StalePlan);

@@ -95,3 +95,10 @@ effects can recreate access after a locally successful run.
 - Existing `metadata-discovery-allowlist` and `browser-artifact-closure` in
   [00](00-overview.md#open-decisions): approve exact readable fields and local identity/DBSC closure.
   Until resolved, report unknown coverage and block unsupported operations.
+
+## Phase 22 implementation boundary
+
+Phase 22 implements metadata signals and restoration warnings only; see
+[the implemented scope and revised acceptance criteria](20-browser-identity-metadata.md).
+Identity removal and sync profile edits remain unsupported. The adopted V1 direction above
+is unchanged, but implementation awaits the open decisions and reviewed S1–S4 evidence.

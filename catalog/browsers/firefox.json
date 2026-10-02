@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "id": "firefox",
-  "revision": 1,
+  "revision": 2,
   "name": "Mozilla Firefox",
   "category": "browser",
   "support": "candidate",
@@ -313,7 +313,10 @@
   "limitations": [
     "unverified-shipping-browser-support",
     "no-authentication-proof",
-    "identity-and-sync-reserved-for-phase-22",
+    "identity-removal-unsupported-until-validated",
+    "sync-profile-edit-unsupported-until-validated",
+    "identity-sync-metadata-unverified",
+    "Sync or automatic sign-in can recreate data or access after this wipe. Local deletion does not remove server data or guarantee a lasting sign-out.",
     "only-profiles-ini-location-fields-are-parsed",
     "profiles-outside-approved-firefox-root-block-discovery",
     "local-app-data-cache-roots-uncovered",

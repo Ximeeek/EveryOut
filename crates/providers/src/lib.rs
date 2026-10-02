@@ -4,6 +4,8 @@
 #[cfg(windows)]
 pub mod executor;
 mod firefox;
+#[cfg(windows)]
+mod identity;
 pub mod manifest;
 #[cfg(windows)]
 pub mod platform;

@@ -357,7 +357,16 @@ fn selected_profile_contract_verifies_and_reports_without_touching_siblings() {
     ) else {
         panic!("fixture plan");
     };
+    assert!(plan
+        .limitations
+        .iter()
+        .any(|l| l.contains("identity-sync-metadata: chrome-profile-0")));
+    assert!(!plan
+        .limitations
+        .iter()
+        .any(|l| l.contains("identity-sync-metadata: chrome-profile-1")));
     let valid = ValidatedPlan::review(*plan, &[]).unwrap();
+    assert_eq!(provider.identity_sync(&valid), Err(ErrorKind::Locked));
     provider.process_preview(valid.plan()).unwrap();
     provider.close(&valid, ProcessClosePolicy::Ask).unwrap();
     let result = provider.execute(

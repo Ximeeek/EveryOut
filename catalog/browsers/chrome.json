@@ -1,7 +1,7 @@
 {
   "format_version": 1,
   "id": "chrome",
-  "revision": 1,
+  "revision": 2,
   "name": "Google Chrome",
   "category": "browser",
   "support": "candidate",
@@ -456,7 +456,10 @@
   "limitations": [
     "unverified-shipping-browser-support",
     "no-authentication-proof",
-    "identity-and-sync-reserved-for-phase-22",
+    "identity-removal-unsupported-until-validated",
+    "sync-profile-edit-unsupported-until-validated",
+    "identity-sync-metadata-unverified",
+    "Sync or automatic sign-in can recreate data or access after this wipe. Local deletion does not remove server data or guarantee a lasting sign-out.",
     "dbsc-database-is-a-candidate-key-destruction-and-legacy-partitions-unverified",
     "mixed-preferences-local-state-and-web-data-preserved",
     "extension-id-verification-does-not-prove-isolated-safe-cleanup",
