@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "id": "microsoft-teams",
+  "revision": 1,
+  "name": "Microsoft Teams",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "microsoft-teams",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "local-app-data",
+      "relative": "Packages/MSTeams_8wekyb3d8bbwe",
+      "scope": "os-user",
+      "owner": "microsoft-teams"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "LocalCache/Microsoft/MSTeams",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "exclusions": [],
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation"
+      ],
+      "effects": [
+        "Personalization, diagnostic logs and potentially local drafts; complete effects unknown"
+      ]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "available",
+    "surface": "local-app",
+    "mechanism": "manual-vendor-sign-out-no-reviewed-offline-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["settings-or-profiles", "shared-store", "unknown"],
+    "affected_data": [
+      "Personalization, diagnostic logs and potentially local drafts; complete effects unknown"
+    ],
+    "reason": "Vendor cache repair path is verified as cache only. It does not prove logout; Windows WAM, Office identity and classic Teams excluded.",
+    "permanent_data_loss": "unknown",
+    "confirmations": ["review-microsoft-teams-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#microsoft-teams",
+      "source": "https://learn.microsoft.com/en-us/troubleshoot/microsoftteams/teams-administration/clear-teams-cache",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#microsoft-teams",
+      "source": "https://support.microsoft.com/en-US/teams/troubleshooting/sign-out-or-remove-an-account-from-microsoft-teams",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://learn.microsoft.com/en-us/troubleshoot/microsoftteams/teams-administration/clear-teams-cache",
+    "https://support.microsoft.com/en-US/teams/troubleshooting/sign-out-or-remove-an-account-from-microsoft-teams"
+  ],
+  "limitations": [
+    "Vendor cache repair path is verified as cache only. It does not prove logout; Windows WAM, Office identity and classic Teams excluded.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "application": "desktop-client",
+  "extensions": null
+}

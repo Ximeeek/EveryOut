@@ -148,11 +148,16 @@ mod windows {
         }
         (targets, preserved)
     }
-    fn prepare<'a>(engine: &Engine<'a>, provider: &'a ManifestExecutor<'a>) -> PreparedRun<'a> {
+    fn prepare<'a>(
+        engine: &Engine<'a>,
+        provider: &'a ManifestExecutor<'a>,
+        id: &str,
+    ) -> PreparedRun<'a> {
         let inventory = engine
             .scan(&[provider], Category::Application, &mut |_| {})
             .unwrap();
-        let selection = inventory.default_selection(Category::Application);
+        // Research candidates now require explicit selection.
+        let selection = vec![InstanceId(format!("{id}-installation"))];
         engine
             .prepare(
                 inventory,
@@ -180,7 +185,7 @@ mod windows {
             .unwrap();
             let engine = Engine::new(UserId("fixture".into()), &candidate);
             let before = folders.snapshot().unwrap();
-            let run = prepare(&engine, &candidate);
+            let run = prepare(&engine, &candidate, &original.id);
             assert_eq!(before, folders.snapshot().unwrap());
             let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
             assert_eq!(report.sections[0].aggregate, AggregateStatus::Blocked);
@@ -199,14 +204,14 @@ mod windows {
             )
             .unwrap();
             let engine = Engine::new(UserId("fixture".into()), &provider);
-            let run = prepare(&engine, &provider);
+            let run = prepare(&engine, &provider, &original.id);
             assert!(run.preview().sections[0].counts.would_apply > 0);
             assert_eq!(before, folders.snapshot().unwrap());
             let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
             assert_eq!(report.sections[0].aggregate, AggregateStatus::Blocked);
             assert_eq!(before, folders.snapshot().unwrap());
             assert_eq!(gate.calls.get(), 0);
-            let run = prepare(&engine, &provider);
+            let run = prepare(&engine, &provider, &original.id);
             let mut approval = Approval::default();
             for item in &run.preview().sections[0].items {
                 if let Some(plan) = &item.plan {

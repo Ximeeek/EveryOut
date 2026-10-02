@@ -1,5 +1,12 @@
 # Application manifest examples
 
+The [desktop catalog](../../docs/catalog/apps-other.md) adds 17 research candidates under
+`communication/`, `messengers/`, `mail/`, `vpn/`, `authenticators/`, `wallets/` and
+`password-managers/`. All start unchecked with low confidence. Five use typed unresolved roots
+which cannot bind filesystem paths. The fixed desktop scopes declare local history, vault,
+authenticator, wallet-key and device-trust losses; Thunderbird's mixed profile reset is a
+non-waivable password-preservation conflict.
+
 The [gaming catalog](../../docs/catalog/apps-gaming.md) adds seven real-product research entries
 under `gaming/`. All remain unverified candidates; fixture deletion is not proof of product logout.
 

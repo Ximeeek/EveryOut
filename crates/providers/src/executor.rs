@@ -150,7 +150,7 @@ impl<'a> ManifestExecutor<'a> {
             || installation.0.is_empty()
             || matches!(
                 manifest.roots[0],
-                Root::Registry { .. } | Root::ReviewedInstallation { .. }
+                Root::Registry { .. } | Root::ReviewedInstallation { .. } | Root::Unresolved { .. }
             )
         {
             return Err(ErrorKind::Unsupported);
@@ -205,7 +205,7 @@ impl<'a> ManifestExecutor<'a> {
         match &self.manifest.roots[0] {
             Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
             Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
-            Root::Registry { .. } | Root::ReviewedInstallation { .. } => {
+            Root::Registry { .. } | Root::ReviewedInstallation { .. } | Root::Unresolved { .. } => {
                 unreachable!("constructor refuses non-AppData roots")
             }
         }

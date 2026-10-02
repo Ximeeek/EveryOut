@@ -83,7 +83,8 @@ vocabulary!(ApplicationKind {
     ElectronCef,
     Webview2,
     Store,
-    GamingLauncher
+    GamingLauncher,
+    DesktopClient
 });
 model!(Compatibility { os: Vec<WindowsVersion>, channel: String, product_versions: String });
 model!(Identity {
@@ -100,6 +101,12 @@ model!(Signal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "base", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Root {
+    /// Explicit absence of a reviewed location; never a filesystem capability.
+    Unresolved {
+        id: String,
+        scope: Scope,
+        owner: String,
+    },
     /// Research-only installation slot. It grants no filesystem authority.
     ReviewedInstallation {
         id: String,
@@ -130,7 +137,8 @@ pub enum Root {
 impl Root {
     pub fn id(&self) -> &str {
         match self {
-            Self::ReviewedInstallation { id, .. }
+            Self::Unresolved { id, .. }
+            | Self::ReviewedInstallation { id, .. }
             | Self::LocalAppData { id, .. }
             | Self::RoamingAppData { id, .. }
             | Self::Registry { id, .. } => id,
@@ -138,6 +146,7 @@ impl Root {
     }
     pub fn relative(&self) -> &str {
         match self {
+            Self::Unresolved { .. } => "unresolved",
             Self::ReviewedInstallation { relative, .. }
             | Self::LocalAppData { relative, .. }
             | Self::RoamingAppData { relative, .. } => relative,
@@ -146,7 +155,8 @@ impl Root {
     }
     pub fn owner(&self) -> &str {
         match self {
-            Self::ReviewedInstallation { owner, .. }
+            Self::Unresolved { owner, .. }
+            | Self::ReviewedInstallation { owner, .. }
             | Self::LocalAppData { owner, .. }
             | Self::RoamingAppData { owner, .. }
             | Self::Registry { owner, .. } => owner,
@@ -154,7 +164,8 @@ impl Root {
     }
     pub fn scope(&self) -> Scope {
         match self {
-            Self::ReviewedInstallation { scope, .. }
+            Self::Unresolved { scope, .. }
+            | Self::ReviewedInstallation { scope, .. }
             | Self::LocalAppData { scope, .. }
             | Self::RoamingAppData { scope, .. }
             | Self::Registry { scope, .. } => *scope,

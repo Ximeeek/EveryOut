@@ -1,7 +1,13 @@
 {
   "$defs": {
     "ApplicationKind": {
-      "enum": ["electron-cef", "webview2", "store", "gaming-launcher"],
+      "enum": [
+        "electron-cef",
+        "webview2",
+        "store",
+        "gaming-launcher",
+        "desktop-client"
+      ],
       "type": "string"
     },
     "ArtifactKind": {
@@ -449,6 +455,27 @@
     "Root": {
       "description": "The initial conservative known-folder allowlist is per-user Local/Roaming AppData.\nRegistry roots name a selected owner's HKCU scope, never an ambient elevated hive.",
       "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Explicit absence of a reviewed location; never a filesystem capability.",
+          "properties": {
+            "base": {
+              "const": "unresolved",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "scope", "owner"],
+          "type": "object"
+        },
         {
           "additionalProperties": false,
           "description": "Research-only installation slot. It grants no filesystem authority.",

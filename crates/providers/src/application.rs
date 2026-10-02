@@ -12,6 +12,9 @@ pub fn valid_scope(m: &Manifest) -> bool {
     if kind == ApplicationKind::GamingLauncher {
         return crate::gaming::valid_scope(m);
     }
+    if kind == ApplicationKind::DesktopClient {
+        return crate::desktop::valid_scope(m);
+    }
     if m.category != Category::Application
         || m.identity.browser_id.is_some()
         || m.roots.len() != 1
@@ -44,7 +47,7 @@ pub fn valid_scope(m: &Manifest) -> bool {
                 && path == format!("Packages/{pfn}")
                 && m.profiles.is_none()
         }),
-        ApplicationKind::GamingLauncher => false,
+        ApplicationKind::GamingLauncher | ApplicationKind::DesktopClient => false,
         ApplicationKind::ElectronCef | ApplicationKind::Webview2 => {
             m.identity.package_id.is_none()
                 && m.identity

@@ -5,7 +5,7 @@ use crate::{
     heuristic::{excluded, score, Evidence},
     Detection, ScanReport, SignalObservation,
 };
-use everyout_core_model::{ArtifactKind, Confidence, DetectionOrigin, Scope};
+use everyout_core_model::{ArtifactKind, Category, Confidence, DetectionOrigin, Scope, Support};
 use everyout_platform_windows::{
     inventory::{InstalledInventory, InventorySource},
     AllowedRoot, KnownFolder, PhysicalIdentity, RootResolver, SafePath, ShallowMetadata,
@@ -357,6 +357,14 @@ fn manifest(
     if manifest
         .roots
         .iter()
+        .any(|r| matches!(r, Root::Unresolved { .. }))
+    {
+        coverage.push(format!("{}-session-location-unresolved", manifest.id));
+        return;
+    }
+    if manifest
+        .roots
+        .iter()
         .any(|r| matches!(r, Root::ReviewedInstallation { .. }))
     {
         coverage.push(format!("{}-installation-scope-unavailable", manifest.id));
@@ -569,7 +577,10 @@ fn manifest(
                 observations,
                 owner: classified.as_ref().map(|c| c.0.clone()),
                 category: classified.as_ref().map(|c| c.1),
-                selected: DetectionOrigin::KnownProvider.default_selected(classified.is_some()),
+                selected: DetectionOrigin::KnownProvider.default_selected(classified.is_some())
+                    && !(manifest.category == Category::Application
+                        && manifest.support == Support::Candidate
+                        && manifest.confidence.level == Confidence::Low),
                 executable: false,
                 aliases: vec![],
                 limitations: vec![
@@ -606,7 +617,7 @@ fn file_root(root: &Root) -> (KnownFolder, &str) {
     match root {
         Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
         Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
-        Root::Registry { .. } | Root::ReviewedInstallation { .. } => {
+        Root::Registry { .. } | Root::ReviewedInstallation { .. } | Root::Unresolved { .. } => {
             unreachable!("non-AppData roots are excluded before file detection")
         }
     }

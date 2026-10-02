@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "id": "exodus",
+  "revision": 1,
+  "name": "Exodus",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "exodus",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "roaming-app-data",
+      "relative": "Exodus",
+      "scope": "os-user",
+      "owner": "exodus"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "exodus.wallet",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "exclusions": [],
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation"
+      ],
+      "effects": [
+        "Private keys, wallet seed and wallet access; funds may become permanently inaccessible without external recovery material"
+      ]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "unavailable",
+    "surface": "local-app",
+    "mechanism": "local-secret-container-not-a-server-session",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": ["wallet-or-key-material", "settings-or-profiles", "shared-store"],
+    "affected_data": [
+      "Private keys, wallet seed and wallet access; funds may become permanently inaccessible without external recovery material"
+    ],
+    "reason": "Vendor confirms Windows root and exodus.wallet directory. A local wallet is not a server session. Keys cannot be separated from wallet access; Backups and other app files excluded, so no complete erasure is claimed.",
+    "permanent_data_loss": "known",
+    "confirmations": ["review-exodus-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#exodus",
+      "source": "https://www.exodus.com/support/en/articles/8598708-how-do-i-rescue-an-overwritten-wallet",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#exodus",
+      "source": "https://www.exodus.com/support/en/articles/8598644-how-do-i-delete-my-wallet-and-start-over",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://www.exodus.com/support/en/articles/8598708-how-do-i-rescue-an-overwritten-wallet",
+    "https://www.exodus.com/support/en/articles/8598644-how-do-i-delete-my-wallet-and-start-over"
+  ],
+  "limitations": [
+    "Vendor confirms Windows root and exodus.wallet directory. A local wallet is not a server session. Keys cannot be separated from wallet access; Backups and other app files excluded, so no complete erasure is claimed.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "application": "desktop-client",
+  "extensions": null
+}

@@ -47,6 +47,7 @@ pub fn valid_scope(m: &Manifest) -> bool {
                     Root::RoamingAppData { .. } => "roaming",
                     Root::Registry { .. } => "registry",
                     Root::ReviewedInstallation { .. } => "installation",
+                    Root::Unresolved { .. } => return true,
                 };
                 actual != *base || root.relative().replace('\\', "/") != *relative
             })

@@ -213,7 +213,25 @@ mod windows {
             )
             .unwrap();
             let engine = Engine::new(UserId("fixture-user".into()), &provider);
-            let run = prepare(&engine, &provider, Category::Application);
+            let inventory = engine
+                .scan(&[&provider], Category::Application, &mut |_| {})
+                .unwrap();
+            assert!(inventory
+                .default_selection(Category::Application)
+                .is_empty());
+            let selected = [InstanceId(format!(
+                "{}-installation",
+                m["id"].as_str().unwrap()
+            ))];
+            let run = engine
+                .prepare(
+                    inventory,
+                    Category::Application,
+                    &selected,
+                    ProcessClosePolicy::Ask,
+                    &mut |_| {},
+                )
+                .unwrap();
             let before = folders.snapshot().unwrap();
             let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
             assert_eq!(report.sections[0].aggregate, AggregateStatus::Blocked);

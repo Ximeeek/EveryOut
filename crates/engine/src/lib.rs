@@ -180,7 +180,7 @@ pub struct Inventory<'a> {
     current_user: UserId,
 }
 impl Inventory<'_> {
-    /// Select resolved known providers regardless of catalog support/confidence.
+    /// Low-confidence application candidates require explicit selection.
     /// All heuristic results stay unchecked until S8 passes; selection is not approval.
     pub fn default_selection(&self, category: Category) -> Vec<InstanceId> {
         self.entries
@@ -188,6 +188,9 @@ impl Inventory<'_> {
             .filter(|entry| {
                 entry.description.descriptor.category == category
                     && entry.instance.detection_origin.default_selected(true)
+                    && !(category == Category::Application
+                        && entry.description.descriptor.support == Support::Candidate
+                        && entry.instance.confidence == Confidence::Low)
             })
             .map(|entry| entry.instance.instance_id.clone())
             .collect()

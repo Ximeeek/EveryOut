@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod application;
+pub mod desktop;
 #[cfg(windows)]
 pub mod executor;
 mod firefox;

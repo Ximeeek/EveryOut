@@ -1,0 +1,149 @@
+{
+  "format_version": 1,
+  "id": "signal-desktop",
+  "revision": 1,
+  "name": "Signal Desktop",
+  "category": "application",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "installation_id": "signal-desktop",
+    "package_id": null,
+    "process_names": []
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "artifact-present",
+        "artifact": "session-0",
+        "family": "storage",
+        "observe": "exists"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "data",
+      "base": "roaming-app-data",
+      "relative": "Signal",
+      "scope": "os-user",
+      "owner": "signal-desktop"
+    }
+  ],
+  "profiles": null,
+  "session_locations": [
+    {
+      "id": "session-0",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "sql",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "session-1",
+      "root": "data",
+      "scope": "os-user",
+      "relative": "attachments.noindex",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "application",
+      "method": "remove-directory",
+      "artifact_family": "desktop-session",
+      "evidence": ["layout"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "exclusions": [],
+      "blockers": [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation"
+      ],
+      "effects": [
+        "Desktop-only message history, attachments and identity keys; phone history does not guarantee restoration of desktop-only data"
+      ]
+    }
+  ],
+  "preserve": {
+    "artifact_families": ["unlisted-client-data", "encryption-key-metadata"]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "local-app",
+    "mechanism": "unknown-no-reviewed-offline-cli",
+    "evidence": ["logout"]
+  },
+  "risks": {
+    "flags": [
+      "local-only-documents",
+      "drafts-or-offline-messages",
+      "settings-or-profiles",
+      "shared-store"
+    ],
+    "affected_data": [
+      "Desktop-only message history, attachments and identity keys; phone history does not guarantee restoration of desktop-only data"
+    ],
+    "reason": "Vendor confirms Roaming Signal root; sql and attachments.noindex are unverified child targets. History and session cannot be safely separated without content reads. Relinking may transfer phone history, not prove recovery of all desktop data. config/key metadata excluded; scope incomplete.",
+    "permanent_data_loss": "known",
+    "confirmations": ["review-signal-desktop-permanent-loss"],
+    "evidence": ["layout", "logout"]
+  },
+  "confidence": {
+    "level": "low",
+    "status": "unverified",
+    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/catalog/apps-other.md#signal-desktop",
+      "source": "https://support.signal.org/hc/en-us/articles/9045714156314-Can-t-Open-Signal",
+      "accessed": "2026-10-03",
+      "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "logout",
+      "dossier": "docs/catalog/apps-other.md#signal-desktop",
+      "source": "https://support.signal.org/hc/en-us/articles/360007059752-Backup-and-Restore-Messages",
+      "accessed": "2026-10-03",
+      "status": "primary-source-context-only-unverified-automated-cleanup"
+    }
+  ],
+  "sources": [
+    "https://support.signal.org/hc/en-us/articles/9045714156314-Can-t-Open-Signal",
+    "https://support.signal.org/hc/en-us/articles/360007059752-Backup-and-Restore-Messages"
+  ],
+  "limitations": [
+    "Vendor confirms Roaming Signal root; sql and attachments.noindex are unverified child targets. History and session cannot be safely separated without content reads. Relinking may transfer phone history, not prove recovery of all desktop data. config/key metadata excluded; scope incomplete.",
+    "no-authentication-proof",
+    "no-remote-revocation",
+    "no-network-no-secret-content-reads",
+    "no-reviewed-process-image-identity",
+    "fixture-success-is-not-product-logout"
+  ],
+  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "application": "desktop-client",
+  "extensions": null
+}

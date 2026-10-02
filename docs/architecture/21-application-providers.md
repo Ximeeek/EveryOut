@@ -5,6 +5,13 @@ These are typed modes of `ApplicationProvider` / the shared `ManifestExecutor`, 
 engine's snapshot review, process gate, dry-run, confirmations, metadata verification and
 handle-confined deletion. No application module reads file contents or decrypts payloads.
 
+Phase 25 adds the separate fixed `desktop-client` mode for the
+[desktop research catalog](../catalog/apps-other.md). Exact native data families, recovery-loss
+flags and provider-specific confirmations are constrained in `desktop::valid_scope`; the
+framework allowlists below remain unchanged. Unknown session locations use non-resolvable
+research roots. Thunderbird's mixed password/profile data stays blocked. Distributed desktop
+entries remain unverified candidates; synthetic tests are not product logout evidence.
+
 ## Ownership and storage boundaries
 
 The caller supplies a reviewed installation, current user and process gate. A framework cluster

@@ -181,6 +181,12 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         return Err(invalid("conflicting-category-identity"));
     }
     for root in &m.roots {
+        if matches!(root, Root::Unresolved { .. })
+            && (m.application != Some(ApplicationKind::DesktopClient)
+                || m.support != Support::Candidate)
+        {
+            return Err(invalid("unresolved-root-cannot-execute"));
+        }
         if matches!(root, Root::ReviewedInstallation { .. })
             && (m.id != "steam"
                 || m.application != Some(ApplicationKind::GamingLauncher)

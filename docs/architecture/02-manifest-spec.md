@@ -7,6 +7,18 @@ the exact package family for Store mode. See the
 
 ## Purpose and evidence
 
+Phase 25 adds `desktop-client` with a fixed provider/root/artifact allowlist, explicit recovery
+loss requirements and per-provider confirmation IDs. It does not expand the generic framework
+storage vocabulary. `roots.base: unresolved` has only ID, owner and scope; it records an unknown
+location without granting path authority. The `unresolved` artifact and
+`unresolved-session-scope` exception are research markers, not filenames or callable adapters.
+They require candidate support and neither the platform binder nor executor can resolve them.
+See the [desktop catalog](../catalog/apps-other.md) for all 17 entries and permanent-loss effects.
+
+Low-confidence application candidates require explicit selection. Desktop validation requires
+high evidence confidence and verified artifact confidence in addition to existing coverage,
+ownership, preservation and risk gates. A fixture-only promotion is never a shipping validation.
+
 Phase 24 adds the fixed `gaming-launcher` application mode, optional `sources` URL list and
 claim references in `evidence`. The Steam-only `reviewed-installation` root is a research slot
 that grants no path authority and cannot be validated or resolved by the generic executor.

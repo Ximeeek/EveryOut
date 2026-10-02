@@ -665,7 +665,7 @@ fn inaccessible_verification_and_counterfeit_success_never_claim_completion() {
 }
 
 #[test]
-fn provenance_controls_selection_independently_of_confidence_and_support() {
+fn provenance_and_low_confidence_candidate_policy_control_selection() {
     let (_fixture, ops) = setup();
     let engine = Engine::new(owner().user_id, &ops);
     for category in [
@@ -683,7 +683,12 @@ fn provenance_controls_selection_independently_of_confidence_and_support() {
                     let inventory = engine.scan(&[&provider], category, &mut |_| {}).unwrap();
                     assert_eq!(
                         inventory.default_selection(category).len(),
-                        usize::from(origin == DetectionOrigin::KnownProvider)
+                        usize::from(
+                            origin == DetectionOrigin::KnownProvider
+                                && !(category == Category::Application
+                                    && support == Support::Candidate
+                                    && confidence == Confidence::Low)
+                        )
                     );
                 }
             }
