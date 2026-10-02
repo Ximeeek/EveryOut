@@ -72,6 +72,8 @@ pub struct Manifest {
     pub evidence: Vec<Evidence>,
     pub limitations: Vec<String>,
     pub open_spikes: Vec<String>,
+    #[serde(default)]
+    pub extensions: Option<ExtensionPolicy>,
 }
 model!(Compatibility { os: Vec<WindowsVersion>, channel: String, product_versions: String });
 model!(Identity {
@@ -137,11 +139,11 @@ impl Root {
         }
     }
 }
-model!(Profiles { root: String, directory_patterns: Vec<String>, metadata_adapter: Option<String> });
+model!(Profiles { root: String, directory_patterns: Vec<String>, metadata_adapter: Option<String>, root_profile: Option<bool> });
 model!(SessionLocation {
     id: String, root: String, scope: Scope, relative: String, kind: ArtifactKind,
     observe: ObservationKind, ownership: Ownership, method: String,
-    artifact_family: Option<String>
+    artifact_family: Option<String>, evidence: Option<Vec<EvidenceRef>>, confidence: Option<String>
 });
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
@@ -211,7 +213,16 @@ model!(Preservation {
 model!(TrueLogout {
     availability: Availability, surface: LogoutSurface, mechanism: String, evidence: Vec<EvidenceRef>
 });
-model!(EvidenceConfidence { level: Confidence, rationale: String, version_coverage: Option<String> });
+model!(EvidenceConfidence { level: Confidence, rationale: String, version_coverage: Option<String>, status: Option<String> });
+model!(ExtensionPolicy { stores: Vec<String>, known: Vec<ExtensionRisk>, unknown: String });
+model!(ExtensionRisk {
+    id: String,
+    name: String,
+    flag: RiskFlag,
+    source: String,
+    accessed: String,
+    confidence: String
+});
 model!(Evidence {
     id: String, dossier: String, source: Option<String>, revision: Option<String>,
     accessed: Option<String>, status: String

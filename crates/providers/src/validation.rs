@@ -127,6 +127,13 @@ fn unknown_coverage(value: &str) -> bool {
     )
 }
 fn validate(m: &Manifest) -> Result<(), ManifestError> {
+    if m.confidence
+        .status
+        .as_ref()
+        .is_some_and(|s| !matches!(s.as_str(), "verified" | "unverified"))
+    {
+        return Err(invalid("invalid-confidence-status"));
+    }
     let roots = ids(m.roots.iter().map(Root::id))?;
     let artifacts = ids(m.session_locations.iter().map(|a| a.id.as_str()))?;
     let methods = ids(m.cleaning_methods.iter().map(CleaningMethod::id))?;
@@ -188,14 +195,30 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
             }
         }
     }
+    if m.profiles
+        .as_ref()
+        .is_some_and(|p| p.metadata_adapter.as_deref() == Some(crate::firefox::ADAPTER))
+        && (m.roots.len() != 1
+            || !matches!(&m.roots[0],
+            Root::RoamingAppData { relative, .. } if relative.replace('\\', "/") == "Mozilla/Firefox"))
+    {
+        return Err(invalid("invalid-firefox-config-root"));
+    }
     if let Some(profiles) = &m.profiles {
         if !roots.contains(profiles.root.as_str())
-            || profiles.directory_patterns.is_empty()
+            || (profiles.directory_patterns.is_empty()
+                && profiles.metadata_adapter.as_deref() != Some(crate::firefox::ADAPTER))
             || profiles
                 .directory_patterns
                 .iter()
                 .any(|p| !profile_pattern(p))
-            || profiles.metadata_adapter.is_some()
+            || profiles.metadata_adapter.as_ref().is_some_and(|adapter| {
+                adapter != crate::firefox::ADAPTER
+                    || m.id != "firefox"
+                    || m.category != Category::Browser
+                    || !profiles.directory_patterns.is_empty()
+                    || profiles.root_profile == Some(true)
+            })
             || m.roots
                 .iter()
                 .any(|r| r.id() == profiles.root && matches!(r, Root::Registry { .. }))
@@ -218,6 +241,16 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     for artifact in &m.session_locations {
+        if let Some(e) = &artifact.evidence {
+            refs(e, &evidence)?;
+        }
+        if artifact
+            .confidence
+            .as_ref()
+            .is_some_and(|c| !matches!(c.as_str(), "verified" | "unverified"))
+        {
+            return Err(invalid("invalid-artifact-confidence"));
+        }
         if !roots.contains(artifact.root.as_str())
             || !methods.contains(artifact.method.as_str())
             || !relative_path(&artifact.relative)
@@ -312,6 +345,47 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     refs(&m.risks.evidence, &evidence)?;
+    if let Some(policy) = &m.extensions {
+        if m.category != Category::Browser
+            || policy.unknown != "block"
+            || policy.stores.is_empty()
+            || policy.stores.iter().any(|p| {
+                if m.id == "firefox" {
+                    p != "browser-extension-data"
+                } else {
+                    !matches!(
+                        p.as_str(),
+                        "Local Extension Settings"
+                            | "Sync Extension Settings"
+                            | "Local App Settings"
+                            | "Sync App Settings"
+                    )
+                }
+            })
+        {
+            return Err(invalid("invalid-extension-policy"));
+        }
+        let mut seen = HashSet::new();
+        for entry in &policy.known {
+            if (if m.id == "firefox" {
+                !crate::firefox::extension_id(&entry.id) || !relative_path(&entry.id)
+            } else {
+                entry.id.len() != 32 || !entry.id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+            }) || !seen.insert(&entry.id)
+                || entry.name.trim().is_empty()
+                || !matches!(
+                    entry.flag,
+                    RiskFlag::WalletOrKeyMaterial | RiskFlag::VaultOr2faRecovery
+                )
+                || !entry.source.starts_with("https://")
+                || (m.id != "firefox" && !entry.source.contains(&entry.id))
+                || entry.accessed.is_empty()
+                || !matches!(entry.confidence.as_str(), "verified" | "unverified")
+            {
+                return Err(invalid("invalid-extension-risk"));
+            }
+        }
+    }
     refs(&m.true_logout.evidence, &evidence)?;
     ids(m.risks.confirmations.iter().map(|id| id.0.as_str()))?;
     if m.risks.permanent_data_loss == LossAssessment::Known
@@ -360,7 +434,8 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     if m.support == Support::Validated {
-        if unknown_coverage(&m.compatibility.product_versions)
+        if m.confidence.status.as_deref() == Some("unverified")
+            || unknown_coverage(&m.compatibility.product_versions)
             || m.confidence
                 .version_coverage
                 .as_deref()

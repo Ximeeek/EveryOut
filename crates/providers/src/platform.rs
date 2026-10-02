@@ -59,19 +59,25 @@ impl PlatformManifest {
                     return Err(scope());
                 }
                 let profiles = self.0.profiles.as_ref().ok_or_else(scope)?;
-                if !profiles.directory_patterns.iter().any(|pattern| {
-                    match pattern.split_once('*') {
-                        Some((start, end)) => {
-                            profile.len() >= start.len() + end.len()
-                                && profile.starts_with(start)
-                                && profile.ends_with(end)
+                if !(profile.is_empty() && profiles.root_profile == Some(true))
+                    && !profiles.directory_patterns.iter().any(|pattern| {
+                        match pattern.split_once('*') {
+                            Some((start, end)) => {
+                                profile.len() >= start.len() + end.len()
+                                    && profile.starts_with(start)
+                                    && profile.ends_with(end)
+                            }
+                            None => profile == pattern,
                         }
-                        None => profile == pattern,
-                    }
-                }) {
+                    })
+                {
                     return Err(scope());
                 }
-                format!("{profile}\\{}", artifact.relative)
+                if profile.is_empty() {
+                    artifact.relative.clone()
+                } else {
+                    format!("{profile}\\{}", artifact.relative)
+                }
             }
             (Scope::Profile, None) | (_, Some(_)) => return Err(scope()),
             (_, None) => artifact.relative.clone(),

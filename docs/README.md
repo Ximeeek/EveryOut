@@ -44,6 +44,12 @@ This directory contains project decision records and contributor-facing design d
 - [Detection and classification](architecture/17-detection-classification.md): bounded registry,
   shortcut/package inventory, manifest probes, unverified heuristic scoring, physical ownership
   overlaps and unchecked heuristic selection until S8 passes.
+- [Chromium providers](architecture/18-chromium-providers.md): declarative execution, five candidate
+  browser manifests, extension loss gates, fixture verification and unverified shipping coverage.
+- [Firefox provider](architecture/19-firefox-provider.md): bounded profiles.ini path discovery,
+  Gecko artifacts, extension risk gates, preservation fixtures and unverified S4 coverage.
+- [Browser identity metadata](architecture/20-browser-identity-metadata.md): six-browser shallow
+  signals, restoration warnings and explicit unsupported identity/sync mutations.
 - [ADR 0004: Windows bindings](adr/0004-windows-metadata-and-deletion-bindings.md): official
   metadata/deletion bindings and their operating limits.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.

@@ -831,6 +831,7 @@ name = "everyout-providers"
 version = "0.1.0"
 dependencies = [
  "everyout-core-model",
+ "everyout-engine",
  "everyout-platform-windows",
  "jsonschema",
  "schemars 1.2.2",

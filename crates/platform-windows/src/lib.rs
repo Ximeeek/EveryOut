@@ -1,4 +1,4 @@
-//! Current-user, metadata-only platform capabilities. No content reader is exposed.
+//! Current-user metadata capabilities with a fixed profiles.ini configuration exception.
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use everyout_core_model::{ActionStatus, ErrorKind};

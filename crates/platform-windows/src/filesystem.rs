@@ -48,6 +48,36 @@ impl AllowedRoot {
         names.sort();
         Ok((names, omitted))
     }
+    /// Phase 21's sole content exception; callers parse only profile locations.
+    pub fn firefox_profiles_ini(&self) -> Result<String> {
+        self.validate()?;
+        native::firefox_profiles_ini(self.handle())
+    }
+    /// An absolute config location can only name a descendant of this capability.
+    /// No new authority is granted; UNC/device paths and traversal are refused.
+    pub fn firefox_relative_profile(&self, absolute: &str) -> Result<String> {
+        self.validate()?;
+        let normalized = absolute.replace('\\', "/");
+        if normalized.len() < 4
+            || normalized.as_bytes()[1] != b':'
+            || normalized.as_bytes()[2] != b'/'
+            || !normalized.as_bytes()[0].is_ascii_alphabetic()
+        {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        let root = native::directory_path(self.handle())?.replace('\\', "/");
+        let root = root.strip_prefix("//?/").unwrap_or(&root);
+        let prefix = format!("{root}/");
+        if !normalized
+            .get(..prefix.len())
+            .is_some_and(|start| start.eq_ignore_ascii_case(&prefix))
+        {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        let relative = normalized[prefix.len()..].to_owned();
+        components(&relative)?;
+        Ok(relative)
+    }
     fn validate(&self) -> Result<()> {
         for handle in self.chain.iter() {
             if !handle.info()?.directory {
