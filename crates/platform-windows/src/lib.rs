@@ -6,6 +6,8 @@ use everyout_core_model::{ActionStatus, ErrorKind};
 #[cfg(windows)]
 mod filesystem;
 #[cfg(windows)]
+pub mod inventory;
+#[cfg(windows)]
 mod native;
 #[cfg(windows)]
 pub mod process;
@@ -15,7 +17,7 @@ mod registry;
 mod resolver;
 
 #[cfg(windows)]
-pub use filesystem::{AllowedRoot, Metadata, SafePath};
+pub use filesystem::{AllowedRoot, Metadata, PhysicalIdentity, SafePath, ShallowMetadata};
 #[cfg(windows)]
 pub use registry::{RegistryRoot, RegistryTarget};
 #[cfg(all(windows, feature = "test-fixtures"))]

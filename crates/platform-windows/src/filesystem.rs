@@ -28,6 +28,26 @@ pub struct AllowedRoot {
     chain: Rc<Vec<Handle>>,
 }
 impl AllowedRoot {
+    /// One bounded level, no descendant enumeration. Redirected entries are omitted
+    /// and reported, rather than preventing discovery of unrelated safe children.
+    pub fn discovery_children(&self) -> Result<(Vec<(String, bool)>, bool)> {
+        self.validate()?;
+        let (children, mut omitted) = self.handle().discovery_children()?;
+        let mut names = Vec::new();
+        for (name, directory) in children {
+            let Some(name) = name.to_str() else {
+                omitted = true;
+                continue;
+            };
+            if components(name).is_err() {
+                omitted = true;
+                continue;
+            }
+            names.push((name.to_owned(), directory));
+        }
+        names.sort();
+        Ok((names, omitted))
+    }
     fn validate(&self) -> Result<()> {
         for handle in self.chain.iter() {
             if !handle.info()?.directory {
@@ -206,7 +226,45 @@ pub struct Metadata {
     pub size: u64,
     pub modified: Option<SystemTime>,
 }
+/// Existence/type and regular-file size only; directory size is deliberately absent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShallowMetadata {
+    pub exists: bool,
+    pub is_directory: bool,
+    pub size: Option<u64>,
+}
+/// Opaque volume/file identity for physical equality and ancestor overlap checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhysicalIdentity(Identity);
 impl SafePath {
+    pub fn probe_shallow(&self) -> Result<ShallowMetadata> {
+        let Some(handles) = self.open(false)? else {
+            return Ok(ShallowMetadata {
+                exists: false,
+                is_directory: false,
+                size: None,
+            });
+        };
+        let info = handles.last().expect("nonempty path").info()?;
+        Ok(ShallowMetadata {
+            exists: true,
+            is_directory: info.directory,
+            size: (!info.directory).then_some(info.size),
+        })
+    }
+    /// Revalidate the whole retained chain before exposing opaque physical identities.
+    pub fn physical_chain(&self) -> Result<Option<Vec<PhysicalIdentity>>> {
+        let Some(handles) = self.open(false)? else {
+            return Ok(None);
+        };
+        self.root
+            .chain
+            .iter()
+            .chain(&handles)
+            .map(|handle| handle.info().map(|info| PhysicalIdentity(info.identity)))
+            .collect::<Result<Vec<_>>>()
+            .map(Some)
+    }
     fn open(&self, delete: bool) -> Result<Option<Vec<Handle>>> {
         self.root.validate()?;
         let mut handles = Vec::new();

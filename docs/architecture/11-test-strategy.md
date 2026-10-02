@@ -2,8 +2,9 @@
 
 Phase 10 strategy, 2026-09-30. Phase 17 adds the
 [synthetic profile harness](../../crates/test-support/README.md) and
-[manual VM guide](../testing/vm-guide.md), with guarded Windows adapter tests. The wipe engine,
-provider execution and broader acceptance matrix below remain future work. Passing synthetic
+[manual VM guide](../testing/vm-guide.md), with guarded Windows adapter tests. Phase 18 adds the
+[current-account wipe engine](16-wipe-engine.md) and guarded execution tests. Real providers and
+the broader acceptance matrix below remain future work. Passing synthetic
 tests does not establish authentication closure or complete destructive-harness validation.
 
 ## Evidence and invariant oracle

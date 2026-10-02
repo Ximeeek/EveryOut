@@ -138,9 +138,14 @@ fn domain_serialization_retains_partial_results_and_scope() {
         owner: owner(),
         profiles: description().profiles,
         confidence: Confidence::Medium,
+        detection_origin: DetectionOrigin::KnownProvider,
         evidence: vec![EvidenceRef("fixture".into())],
         issues: vec![issue()],
     };
+    let mut old_json = serde_json::to_value(&instance).unwrap();
+    old_json.as_object_mut().unwrap().remove("detection_origin");
+    let legacy: ProviderInstance = serde_json::from_value(old_json).unwrap();
+    assert_eq!(legacy.detection_origin, DetectionOrigin::Heuristic);
     round_trip(&DetectionResult {
         snapshot_id: SnapshotId("snapshot-1".into()),
         instances: vec![instance],
