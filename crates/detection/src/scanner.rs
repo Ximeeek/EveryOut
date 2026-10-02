@@ -365,6 +365,9 @@ fn manifest(
             return;
         };
         profiles.clear();
+        if configuration.root_profile == Some(true) {
+            profiles.push(Some(String::new()));
+        }
         // Enumerate the reviewed profile root at most once, even with several patterns.
         let children = configuration
             .directory_patterns
@@ -456,7 +459,11 @@ fn manifest(
                         complete = false;
                         break;
                     };
-                    format!("{relative}/{profile}/{}", a.relative)
+                    if profile.is_empty() {
+                        format!("{relative}/{}", a.relative)
+                    } else {
+                        format!("{relative}/{profile}/{}", a.relative)
+                    }
                 }
                 Some(a) => format!("{relative}/{}", a.relative),
                 None => relative.to_owned(),

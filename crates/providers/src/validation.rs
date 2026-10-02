@@ -127,6 +127,13 @@ fn unknown_coverage(value: &str) -> bool {
     )
 }
 fn validate(m: &Manifest) -> Result<(), ManifestError> {
+    if m.confidence
+        .status
+        .as_ref()
+        .is_some_and(|s| !matches!(s.as_str(), "verified" | "unverified"))
+    {
+        return Err(invalid("invalid-confidence-status"));
+    }
     let roots = ids(m.roots.iter().map(Root::id))?;
     let artifacts = ids(m.session_locations.iter().map(|a| a.id.as_str()))?;
     let methods = ids(m.cleaning_methods.iter().map(CleaningMethod::id))?;
@@ -218,6 +225,16 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     for artifact in &m.session_locations {
+        if let Some(e) = &artifact.evidence {
+            refs(e, &evidence)?;
+        }
+        if artifact
+            .confidence
+            .as_ref()
+            .is_some_and(|c| !matches!(c.as_str(), "verified" | "unverified"))
+        {
+            return Err(invalid("invalid-artifact-confidence"));
+        }
         if !roots.contains(artifact.root.as_str())
             || !methods.contains(artifact.method.as_str())
             || !relative_path(&artifact.relative)
@@ -312,6 +329,41 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     refs(&m.risks.evidence, &evidence)?;
+    if let Some(policy) = &m.extensions {
+        if m.category != Category::Browser
+            || policy.unknown != "block"
+            || policy.stores.is_empty()
+            || policy.stores.iter().any(|p| {
+                !matches!(
+                    p.as_str(),
+                    "Local Extension Settings"
+                        | "Sync Extension Settings"
+                        | "Local App Settings"
+                        | "Sync App Settings"
+                )
+            })
+        {
+            return Err(invalid("invalid-extension-policy"));
+        }
+        let mut seen = HashSet::new();
+        for entry in &policy.known {
+            if entry.id.len() != 32
+                || !entry.id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+                || !seen.insert(&entry.id)
+                || entry.name.trim().is_empty()
+                || !matches!(
+                    entry.flag,
+                    RiskFlag::WalletOrKeyMaterial | RiskFlag::VaultOr2faRecovery
+                )
+                || !entry.source.starts_with("https://")
+                || !entry.source.contains(&entry.id)
+                || entry.accessed.is_empty()
+                || !matches!(entry.confidence.as_str(), "verified" | "unverified")
+            {
+                return Err(invalid("invalid-extension-risk"));
+            }
+        }
+    }
     refs(&m.true_logout.evidence, &evidence)?;
     ids(m.risks.confirmations.iter().map(|id| id.0.as_str()))?;
     if m.risks.permanent_data_loss == LossAssessment::Known
@@ -360,7 +412,8 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         }
     }
     if m.support == Support::Validated {
-        if unknown_coverage(&m.compatibility.product_versions)
+        if m.confidence.status.as_deref() == Some("unverified")
+            || unknown_coverage(&m.compatibility.product_versions)
             || m.confidence
                 .version_coverage
                 .as_deref()

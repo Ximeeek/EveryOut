@@ -1,0 +1,504 @@
+{
+  "format_version": 1,
+  "id": "chrome",
+  "revision": 1,
+  "name": "Google Chrome",
+  "category": "browser",
+  "support": "candidate",
+  "compatibility": {
+    "os": ["windows-10", "windows-11"],
+    "channel": "stable",
+    "product_versions": "unvalidated"
+  },
+  "identity": {
+    "browser_id": "chrome",
+    "process_names": ["chrome.exe"]
+  },
+  "detection": {
+    "require_exclusive_owner": true,
+    "signals": [
+      {
+        "id": "root-present",
+        "root": "user-data",
+        "family": "ownership",
+        "observe": "exists"
+      },
+      {
+        "id": "cookies-present",
+        "artifact": "network-cookies",
+        "family": "storage",
+        "observe": "exists-and-size"
+      }
+    ]
+  },
+  "roots": [
+    {
+      "id": "user-data",
+      "base": "local-app-data",
+      "relative": "Google/Chrome/User Data",
+      "scope": "os-user",
+      "owner": "chrome"
+    }
+  ],
+  "profiles": {
+    "root": "user-data",
+    "directory_patterns": ["Default", "Profile *"],
+    "root_profile": false
+  },
+  "session_locations": [
+    {
+      "id": "network-cookies",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Network/Cookies",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["network"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "cookies",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Cookies",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["network"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "extension-cookies",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Extension Cookies",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["constants"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "local-storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Local Storage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["dom"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "session-storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Session Storage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["dom"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "local-storage-sqlite",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "LocalStorage",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["dom"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "session-storage-sqlite",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "SessionStorage",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["dom"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "indexed-db",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "IndexedDB",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "service-worker",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Service Worker",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "web-storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "WebStorage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "file-system",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "File System",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "databases",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "databases",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "application-cache",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Application Cache",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "blob-storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "blob_storage",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "quota-manager",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "QuotaManager",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "shared-storage",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "SharedStorage",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "origin-session-storage",
+      "evidence": ["storage"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "sessions",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Sessions",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "encrypted-sessions",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Sessions_Encrypted",
+      "kind": "directory",
+      "observe": "exists",
+      "ownership": "browser-profile",
+      "method": "remove-directory",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "current-session",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Current Session",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "current-tabs",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Current Tabs",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "last-session",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Last Session",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "last-tabs",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Last Tabs",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "session-restore",
+      "evidence": ["sessions"],
+      "confidence": "unverified"
+    },
+    {
+      "id": "device-bound-sessions",
+      "root": "user-data",
+      "scope": "profile",
+      "relative": "Network/Device Bound Sessions",
+      "kind": "file",
+      "observe": "exists-and-size",
+      "ownership": "browser-profile",
+      "method": "remove-file",
+      "artifact_family": "device-bound-session-records",
+      "evidence": ["network"],
+      "confidence": "unverified"
+    }
+  ],
+  "cleaning_methods": [
+    {
+      "id": "remove-file",
+      "kind": "delete-file-family",
+      "companions": ["-wal", "-shm", "-journal"],
+      "blockers": ["unverified-version-closure"],
+      "effects": ["local-session-artifact-removal"]
+    },
+    {
+      "id": "remove-directory",
+      "kind": "delete-directory-family",
+      "blockers": [
+        "unverified-version-closure",
+        "extension-origin-isolation-unverified"
+      ],
+      "effects": ["local-origin-data-and-offline-document-loss"],
+      "exclusions": []
+    }
+  ],
+  "preserve": {
+    "artifact_families": [
+      "password-stores",
+      "web-data",
+      "history",
+      "passkeys",
+      "encryption-key-metadata",
+      "browser-identity",
+      "sync-configuration",
+      "vendor-wallet-state",
+      "mixed-extension-state"
+    ]
+  },
+  "true_logout": {
+    "availability": "unknown",
+    "surface": "browser-identity",
+    "mechanism": "none-validated-for-v1",
+    "evidence": ["network"]
+  },
+  "risks": {
+    "flags": ["unknown", "local-only-documents", "settings-or-profiles"],
+    "affected_data": [
+      "offline-origin-data",
+      "extension-origin-data",
+      "session-restore"
+    ],
+    "permanent_data_loss": "unknown",
+    "reason": "shipping-versions-and-mixed-extension-storage-unverified",
+    "confirmations": ["review-origin-data-loss"],
+    "evidence": ["storage", "extensions"]
+  },
+  "confidence": {
+    "level": "low",
+    "rationale": "upstream-paths-only-shipping-layout-and-closure-unverified",
+    "status": "unverified",
+    "version_coverage": "unvalidated"
+  },
+  "evidence": [
+    {
+      "id": "layout",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://chromium.googlesource.com/chromium/src/+/HEAD/docs/user_data_dir.md",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "network",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://chromium.googlesource.com/chromium/src/+/HEAD/chrome/browser/net/profile_network_context_service.cc",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "constants",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://chromium.googlesource.com/chromium/src/+/HEAD/chrome/common/chrome_constants.h",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "storage",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://chromium.googlesource.com/chromium/src/+/main/storage/browser/quota/quota_manager_proxy_unittest.cc",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "dom",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://raw.githubusercontent.com/chromium/chromium/main/components/services/storage/dom_storage/dom_storage_database.cc",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "sessions",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://raw.githubusercontent.com/chromium/chromium/main/components/sessions/core/session_constants.cc",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    },
+    {
+      "id": "extensions",
+      "dossier": "docs/research/01-browsers.md#1-chromium-family-locations-layout-and-artifact-inventory",
+      "source": "https://developer.chrome.com/docs/extensions/reference/api/storage",
+      "accessed": "2026-09-30",
+      "status": "unverified-shipping-coverage"
+    }
+  ],
+  "limitations": [
+    "unverified-shipping-browser-support",
+    "no-authentication-proof",
+    "identity-and-sync-reserved-for-phase-22",
+    "dbsc-database-is-a-candidate-key-destruction-and-legacy-partitions-unverified",
+    "mixed-preferences-local-state-and-web-data-preserved",
+    "extension-id-verification-does-not-prove-isolated-safe-cleanup",
+    "unknown-extensions-block-profile-scope",
+    "pwas-share-browser-origin-storage-no-independent-wipe",
+    "relocated-portable-channel-and-custom-profiles-unsupported",
+    "extension-state-rules-scripts-and-managed-settings-preserved"
+  ],
+  "open_spikes": ["S1", "S2", "S3", "S4", "extension-preservation-boundary"],
+  "extensions": {
+    "stores": [
+      "Local Extension Settings",
+      "Sync Extension Settings",
+      "Local App Settings",
+      "Sync App Settings"
+    ],
+    "unknown": "block",
+    "known": [
+      {
+        "id": "nngceckbapebfimnlniiiahkandclblb",
+        "name": "Bitwarden Password Manager",
+        "flag": "vault-or-2fa-recovery",
+        "source": "https://chromewebstore.google.com/detail/bitwarden-password-manage/nngceckbapebfimnlniiiahkandclblb",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      },
+      {
+        "id": "bhghoamapcdpbohphigoooaddinpkbai",
+        "name": "Authenticator",
+        "flag": "vault-or-2fa-recovery",
+        "source": "https://chromewebstore.google.com/detail/authenticator/bhghoamapcdpbohphigoooaddinpkbai",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      },
+      {
+        "id": "nkbihfbeogaeaoehlefnkodbefgpgknn",
+        "name": "MetaMask",
+        "flag": "wallet-or-key-material",
+        "source": "https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn",
+        "accessed": "2026-10-02",
+        "confidence": "verified"
+      }
+    ]
+  }
+}

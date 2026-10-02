@@ -44,6 +44,8 @@ This directory contains project decision records and contributor-facing design d
 - [Detection and classification](architecture/17-detection-classification.md): bounded registry,
   shortcut/package inventory, manifest probes, unverified heuristic scoring, physical ownership
   overlaps and unchecked heuristic selection until S8 passes.
+- [Chromium providers](architecture/18-chromium-providers.md): declarative execution, five candidate
+  browser manifests, extension loss gates, fixture verification and unverified shipping coverage.
 - [ADR 0004: Windows bindings](adr/0004-windows-metadata-and-deletion-bindings.md): official
   metadata/deletion bindings and their operating limits.
 - [ADR 0002: Retain Tauri and Rust](adr/0002-retain-tauri-rust-stack.md): stack rationale.
