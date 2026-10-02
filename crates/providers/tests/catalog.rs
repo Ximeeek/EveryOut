@@ -39,7 +39,7 @@ fn every_catalog_manifest_validates_and_browser_entries_have_evidence() {
             .as_path(),
         &mut count,
     );
-    assert_eq!(count, 33);
+    assert_eq!(count, 45);
 }
 
 #[test]

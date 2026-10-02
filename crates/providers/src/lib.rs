@@ -15,5 +15,6 @@ pub mod platform;
 #[cfg(windows)]
 pub mod steam;
 pub mod validation;
+pub mod windows_dev;
 pub use manifest::*;
 pub use validation::{load_manifest, ManifestError, ManifestErrorKind};

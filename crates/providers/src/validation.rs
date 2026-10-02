@@ -182,7 +182,8 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
     }
     for root in &m.roots {
         if matches!(root, Root::Unresolved { .. })
-            && (m.application != Some(ApplicationKind::DesktopClient)
+            && ((m.application != Some(ApplicationKind::DesktopClient)
+                && m.category != Category::WindowsMicrosoftAndDevTools)
                 || m.support != Support::Candidate)
         {
             return Err(invalid("unresolved-root-cannot-execute"));
@@ -484,6 +485,14 @@ fn validate(m: &Manifest) -> Result<(), ManifestError> {
         if m.category == Category::WindowsMicrosoftAndDevTools && m.risks.confirmations.is_empty() {
             return Err(invalid("special-category-requires-confirmation"));
         }
+    }
+    if m.category == Category::WindowsMicrosoftAndDevTools
+        && (m.support == Support::Validated
+            || crate::windows_dev::IDS.contains(&m.id.as_str())
+            || m.roots.iter().any(|r| matches!(r, Root::Unresolved { .. })))
+        && !crate::windows_dev::valid_scope(m)
+    {
+        return Err(invalid("unreviewed-windows-dev-scope"));
     }
     Ok(())
 }

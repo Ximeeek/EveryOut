@@ -75,6 +75,12 @@ are forbidden. Exact registry key/value-name presence may be observed without fe
 User-supplied root overrides require a later reviewed discovery decision and cannot be injected
 into an existing executable plan.
 
+Phase 26 permits `unresolved` roots for the fixed Windows/dev research catalog only with
+candidate support and the non-callable `unresolved-windows-dev-scope` research marker.
+The loader refuses any executable promotion or replacement with concrete file/registry roots.
+Official CLI command strings are documentation, not manifest operations. See the
+[revised phase scope](../catalog/windows-dev.md#revised-phase-26-acceptance).
+
 Typed method vocabulary:
 
 - `delete-file-family`: delete an enumerated artifact and declared SQLite companions such as

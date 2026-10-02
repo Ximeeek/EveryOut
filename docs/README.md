@@ -68,3 +68,6 @@ This directory contains project decision records and contributor-facing design d
 
 Contributor workflow and security reporting are documented in the root
 [CONTRIBUTING.md](../CONTRIBUTING.md) and [SECURITY.md](../SECURITY.md).
+
+Phase 26's [Windows/Microsoft and developer-tool catalog](catalog/windows-dev.md) records
+blocked research scopes, offline refusal reasons and the evidence needed before local execution.

@@ -511,6 +511,14 @@ fn both_risk_and_special_category_gates_are_required_and_plan_bound() {
             let engine = Engine::new(owner().user_id, &ops);
             let before = fixture.snapshot().unwrap();
             let run = prepare(&engine, &provider, &mut |_| {});
+            assert!(run.preview().text().contains(WINDOWS_DEV_SSO_WARNING));
+            assert!(item(run.preview())
+                .plan
+                .as_ref()
+                .unwrap()
+                .limitations
+                .iter()
+                .any(|s| s == WINDOWS_DEV_SSO_WARNING));
             let approval = Approval {
                 category_confirmation: category_ok.then(|| run.confirm_category()),
                 confirmed_risks: if risk_ok {
@@ -521,6 +529,8 @@ fn both_risk_and_special_category_gates_are_required_and_plan_bound() {
                 ..Default::default()
             };
             let report = engine.apply(run, approval, &|| false, &mut |_| {});
+            assert!(report.text().contains(WINDOWS_DEV_SSO_WARNING));
+            assert!(report.json().unwrap().contains("Windows SSO"));
             if category_ok && risk_ok {
                 assert_eq!(item(&report).aggregate, AggregateStatus::CompleteLocalScope);
             } else {
@@ -546,6 +556,34 @@ fn both_risk_and_special_category_gates_are_required_and_plan_bound() {
         &mut |_| {},
     );
     assert_eq!(item(&report).aggregate, AggregateStatus::Blocked);
+    assert_eq!(ops.mutations.get(), 0);
+}
+
+#[test]
+fn special_category_warning_survives_an_empty_selection() {
+    let (_fixture, ops) = setup();
+    let engine = Engine::new(owner().user_id, &ops);
+    let category = Category::WindowsMicrosoftAndDevTools;
+    let inventory = engine.scan(&[], category, &mut |_| {}).unwrap();
+    let run = engine
+        .prepare(
+            inventory,
+            category,
+            &[],
+            ProcessClosePolicy::Ask,
+            &mut |_| {},
+        )
+        .unwrap();
+    assert!(run.preview().text().contains(WINDOWS_DEV_SSO_WARNING));
+    assert!(run
+        .preview()
+        .sections
+        .iter()
+        .filter(|s| s.category != category)
+        .all(|s| s.warnings.is_empty()));
+    let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
+    assert!(report.text().contains(WINDOWS_DEV_SSO_WARNING));
+    assert!(report.json().unwrap().contains("Windows SSO"));
     assert_eq!(ops.mutations.get(), 0);
 }
 
