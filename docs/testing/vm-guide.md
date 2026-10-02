@@ -81,6 +81,60 @@ approved force timing and unrelated sibling preservation. Record partial effects
 remaining cross-user/helper/catalog and authentication cases are future gates, not implemented
 harness coverage. Security-product denial is a limitation, not successful cleanup.
 
+## Elevated helper and UAC (phase 27)
+
+S6 remains **PENDING USER EXECUTION**. Run this checklist only inside the disposable guest.
+Automated workspace tests exercise fake endpoints and a same-process pipe without elevation.
+The optional manual driver requests real UAC; it is excluded from ordinary builds and tests.
+It can exercise the boundary, but no other-account inventory or deletion is available in phase 27.
+
+1. Build the helper and the explicitly opted-in driver from the recorded checkout:
+
+   ```powershell
+   cargo build -p everyout-elevated-helper --features manual-lab
+   $labHelperDigest = (Get-FileHash -Algorithm SHA256 target\debug\everyout-elevated-helper.exe).Hash.ToLowerInvariant()
+   ```
+
+   Record this digest from the reviewed build before any tampering tests. The shipping native
+   host must use a trusted distribution pin, never dynamically trust an installed file's hash.
+   Keep both executables beside each other. Disconnect networking before these trials.
+
+2. Run `target\debug\everyout-helper-lab.exe --disposable-vm $labHelperDigest current`.
+   Expect no UAC, no helper, and the current-account status. Repeat with a manually elevated
+   driver; ambient elevation must not widen mode. No real app/profile/process is targeted.
+3. Run the same command with `finish`. Accept UAC for test user A. Expect authenticated IPC,
+   `ScopeUnavailable` for enumeration, `Finished`, and helper exit. Inspect process metadata
+   only. Repeat under a standard user with separate test administrator consent; account scope
+   must still bind to A's retained parent token, never the administrator's HKCU/AppData.
+4. Restore baseline and repeat `finish`, declining UAC. Expect `UacDeclined` fallback, one
+   prompt, current effective/saved mode and fresh-review requirement; no privileged work.
+   UI persistence, notification and actual rescan integration are phase 30 and remain untested.
+5. With the previously recorded pin, remove the helper or replace it with another synthetic lab
+   executable. Expect `StartFailed` or `AuthenticationFailed` before UAC. Test a synthetic
+   reparse installation path and binary modification/ancestor rename while IPC is active;
+   reject redirection or prevent replacement with retained locks. Restore the reviewed binary.
+6. Run `parent-loss`; after authentication the driver exits immediately. Verify helper exit on
+   the retained parent's termination, without waiting for the idle deadline. Run `timeout`;
+   leave the driver alive and silent, and verify helper exit at the 30-second idle limit.
+   The five-minute absolute lifetime must also apply to a client sending valid heartbeats.
+7. Inspect the private pipe DACL in a reviewed VM metadata harness: only A and built-in
+   administrators have specific data/attribute/control rights; no Everyone/authenticated-users
+   grant or generic-write/pipe-instance right. Remote clients are denied. Try an unrelated test
+   user, A in another logon/session, an administrator with a different PID, pipe squatting,
+   wrong nonce/version/run, replay, unknown fields/commands and a path-injection payload.
+   Authentication must reject every mismatch and end the helper before any operation.
+   The driver deliberately has no arbitrary-message injection option: use a reviewed synthetic
+   harness for cross-user adversarial cases; absent that harness record `NOT RUN`, never PASS.
+8. Record OS/build, ordinary/elevated/consenting account relationships using neutral labels,
+   revision, digest, scenario, prompt count, sanitized status and measured process-exit timing.
+   Never record raw SID, nonce, private pipe name, secrets or profile payloads. Restore the
+   checkpoint after every scenario; failures remain unresolved S6 gates.
+
+See the [implemented boundary and limits](../architecture/22-elevated-helper.md).
+Publisher signing, hostile installation trust, real cross-user ACL denial and UAC behavior
+remain unverified until the corresponding VM evidence is recorded. No helper test authorizes
+enumerating/wiping foreign profiles or loading hives; those belong to phase 28.
+
 ## Evidence and restore
 
 Record case ID, date, OS/product/channel versions, checkpoint, source revision, fixture seed

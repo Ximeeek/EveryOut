@@ -805,6 +805,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "everyout-elevated-helper"
+version = "0.1.0"
+dependencies = [
+ "everyout-core-model",
+ "everyout-providers",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "everyout-engine"
 version = "0.1.0"
 dependencies = [
