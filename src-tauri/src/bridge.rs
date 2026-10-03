@@ -28,6 +28,8 @@ enum Request {
     Close(ExecuteRequest),
     Enable,
     Settings(Settings),
+    CheckCatalog,
+    ActivateCatalog(String),
 }
 enum Reply {
     Scan(ScanDto),
@@ -36,6 +38,7 @@ enum Reply {
     Settings(Settings),
     Started(RunStarted),
     Report(ReportDto),
+    Catalog(CatalogUpdateDto),
 }
 type ResponseSender = mpsc::Sender<Result<Reply, CommandError>>;
 struct Envelope {
@@ -55,6 +58,8 @@ pub struct Bridge {
     shared: Arc<Shared>,
 }
 pub struct Worker {
+    pub(crate) catalog:
+        Option<Result<everyout_catalog_update::store::Store, everyout_catalog_update::Error>>,
     receiver: mpsc::Receiver<Envelope>,
     shared: Arc<Shared>,
     store: SettingsStore,
@@ -92,6 +97,7 @@ impl Bridge {
                 shared: shared.clone(),
             },
             Worker {
+                catalog: None,
                 receiver,
                 shared,
                 store,
@@ -133,6 +139,21 @@ impl Bridge {
     pub fn scan(&self) -> Result<ScanDto, CommandError> {
         match self.call(Request::Scan)? {
             Reply::Scan(dto) => Ok(dto),
+            _ => Err(CommandError::WorkerUnavailable),
+        }
+    }
+    pub fn check_catalog_updates(&self) -> Result<CatalogUpdateDto, CommandError> {
+        match self.call(Request::CheckCatalog)? {
+            Reply::Catalog(dto) => Ok(dto),
+            _ => Err(CommandError::WorkerUnavailable),
+        }
+    }
+    pub fn activate_catalog_update(
+        &self,
+        digest: String,
+    ) -> Result<CatalogUpdateDto, CommandError> {
+        match self.call(Request::ActivateCatalog(digest))? {
+            Reply::Catalog(dto) => Ok(dto),
             _ => Err(CommandError::WorkerUnavailable),
         }
     }
@@ -261,6 +282,16 @@ fn helper_report(
     Ok((json, data.plan_id, data.digest))
 }
 impl Worker {
+    fn catalog_identity(&self) -> Option<CatalogIdentityDto> {
+        let snapshot = self.catalog.as_ref()?.as_ref().ok()?.snapshot().ok()?;
+        Some(CatalogIdentityDto {
+            version: snapshot.version.to_string(),
+            digest: snapshot.digest.clone(),
+        })
+    }
+    pub(crate) fn catalog_directory(&self) -> Result<std::path::PathBuf, CommandError> {
+        self.store.catalog_directory()
+    }
     pub fn cancellation(&self) -> Arc<dyn Fn() -> bool + Send + Sync> {
         let shared = self.shared.clone();
         Arc::new(move || shared.cancelled.load(Ordering::Acquire))
@@ -336,18 +367,86 @@ impl Worker {
         }
     }
     pub fn serve(
-        self,
+        mut self,
         mut current: CurrentSession<'_>,
         discovery: impl Fn() -> everyout_detection::ScanReport,
         unavailable: Vec<String>,
-    ) {
+    ) -> Option<Self> {
         let mut elevated: Option<Elevated> = None;
+        let mut review_open = false;
         while let Ok(envelope) = self.receiver.recv() {
+            let mut reload = false;
             let executing = matches!(&envelope.request, Request::Execute(..) | Request::Close(..));
             let mut acknowledged = false;
             let result = (|| {
                 let settings = self.settings()?;
+                if matches!(
+                    &envelope.request,
+                    Request::Scan
+                        | Request::Plan(..)
+                        | Request::DryRun(..)
+                        | Request::Execute(..)
+                        | Request::Close(..)
+                        | Request::Enable
+                ) {
+                    match &self.catalog {
+                        Some(Err(_)) => return Err(CommandError::WorkerUnavailable),
+                        Some(Ok(store)) => {
+                            store
+                                .snapshot()
+                                .map_err(|_| CommandError::WorkerUnavailable)?;
+                            if (settings.account_mode == AccountMode::AllAccounts
+                                || matches!(&envelope.request, Request::Enable))
+                                && !store.helper_compatible()
+                            {
+                                return Err(CommandError::HelperUnavailable);
+                            }
+                        }
+                        None => {} // Capability-injected tests use their owned fixture providers.
+                    }
+                }
                 match envelope.request {
+                    Request::CheckCatalog => {
+                        current.invalidate();
+                        if let Some(helper) = elevated.as_mut() {
+                            helper.held = None;
+                            helper.inventory.clear();
+                            helper.selections.clear();
+                        }
+                        review_open = false;
+                        if let Some(Ok(store)) = self.catalog.as_mut() {
+                            store.discard_proposal();
+                        }
+                        let outcome = match self.catalog.as_mut() {
+                            Some(Ok(store)) => crate::native::source()
+                                .and_then(|source| store.check(&source).map(|_| ())),
+                            Some(Err(error)) => Err(*error),
+                            None => Err(everyout_catalog_update::Error::Unconfigured),
+                        };
+                        Ok(Reply::Catalog(crate::native::catalog_status(
+                            &self.catalog,
+                            outcome.err(),
+                        )))
+                    }
+                    Request::ActivateCatalog(digest) => {
+                        if review_open {
+                            return Err(CommandError::Busy);
+                        }
+                        let outcome = match self.catalog.as_mut() {
+                            Some(Ok(store)) => store.activate(&digest),
+                            Some(Err(error)) => Err(*error),
+                            None => Err(everyout_catalog_update::Error::Unconfigured),
+                        };
+                        if outcome.is_ok() {
+                            current.invalidate();
+                            elevated = None;
+                            reload = true;
+                        }
+                        Ok(Reply::Catalog(crate::native::catalog_status(
+                            &self.catalog,
+                            outcome.err(),
+                        )))
+                    }
                     Request::Enable => {
                         current.invalidate();
                         elevated = None;
@@ -359,9 +458,11 @@ impl Worker {
                         // Remembering AllAccounts is allowed, but never launches UAC or grants scope.
                         current.invalidate();
                         elevated = None;
+                        review_open = false;
                         self.save(settings).map(Reply::Settings)
                     }
                     Request::Scan => {
+                        review_open = true;
                         if settings.account_mode == AccountMode::AllAccounts {
                             let helper =
                                 elevated.as_mut().ok_or(CommandError::HelperUnavailable)?;
@@ -456,7 +557,7 @@ impl Worker {
                         }
                     }
                     Request::Close(request) => {
-                        let report = if settings.account_mode == AccountMode::AllAccounts {
+                        let mut report = if settings.account_mode == AccountMode::AllAccounts {
                             let helper =
                                 elevated.as_mut().ok_or(CommandError::HelperUnavailable)?;
                             let plan = dry_elevated(helper, &request.plan_id)?;
@@ -478,6 +579,7 @@ impl Worker {
                             current.close_reviewed(request)?
                         };
                         current.invalidate();
+                        report.catalog = self.catalog_identity();
                         if let Ok(mut active) = self.shared.active.lock() {
                             *active = None;
                         }
@@ -515,7 +617,8 @@ impl Worker {
                         }))
                         .unwrap_or(Err(CommandError::WorkerUnavailable));
                         let terminal = match report {
-                            Ok(report) => {
+                            Ok(mut report) => {
+                                report.catalog = self.catalog_identity();
                                 if let Ok(mut last) = self.shared.report.lock() {
                                     *last = Some(report.clone());
                                 }
@@ -545,7 +648,11 @@ impl Worker {
             if !acknowledged {
                 let _ = envelope.reply.send(result);
             }
+            if reload {
+                return Some(self);
+            }
         }
+        None
     }
 }
 fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {

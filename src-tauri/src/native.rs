@@ -9,6 +9,32 @@ use everyout_providers::{
 };
 use std::cell::RefCell;
 include!(concat!(env!("OUT_DIR"), "/catalog.rs"));
+include!(concat!(env!("OUT_DIR"), "/catalog_trust.rs"));
+
+pub(crate) fn source(
+) -> everyout_catalog_update::Result<everyout_catalog_update::transport::HttpsSource> {
+    everyout_catalog_update::transport::HttpsSource::new(
+        CATALOG_URL.ok_or(everyout_catalog_update::Error::Unconfigured)?,
+    )
+}
+pub(crate) fn catalog_status(
+    store: &Option<Result<everyout_catalog_update::store::Store, everyout_catalog_update::Error>>,
+    error: Option<everyout_catalog_update::Error>,
+) -> CatalogUpdateDto {
+    let store = store.as_ref().and_then(|s| s.as_ref().ok());
+    let active = store.and_then(|s| s.snapshot().ok());
+    let proposed = store.and_then(|s| s.proposed());
+    CatalogUpdateDto {
+        installed_version: active
+            .map(|s| s.version.to_string())
+            .unwrap_or_else(|| "unavailable".into()),
+        proposed_version: proposed.map(|s| s.version.to_string()),
+        digest: proposed.map(|s| s.digest.clone()),
+        changelog: proposed.map(|s| s.changelog.clone()),
+        error: error.map(|e| e.code().into()),
+        helper_compatible: store.is_some_and(|s| s.helper_compatible()),
+    }
+}
 
 /// Conservative current-session gate: unresolved active process ownership blocks mutation.
 /// The reviewed App Paths exception is used by the account helper; the current host does
@@ -133,59 +159,96 @@ pub fn catalog() -> Result<Vec<(&'static str, Manifest)>, CommandError> {
         })
         .collect()
 }
-pub fn serve(worker: crate::bridge::Worker) {
-    let Ok(catalog) = catalog() else {
-        return;
-    };
-    let resolver = CurrentUserFolders;
-    let cancelled = worker.cancellation();
-    let gates: Vec<_> = catalog
-        .iter()
-        .map(|(_, m)| CurrentProcesses {
-            names: m.identity.process_names.clone(),
-            gate: RefCell::new(None),
-            cancelled: cancelled.clone(),
-        })
-        .collect();
-    let mut providers = Vec::new();
-    let mut categories = Vec::new();
-    let mut unavailable = Vec::new();
-    for ((json, manifest), gate) in catalog.iter().zip(&gates) {
-        match ManifestExecutor::load(
-            json,
-            &resolver,
-            UserId("current-account".into()),
-            InstallationId(manifest.id.clone()),
-            gate,
-        ) {
-            Ok(provider) => {
-                providers.push(provider);
-                categories.push(manifest.category);
+pub fn serve(mut worker: crate::bridge::Worker) {
+    worker.catalog = Some((|| {
+        let bundled = everyout_catalog_update::bundled(everyout_catalog_update::entries(
+            BUNDLED.iter().map(|s| (*s).to_owned()),
+        )?)?;
+        let trust = everyout_catalog_update::Trust::new(CATALOG_KEY, &bundled)?;
+        if CATALOG_URL.is_some() {
+            source()?;
+        }
+        let path = worker
+            .catalog_directory()
+            .map_err(|_| everyout_catalog_update::Error::Storage)?;
+        everyout_catalog_update::store::Store::open(&path, bundled, trust)
+    })());
+    loop {
+        let catalog: Vec<(String, Manifest)> = worker
+            .catalog
+            .as_ref()
+            .and_then(|s| s.as_ref().ok())
+            .and_then(|s| s.snapshot().ok())
+            .map(|s| {
+                s.entries
+                    .iter()
+                    .map(|e| {
+                        (
+                            e.manifest.clone(),
+                            everyout_providers::load_manifest(&e.manifest)
+                                .expect("verified manifest"),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let resolver = CurrentUserFolders;
+        let cancelled = worker.cancellation();
+        let gates: Vec<_> = catalog
+            .iter()
+            .map(|(_, m)| CurrentProcesses {
+                names: m.identity.process_names.clone(),
+                gate: RefCell::new(None),
+                cancelled: cancelled.clone(),
+            })
+            .collect();
+        let mut providers = Vec::new();
+        let mut categories = Vec::new();
+        let mut unavailable = Vec::new();
+        for ((json, manifest), gate) in catalog.iter().zip(&gates) {
+            match ManifestExecutor::load(
+                json,
+                &resolver,
+                UserId("current-account".into()),
+                InstallationId(manifest.id.clone()),
+                gate,
+            ) {
+                Ok(provider) => {
+                    providers.push(provider);
+                    categories.push(manifest.category);
+                }
+                Err(_) => {
+                    unavailable.push(format!("{}-execution-adapter-unavailable", manifest.id))
+                }
             }
-            Err(_) => unavailable.push(format!("{}-execution-adapter-unavailable", manifest.id)),
+        }
+        let router = Router {
+            providers: &providers,
+        };
+        let entries: Vec<_> = providers
+            .iter()
+            .zip(categories)
+            .map(|(p, c)| (c, p as &dyn EngineProvider))
+            .collect();
+        let session = CurrentSession::new(&router, entries);
+        let discovery = || {
+            let reviewed: Vec<_> = catalog
+                .iter()
+                .filter_map(|(json, _)| {
+                    everyout_detection::scanner::ReviewedManifest::load(json).ok()
+                })
+                .collect();
+            everyout_detection::scanner::scan(
+                &resolver,
+                &InstalledInventory::collect_current_user(),
+                &reviewed,
+                &*cancelled,
+            )
+        };
+        // Rc/RefCell-backed executors and all borrowed capabilities remain on this worker.
+        match worker.serve(session, discovery, unavailable) {
+            Some(next) => worker = next,
+            None => break,
         }
     }
-    let router = Router {
-        providers: &providers,
-    };
-    let entries: Vec<_> = providers
-        .iter()
-        .zip(categories)
-        .map(|(p, c)| (c, p as &dyn EngineProvider))
-        .collect();
-    let session = CurrentSession::new(&router, entries);
-    let discovery = || {
-        let reviewed: Vec<_> = catalog
-            .iter()
-            .filter_map(|(json, _)| everyout_detection::scanner::ReviewedManifest::load(json).ok())
-            .collect();
-        everyout_detection::scanner::scan(
-            &resolver,
-            &InstalledInventory::collect_current_user(),
-            &reviewed,
-            &*cancelled,
-        )
-    };
-    // Rc/RefCell-backed executors and all borrowed capabilities remain on this worker.
-    worker.serve(session, discovery, unavailable);
 }

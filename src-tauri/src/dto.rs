@@ -35,6 +35,16 @@ pub enum CommandError {
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
+pub struct CatalogUpdateDto {
+    pub installed_version: String,
+    pub proposed_version: Option<String>,
+    pub digest: Option<String>,
+    pub changelog: Option<String>,
+    pub error: Option<String>,
+    pub helper_compatible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
 pub struct DetectedItem {
     pub id: String,
     pub account: String,
@@ -267,11 +277,19 @@ pub struct AccountDto {
 }
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct ReportDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub catalog: Option<CatalogIdentityDto>,
     pub skipped: Vec<SkippedItemDto>,
     pub mode: ExecutionMode,
     pub account_mode: AccountMode,
     pub process_close_policy: ProcessClosePolicy,
     pub accounts: Vec<AccountDto>,
+}
+#[derive(Debug, Clone, Serialize, TS)]
+pub struct CatalogIdentityDto {
+    pub version: String,
+    pub digest: String,
 }
 pub fn sections(runs: &[RunReport]) -> Vec<SectionDto> {
     [
@@ -323,6 +341,7 @@ pub fn sections(runs: &[RunReport]) -> Vec<SectionDto> {
 impl ReportDto {
     pub fn current(runs: &[RunReport], policy: ProcessClosePolicy, mode: ExecutionMode) -> Self {
         Self {
+            catalog: None,
             mode,
             skipped: vec![],
             account_mode: AccountMode::Current,
@@ -340,6 +359,7 @@ impl ReportDto {
     }
     pub fn elevated(report: &AccountsReport, policy: ProcessClosePolicy) -> Self {
         Self {
+            catalog: None,
             mode: report.mode,
             skipped: vec![],
             account_mode: AccountMode::AllAccounts,

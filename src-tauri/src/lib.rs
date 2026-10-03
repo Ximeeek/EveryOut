@@ -3,6 +3,8 @@ mod acl_tests;
 pub mod application;
 pub mod bindings;
 pub mod bridge;
+#[cfg(test)]
+mod catalog_tests;
 mod commands;
 pub mod dto;
 mod native;
@@ -22,6 +24,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::scan,
+            commands::check_catalog_updates,
+            commands::activate_catalog_update,
             commands::build_plan,
             commands::dry_run,
             commands::execute,
