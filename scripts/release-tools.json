@@ -1,0 +1,11 @@
+{
+  "rust": "1.98.1",
+  "node": "24.18.1",
+  "pnpm": "11.19.0",
+  "tauri": "2.12.0",
+  "imageOS": "win25",
+  "msvc": "14.44.35207",
+  "windowsSdk": "10.0.26100.0",
+  "wixUrl": "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip",
+  "wixSha256": "6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31"
+}

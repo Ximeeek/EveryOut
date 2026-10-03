@@ -1,5 +1,6 @@
 pnpm-lock.yaml
 src/api/types.ts
+docs/catalog/CATALOG.md
 **/everyout-fixture-*/
 spikes/tree-snapshot/target/
 spikes/identity-probe/target/

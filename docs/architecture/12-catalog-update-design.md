@@ -5,6 +5,10 @@ metadata independently of application releases. No updater, signature implementa
 key or catalog service is added here. Executable/application update design and release policy
 remain outside this phase.
 
+Phase 33 implements the decisions in [Implementation notes](#implementation-notes). That section
+supersedes the implementation-blocking status of the signature, activation and transport spikes
+below for this bounded V1 protocol. Key custody and hosting remain maintainer responsibilities.
+
 ## Evidence and limits
 
 The catalog consumes [02](02-manifest-spec.md): declarative roots, typed methods, immutable provider
@@ -65,7 +69,8 @@ session content under [00](00-overview.md).
 3. Verify the signature against an embedded trusted public key and a precisely defined signed
    byte representation, including all envelope fields and payload digests. A downloaded key,
    transport certificate, hash alone, filename or UI acknowledgment cannot substitute for this.
-   Cryptographic algorithm, canonicalization/domain separation and vetted library are OPEN DECISIONS.
+   Phase 33 selects Ed25519, strict verification and an exact-byte signed representation;
+   see [Implementation notes](#implementation-notes).
 4. Parse strictly; reject duplicate keys/IDs, unknown or ambiguous fields, unsupported formats,
    methods, root kinds and incompatible engine/app ranges. Enforce the ordinary manifest grammar,
    evidence/risk completeness and hard safety constraints, even after a valid signature. Reject
@@ -156,14 +161,161 @@ license-policy changes are introduced here. Maintainer roles and publication pol
 
 ## OPEN DECISIONS
 
-| Named spike                         | Required evidence                                                                                                                                               | Until resolved                                                          |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `catalog-signature-protocol`        | Algorithm/library, signed encoding, embedded-key verification, container bounds and parser ambiguity tests; no signing protocol is established by the dossiers. | No remotely supplied catalog becomes executable.                        |
-| `catalog-activation-rollback-state` | Atomic snapshot/floor/revision-history persistence, crash/concurrency recovery, corruption, reinstall/migration and state-reset limits.                         | No updater activation or rollback-resistance claim.                     |
-| `catalog-key-lifecycle`             | Key custody, rotation, compromise recovery and possible revocation/expiry/freeze handling consistent with offline wiping.                                       | Embedded trust anchor only; key changes require an application release. |
-| `catalog-update-transport`          | Endpoint/redirect trust, privacy of requests, scheduling/consent, offline import and isolation from an active wipe.                                             | No endpoint or automatic update schedule assumed.                       |
-| `catalog-source-provenance`         | Rule source attribution, dataset adoption/licensing and traceable review evidence; application §3's Winapp2 caveats.                                            | No bulk third-party rule import or unsupported relicensing.             |
+The status column records which V1 gates Phase 33 resolves and which decisions remain open.
+
+| Named spike                         | Required evidence                                                                                                                       | Until resolved                                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `catalog-signature-protocol`        | Algorithm/library, signed encoding, embedded-key verification, container bounds and parser ambiguity tests.                             | Resolved for the bounded Phase 33 V1 protocol; see Implementation notes.                        |
+| `catalog-activation-rollback-state` | Atomic snapshot/floor/revision-history persistence, crash/concurrency recovery, corruption, reinstall/migration and state-reset limits. | V1 acceptance resolved in Phase 33; future app migrations require review.                       |
+| `catalog-key-lifecycle`             | Key custody, rotation, compromise recovery and possible revocation/expiry/freeze handling consistent with offline wiping.               | Embedded trust anchor only; key changes require an application release.                         |
+| `catalog-update-transport`          | Endpoint/redirect trust, privacy of requests, scheduling/consent, offline import and isolation from an active wipe.                     | Explicit bounded HTTPS checks resolved; hosting, scheduling and offline import remain separate. |
+| `catalog-source-provenance`         | Rule source attribution, dataset adoption/licensing and traceable review evidence; application §3's Winapp2 caveats.                    | No bulk third-party rule import or unsupported relicensing.                                     |
 
 Reuse `artifact-signing-provenance` from [10](10-threat-model.md#open-decisions) and
 `catalog-verification-matrix` from [11](11-test-strategy.md#checks-and-open-decisions).
 Application code updates, implementation and spike execution are outside this documentation phase.
+
+## Implementation notes
+
+Phase 33 separates checking from explicit acceptance, implements the catalog tools and keeps all
+update I/O outside cleanup. The crate `crates/catalog-update` owns validation, transport and storage;
+the native desktop worker owns acceptance and the lifetime of execution capabilities. The project
+name and signature purpose are EveryOut.
+
+### Signed protocol and validation
+
+- Ed25519 uses `ed25519-dalek` 2.2 with `VerifyingKey::verify_strict`; weak embedded keys are rejected.
+  See the [library documentation](https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html).
+  SHA-256 binds each manifest and the accepted payload. Transport TLS is additional protection.
+- The non-compressed UTF-8 JSON wrapper has exactly `payload` (a JSON string) and `signature`
+  (hexadecimal encoding of 64 detached signature bytes). Signed bytes are the ASCII/UTF-8 prefix
+  `EveryOut/catalog/stable/v1` followed by a NUL byte and the exact UTF-8 payload bytes. Verification
+  never reserializes the payload. There is no archive extraction or filename interpretation.
+- The payload is the strict `Envelope` Rust type: format 1, product EveryOut, stable channel,
+  key ID `stable-v1`, unsigned 64-bit nonzero catalog version, inclusive interpreter ABI range
+  (currently ABI 1), bounded changelog and ID-sorted entries. Every entry binds ID, revision,
+  UTF-8 byte length, SHA-256 and manifest text. All fields are signed. Unknown fields, duplicate
+  JSON keys at any level, duplicate IDs and inconsistent membership are rejected.
+- Manifests are normalized once by the builder: recursively sort JSON object keys and serialize
+  compactly with serde_json, preserving array order and explicit field membership. Repository
+  formatting and Windows line endings therefore cannot change an immutable rule revision.
+  Signed manifests must already have exactly that representation. Entry hashes authenticate these
+  bytes, not a separately reinterpreted rule. A declaration change requires a revision increase.
+- Limits: 8 MiB total wire bundle, 256 KiB per input manifest, 256 providers, 64 KiB changelog and
+  serde_json's default recursion limit. Unsupported formats/ranges fail closed; the integer version
+  never increments locally, so overflow cannot wrap the floor. ABI changes require an app release.
+- Every entry passes the existing schema and semantic validator. Fixed API/exception adapter IDs
+  may only reference IDs present in the compiled catalog. Existing research candidates retain
+  their ordinary non-executable gates; signatures never promote their confidence or support.
+  New adapters or code need an application release. Changelog is rendered as inert React text.
+
+### Atomic acceptance and offline behavior
+
+`catalog-v1/accepted.redb` under the host-resolved app configuration directory holds one accepted
+record: signed bytes (absent only for the compiled initial catalog), payload digest, high-water
+version and latest revision/digest for every seen provider, including removed-provider tombstones.
+The dedicated directory is also an initialization marker. An existing directory with missing,
+unreadable or inconsistent state blocks cleanup; it does not initialize a fresh floor.
+
+An immediate-durability redb transaction writes the complete next record and commits once.
+The database owns the file lock, serializes writes and provides crash recovery. See
+[redb durability](https://docs.rs/redb/2.6.4/redb/enum.Durability.html). No separate cache rename or
+floor update can succeed independently. Pre-commit failure retains the previous coherent snapshot;
+an uncertain commit error blocks execution until reopening/recovery establishes the committed
+record. Startup checks the signature again, exact digest/floor and current revision membership.
+
+Lower catalog versions are refused. Equal versions require an identical payload digest. A higher
+version cannot lower a provider revision or change its canonical bytes without increasing that
+revision. Removing a provider preserves its latest revision/digest. Reintroducing its older
+revision is rejected. Signing a rollback does not authorize it.
+
+The compiled catalog starts at `BUNDLED_VERSION = 1`. Rejected downloads, malformed manifests and
+failed staging keep the accepted catalog; the fallback is the bundled catalog only while it is
+the accepted initial snapshot. After accepting a newer version, damaged state blocks cleanup
+instead of silently returning to the older bundled rules. Complete deliberate state erasure or
+whole-machine rollback cannot be distinguished from a fresh installation. A process with write
+access can also deliberately restore the entire accepted database, including its floor/history;
+the database checksum is not authentication against that local attacker. No hardware-backed or
+administrator-proof rollback protection is claimed. Updating the bundled floor/catalog or key lineage in a later app
+release requires a reviewed migration; incompatible state currently blocks rather than guessing.
+
+The native worker serializes checking/acceptance with scan and execution. Acceptance is rejected
+while an inventory/review is held; Settings/check explicitly discards that review first. On
+acceptance the previous session and elevated connection are dropped and all borrowed providers
+are reconstructed from the new immutable snapshot before processing another request. This pins
+an inventory, plan, approval and run to one snapshot lifetime. Old opaque IDs cannot authorize
+work in the replacement session. No fetch, storage repair or update retry happens inside a wipe.
+Native text/JSON report exports retain the run's catalog version and payload digest alongside the
+existing per-provider revision data, so a later activation cannot relabel an earlier result.
+
+The current elevated helper independently interprets its compiled catalog. If accepted manifest
+membership or bytes differ, all-accounts mode is blocked with `helper-unavailable` until a reviewed
+compatible helper/app release; it never executes the helper's older rules against a new preview.
+Catalog-only changes to version/changelog with identical manifests retain helper compatibility.
+Current-account cleanup uses the accepted updated manifests and ordinary safety gates.
+
+### Transport and user consent
+
+Settings exposes `Check for catalog updates`, an authenticated proposal and a separate `Accept
+catalog update` action bound to the verified proposal digest. No automatic scheduling or network
+access is enabled in the frontend; only two narrowly scoped native command permissions are added.
+The UI shows installed/proposed versions, inert changelog and sanitized failures; it does not
+present check time as proof of freshness. It explains that checking discards the prior scan.
+
+The build embeds one public key and one exact HTTPS endpoint via `EVERYOUT_CATALOG_PUBLIC_KEY`
+(64 hex characters) and `EVERYOUT_CATALOG_URL`. Both must be supplied together. Without them the
+app uses its compiled catalog and checking returns `catalog-unconfigured`; no fabricated production
+key or service is shipped. The URL cannot contain credentials, query or fragment. Rust makes one
+bounded GET with a 10-second connection timeout and 30-second overall timeout, no redirects,
+cookies, automatic decompression or system proxies. No inventory, account ID, paths, reports or
+request body are uploaded. The server inevitably sees connection/request metadata. Controlled
+proxy support, offline file import and update scheduling are not implemented.
+
+### Maintainer steps
+
+1. Establish signing custody outside this repository: generate an Ed25519 key with reviewed key
+   tooling/ceremony, retain the raw 32-byte signing seed in restricted offline storage and export
+   the raw 32-byte public key. Do not reuse an application-signing key. Key generation, hosting
+   infrastructure and executable signing are outside this phase. Never commit the signing seed.
+2. Review all changed declarations, increment changed provider revisions and prepare a UTF-8
+   changelog describing additions/removals, compatibility, effects, preservation, loss risks and
+   limitations. Candidate support remains candidate until its own evidence gates are satisfied.
+3. Run `cargo run -p xtask -- catalog-validate`, `cargo run -p xtask -- catalog-table`, and the normal
+   Rust/frontend checks. Commit the resulting `docs/catalog/CATALOG.md` with the manifest changes.
+   CI validates all manifests and fails if that deterministic table is stale. The generated file
+   is excluded from Prettier because the generator owns its exact formatting.
+4. Build payload configuration outside the checkout:
+   `cargo run -p xtask -- catalog-bundle VERSION CHANGELOG_PATH PAYLOAD_PATH`.
+   VERSION must exceed the bundled floor and every previously published catalog version.
+5. Sign with `cargo run -p xtask -- catalog-sign PAYLOAD_PATH BUNDLE_PATH PRIVATE_KEY_PATH`, or omit
+   the last argument and set `EVERYOUT_CATALOG_PRIVATE_KEY_PATH` to the external seed file path.
+   The tool rejects private key files resolving inside the checkout, bounds the read, zeroizes
+   seed buffers, validates the signed result and never prints key material. The environment
+   variable contains a path, not the private key. Use a restricted workstation and file ACLs.
+6. Independently verify `cargo run -p xtask -- catalog-verify BUNDLE_PATH PUBLIC_KEY_PATH` against
+   the same public key embedded in the client. Retain previous manifests/revisions and signing
+   review evidence; the stateless verifier does not know clients' accepted revision histories.
+7. Host only the complete signed bundle at a stable, direct HTTPS endpoint, with no redirects or
+   authentication requirement. Publish atomically on the hosting side. Build a reviewed app with
+   the public-key hex and exact URL in the two build variables above. Never download a trust key
+   from that endpoint. Test with a disposable catalog state before distributing the app.
+8. A compromised key requires a reviewed application release with a new trust anchor and explicit
+   migration floor. Rotation, remote revocation, expiry and freeze detection are still open.
+   Never advise deleting accepted state or approving an older bundle as recovery.
+
+### Verification evidence and remaining boundaries
+
+Local fixtures and throw-away keys cover valid/invalid signatures, wrong/weak keys, tampering,
+duplicate keys/IDs, malformed manifests, unsupported adapters/formats, traversal, bounds, older
+versions, equal-version mutations, revision reuse/downgrade and tombstones. Store tests reopen
+after aborted writes and after child processes terminate immediately before/after commit, verify
+that the coherent old/new floor is recovered, and block corrupt persisted signatures or missing
+state. Tests make no network requests. UI tests prove no automatic check, separate acceptance,
+inert changelog rendering and visible unconfigured-build status. Table equality is tested and
+checked independently in CI.
+
+These tests resolve the V1 signature/activation/transport implementation gates for the protocol
+above, not physical power-loss certification on every filesystem, key custody or newest-version
+proof. Storage/OS permission failures remain visible. Source/licensing review is unchanged; no
+external deletion dataset is imported. Publishing infrastructure, executable signing, reproducible
+builds and release workflow remain phases 34–35 or separate maintainer work.

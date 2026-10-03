@@ -34,6 +34,12 @@ pub fn export(
 }
 fn text(report: &ReportDto) -> String {
     let mut output = format!("EveryOut local session report\nMode: {:?}; accounts: {:?}\nLocal effects only; Windows remains signed in. Sync or silent sign-in may restore access.\n", report.mode, report.account_mode);
+    if let Some(catalog) = &report.catalog {
+        output.push_str(&format!(
+            "Catalog: {}; digest: {}\n",
+            catalog.version, catalog.digest
+        ));
+    }
     for account in &report.accounts {
         output.push_str(&format!("\nAccount: {}\n", account.account));
         for section in &account.sections {
@@ -83,7 +89,11 @@ mod tests {
     #[test]
     fn exports_native_projection_without_content_or_destination_from_ui() {
         let fixture = everyout_test_support::FixtureTree::empty().unwrap();
-        let report = ReportDto::current(&[], ProcessClosePolicy::Ask, ExecutionMode::Apply);
+        let mut report = ReportDto::current(&[], ProcessClosePolicy::Ask, ExecutionMode::Apply);
+        report.catalog = Some(CatalogIdentityDto {
+            version: "2".into(),
+            digest: "fixture-catalog-digest".into(),
+        });
         for format in [ExportFormat::Json, ExportFormat::Text] {
             let name = export(fixture.path(), &report, format).unwrap();
             let content =
@@ -91,6 +101,7 @@ mod tests {
                     .unwrap();
             assert!(content.contains("not-requested") || content.contains("NotRequested"));
             assert!(!content.contains(fixture.path().to_str().unwrap()));
+            assert!(content.contains("fixture-catalog-digest"));
             if matches!(format, ExportFormat::Json) {
                 assert!(serde_json::from_str::<serde_json::Value>(&content).is_ok());
             }

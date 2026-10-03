@@ -8,6 +8,7 @@ import type {
 } from "./api";
 import Home from "./Home";
 import WipeFlow from "./WipeFlow";
+import CatalogUpdates from "./CatalogUpdates";
 import { emptyHome } from "./selection";
 import type { HomeState } from "./selection";
 import {
@@ -376,13 +377,24 @@ export default function App() {
                 />
               )}
               {page === "settings" && !firstRun && (
-                <Preferences
-                  key={formVersion}
-                  settings={settings}
-                  firstRun={false}
-                  busy={busy}
-                  save={save}
-                />
+                <>
+                  <Preferences
+                    key={formVersion}
+                    settings={settings}
+                    firstRun={false}
+                    busy={busy}
+                    save={save}
+                  />
+                  <CatalogUpdates
+                    settings={settings}
+                    busy={busy}
+                    setBusy={setBusy}
+                    invalidate={() => {
+                      updateHome(emptyHome);
+                      storeSelection(null);
+                    }}
+                  />
+                </>
               )}
               {page === "about" && (
                 <>
