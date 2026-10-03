@@ -1,0 +1,32 @@
+[package]
+name = "everyout-elevated-helper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Short-lived authenticated elevation boundary for EveryOut"
+
+[features]
+manual-lab = []
+
+[[bin]]
+name = "everyout-helper-lab"
+path = "src/bin/lab.rs"
+required-features = ["manual-lab"]
+
+[dependencies]
+everyout-core-model = { path = "../core-model" }
+everyout-providers = { path = "../providers" }
+everyout-platform-windows = { path = "../platform-windows" }
+everyout-engine = { path = "../engine" }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
+everyout-test-support = { path = "../test-support" }
+everyout-platform-windows = { path = "../platform-windows", features = ["test-fixtures"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

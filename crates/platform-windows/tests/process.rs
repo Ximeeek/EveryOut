@@ -241,4 +241,35 @@ mod windows {
         );
         assert!(dummy.0.try_wait().unwrap().is_none());
     }
+    #[test]
+    fn cancellation_before_graceful_or_force_effect_preserves_dummy_process() {
+        let mut dummy = spawn(true);
+        let p = observed(&dummy);
+        let report = close_processes_with_cancellation(
+            &[&p],
+            ProcessClosePolicy::HardKillAfter2s,
+            false,
+            &|| true,
+        );
+        assert_eq!(
+            report.results[0].error.unwrap().kind,
+            everyout_core_model::ErrorKind::Cancelled
+        );
+        assert_eq!(report.results[0].windows_requested, 0);
+        assert!(dummy.0.try_wait().unwrap().is_none());
+        let start = Instant::now();
+        let report = close_processes_with_cancellation(
+            &[&p],
+            ProcessClosePolicy::HardKillAfter2s,
+            false,
+            &|| start.elapsed() >= Duration::from_secs(1),
+        );
+        assert_eq!(
+            report.results[0].error.unwrap().kind,
+            everyout_core_model::ErrorKind::Cancelled
+        );
+        assert!(report.results[0].windows_requested > 0);
+        assert!(report.results[0].force_after.is_none());
+        assert!(dummy.0.try_wait().unwrap().is_none());
+    }
 }

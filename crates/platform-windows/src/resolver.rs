@@ -3,7 +3,9 @@ use everyout_core_model::ErrorKind;
 use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf, ptr};
 use windows_sys::Win32::{
     System::Com::CoTaskMemFree,
-    UI::Shell::{FOLDERID_LocalAppData, FOLDERID_RoamingAppData, SHGetKnownFolderPath},
+    UI::Shell::{
+        FOLDERID_LocalAppData, FOLDERID_Profile, FOLDERID_RoamingAppData, SHGetKnownFolderPath,
+    },
 };
 
 /// Returns a capability, never a caller-provided absolute-path string. Shipping
@@ -17,6 +19,7 @@ impl RootResolver for CurrentUserFolders {
         let id = match folder {
             KnownFolder::LocalAppData => &FOLDERID_LocalAppData,
             KnownFolder::RoamingAppData => &FOLDERID_RoamingAppData,
+            KnownFolder::UserProfile => &FOLDERID_Profile,
         };
         let mut value = ptr::null_mut();
         // SAFETY: a fixed known-folder ID, no other-user token and no CREATE flag.
@@ -100,6 +103,7 @@ impl RootResolver for FixtureFolders {
         let root = match folder {
             KnownFolder::LocalAppData => &self.root,
             KnownFolder::RoamingAppData => &self.roaming,
+            KnownFolder::UserProfile => &self.root,
         };
         Ok(root.as_ref().expect("fixture is alive").clone())
     }

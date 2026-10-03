@@ -616,6 +616,7 @@ fn inventory_key_present(key: &str, inventory: &InstalledInventory) -> bool {
 fn file_root(root: &Root) -> (KnownFolder, &str) {
     match root {
         Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
+        Root::UserProfile { relative, .. } => (KnownFolder::UserProfile, relative),
         Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
         Root::Registry { .. } | Root::ReviewedInstallation { .. } | Root::Unresolved { .. } => {
             unreachable!("non-AppData roots are excluded before file detection")

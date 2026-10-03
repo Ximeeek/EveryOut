@@ -23,6 +23,10 @@ This directory contains project decision records and contributor-facing design d
   metadata verification, category reports and conditional idempotence.
 - [Permission model](architecture/06-permission-model.md): first-run account choice, on-demand
   elevated helper, UAC fallback and conservative other-user eligibility.
+- [Elevated helper](architecture/22-elevated-helper.md): authenticated on-demand transport,
+  executable pinning, bounded lifetime and current-account UAC fallback.
+- [All-accounts mode](architecture/23-all-accounts-mode.md): SID-bound roots, offline hive cleanup,
+  per-account review/execution/reports and unverified multi-user VM behavior.
 - [Sync and identity](architecture/07-sync-and-identity.md): closed-profile editing direction,
   restoration warnings, preservation blockers and the unimplemented policy alternative.
 - [What V1 will not do](architecture/08-not-doing.md): explicit local-only scope and limitations.

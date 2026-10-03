@@ -8,6 +8,7 @@ use std::{
     collections::HashSet,
     sync::atomic::{AtomicU64, Ordering},
 };
+pub mod accounts;
 
 static NEXT_RUN: AtomicU64 = AtomicU64::new(1);
 
@@ -107,6 +108,8 @@ pub struct Counts {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RunReport {
+    pub account_scope: AccountScope,
+    pub account: UserId,
     pub mode: ExecutionMode,
     pub process_close_policy: ProcessClosePolicy,
     pub sections: Vec<CategoryReport>,
@@ -120,8 +123,8 @@ impl RunReport {
         let mut text = String::new();
         let _ = writeln!(
             text,
-            "EveryOut {:?}; process policy: {:?}",
-            self.mode, self.process_close_policy
+            "EveryOut {:?}; scope: {:?}; account: {}; process policy: {:?}",
+            self.mode, self.account_scope, self.account.0, self.process_close_policy
         );
         for section in &self.sections {
             let _ = writeln!(text, "{:?}: {:?}", section.category, section.aggregate);
@@ -219,6 +222,7 @@ pub struct PreparedRun<'a> {
     category: Category,
     current_user: UserId,
     policy: ProcessClosePolicy,
+    scope: AccountScope,
     items: Vec<PreparedItem<'a>>,
     preview: RunReport,
 }
@@ -261,16 +265,25 @@ pub struct Engine<'a> {
     id: u64,
     current_user: UserId,
     operations: &'a dyn LocalOperations,
+    scope: AccountScope,
 }
 impl<'a> Engine<'a> {
     /// The identity and operations are supplied by the trusted current-user platform layer.
-    /// There is deliberately no all-account mode or caller-supplied filesystem root.
+    /// Elevated account compartments use for_account, never arbitrary UI roots.
     pub fn new(current_user: UserId, operations: &'a dyn LocalOperations) -> Self {
         Self {
             id: NEXT_RUN.fetch_add(1, Ordering::Relaxed),
             current_user,
             operations,
+            scope: AccountScope::CurrentUser,
         }
+    }
+    /// Trusted helper entry point. The supplied operations/provider capabilities
+    /// already belong to this account; no ambient elevation expands their scope.
+    pub fn for_account(account: UserId, operations: &'a dyn LocalOperations) -> Self {
+        let mut engine = Self::new(account, operations);
+        engine.scope = AccountScope::AllUsers;
+        engine
     }
     pub fn scan(
         &self,
@@ -502,14 +515,18 @@ impl<'a> Engine<'a> {
             items.push(item);
         }
         emit(progress, Stage::Review, category, None, None);
+        let mut preview = assemble(ExecutionMode::DryRun, category, policy, reports);
+        preview.account_scope = self.scope;
+        preview.account = self.current_user.clone();
         Ok(PreparedRun {
             id: NEXT_RUN.fetch_add(1, Ordering::Relaxed),
             engine_id: self.id,
             category,
             current_user: self.current_user.clone(),
             policy,
+            scope: self.scope,
             items,
-            preview: assemble(ExecutionMode::DryRun, category, policy, reports),
+            preview,
         })
     }
     pub fn apply(
@@ -528,7 +545,10 @@ impl<'a> Engine<'a> {
                 continue;
             };
             let gate = (|| {
-                if self.current_user != run.current_user || self.id != run.engine_id {
+                if self.current_user != run.current_user
+                    || self.id != run.engine_id
+                    || self.scope != run.scope
+                {
                     return Err(ErrorKind::ScopeViolation);
                 }
                 if run.category == Category::WindowsMicrosoftAndDevTools
@@ -730,7 +750,10 @@ impl<'a> Engine<'a> {
             reports.push(report);
         }
         emit(progress, Stage::Report, run.category, None, None);
-        assemble(ExecutionMode::Apply, run.category, run.policy, reports)
+        let mut report = assemble(ExecutionMode::Apply, run.category, run.policy, reports);
+        report.account_scope = self.scope;
+        report.account = self.current_user.clone();
+        report
     }
 }
 
@@ -1141,6 +1164,8 @@ fn assemble(
         });
     }
     RunReport {
+        account_scope: AccountScope::CurrentUser,
+        account: UserId("current-user".into()),
         mode,
         process_close_policy: policy,
         sections,

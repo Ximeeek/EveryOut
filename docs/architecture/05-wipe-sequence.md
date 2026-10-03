@@ -91,10 +91,12 @@ See application research §5. No hooking, injection, foreign-memory reads or dri
 supported local developer targets. Access denied stays a failure; it never triggers UAC.
 
 **All accounts:** first obtain the optional helper as defined in [06](06-permission-model.md),
-then scan and review eligible user scopes. Show exclusions for inaccessible, special or loaded
-other-user profiles. UAC is not per-profile consent and does not permit killing another user's
-running apps. V1 skips other loaded profiles and cross-session closing; report this limitation.
-The invoking user's scope can proceed normally. UAC refusal returns to current-account mode with
+then scan and review eligible user scopes. Phase 28 includes eligible loaded accounts using their
+mounted HKU SID hives and profile folders; special, temporary, inaccessible and ambiguous profiles
+remain excluded. UAC is not per-profile consent: review binds each account's effects, loss/category
+confirmations and exact process set. Cross-session graceful access remains unverified; Ask never escalates and the separately
+acknowledged HardKillAfter2s policy may terminate survivors after the grace interval. See [all-accounts mode](23-all-accounts-mode.md), which supersedes the
+original loaded-profile exclusion. UAC refusal returns to current-account mode with
 a new inventory/review, never silent execution of a reduced version of the old plan.
 These eligibility decisions follow Windows research §5's conservative recommendation.
 

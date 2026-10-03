@@ -15,9 +15,10 @@ pub trait ProcessGate {
     fn revalidate(&self) -> Result<(), ErrorKind>;
 }
 
-/// Uses only current-user/current-session process metadata and reviewed executable
-/// paths. Names alone never authorize closing another application's process.
+/// Uses current-session or helper owner-bound process metadata and reviewed
+/// executable paths. Names alone never authorize closing another application's process.
 pub struct WindowsProcessGate {
+    account: Option<everyout_platform_windows::accounts::AccountProfile>,
     names: Vec<String>,
     paths: Vec<std::path::PathBuf>,
     retained: RefCell<Option<everyout_platform_windows::process::ProcessInventory>>,
@@ -31,14 +32,31 @@ impl WindowsProcessGate {
             return Err(ErrorKind::OwnershipConflict);
         }
         Ok(Self {
+            account: None,
             names,
             paths,
             retained: RefCell::new(None),
         })
     }
+    /// Native caller supplies independently reviewed exact installation paths.
+    /// S6 cross-session desktop/graceful-close behavior remains UNVERIFIED.
+    pub fn reviewed_account(
+        account: everyout_platform_windows::accounts::AccountProfile,
+        names: Vec<String>,
+        paths: Vec<std::path::PathBuf>,
+    ) -> Result<Self, ErrorKind> {
+        let mut gate = Self::reviewed_installation(names, paths)?;
+        gate.account = Some(account);
+        Ok(gate)
+    }
     fn inventory(&self) -> Result<everyout_platform_windows::process::ProcessInventory, ErrorKind> {
-        let mut inventory =
-            everyout_platform_windows::process::enumerate_current_user().map_err(|e| e.kind)?;
+        let mut inventory = match &self.account {
+            Some(account) => {
+                everyout_platform_windows::process::enumerate_account_matches(account, &self.names)
+            }
+            None => everyout_platform_windows::process::enumerate_current_user(),
+        }
+        .map_err(|e| e.kind)?;
         if !inventory.unavailable.is_empty() {
             return Err(ErrorKind::AccessDenied);
         }
@@ -48,22 +66,12 @@ impl WindowsProcessGate {
         Ok(inventory)
     }
 }
-impl ProcessGate for WindowsProcessGate {
-    fn preview(&self) -> Result<Vec<ProcessPreview>, ErrorKind> {
-        let inventory = self.inventory()?;
-        let result = inventory
-            .processes
-            .iter()
-            .map(|p| ProcessPreview {
-                identity: format!("process-{}-{}", p.pid(), p.creation_ticks()),
-                label: "browser-process".into(),
-                unsaved_work_loss: true,
-            })
-            .collect();
-        self.retained.replace(Some(inventory));
-        Ok(result)
-    }
-    fn close(&self, policy: ProcessClosePolicy) -> Result<(), ErrorKind> {
+impl WindowsProcessGate {
+    pub fn close_with_cancellation(
+        &self,
+        policy: ProcessClosePolicy,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(), ErrorKind> {
         let current = self.inventory()?;
         let retained = self.retained.borrow();
         let retained = retained.as_ref().ok_or(ErrorKind::StalePlan)?;
@@ -80,7 +88,9 @@ impl ProcessGate for WindowsProcessGate {
             return Err(ErrorKind::StalePlan);
         }
         let targets: Vec<_> = retained.processes.iter().collect();
-        let report = everyout_platform_windows::process::close_processes(&targets, policy, false);
+        let report = everyout_platform_windows::process::close_processes_with_cancellation(
+            &targets, policy, false, cancelled,
+        );
         if let Some(error) = report.results.iter().find_map(|r| r.error) {
             return Err(error.kind);
         }
@@ -88,6 +98,25 @@ impl ProcessGate for WindowsProcessGate {
             return Err(ErrorKind::Locked);
         }
         self.revalidate()
+    }
+}
+impl ProcessGate for WindowsProcessGate {
+    fn preview(&self) -> Result<Vec<ProcessPreview>, ErrorKind> {
+        let inventory = self.inventory()?;
+        let result = inventory
+            .processes
+            .iter()
+            .map(|p| ProcessPreview {
+                identity: format!("process-{}-{}", p.pid(), p.creation_ticks()),
+                label: "selected-process".into(),
+                unsaved_work_loss: true,
+            })
+            .collect();
+        self.retained.replace(Some(inventory));
+        Ok(result)
+    }
+    fn close(&self, policy: ProcessClosePolicy) -> Result<(), ErrorKind> {
+        self.close_with_cancellation(policy, &|| false)
     }
     fn revalidate(&self) -> Result<(), ErrorKind> {
         if self.inventory()?.processes.is_empty() {
@@ -133,6 +162,20 @@ pub struct ManifestExecutor<'a> {
     snapshot: RefCell<Option<SnapshotId>>,
 }
 impl<'a> ManifestExecutor<'a> {
+    /// Opaque file identities retained inside the native helper, never IPC data.
+    /// Rebuilding a reviewed account plan must preserve these identities too.
+    pub fn physical_snapshot(
+        &self,
+    ) -> Result<Vec<Option<Vec<everyout_platform_windows::PhysicalIdentity>>>, ErrorKind> {
+        self.binding
+            .borrow()
+            .as_ref()
+            .ok_or(ErrorKind::StalePlan)?
+            .targets
+            .iter()
+            .map(|t| t.path.physical_chain().map_err(|e| e.kind))
+            .collect()
+    }
     pub fn load(
         json: &str,
         resolver: &'a dyn RootResolver,
@@ -204,9 +247,10 @@ impl<'a> ManifestExecutor<'a> {
     fn base(&self) -> (KnownFolder, &str) {
         match &self.manifest.roots[0] {
             Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
+            Root::UserProfile { relative, .. } => (KnownFolder::UserProfile, relative),
             Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
             Root::Registry { .. } | Root::ReviewedInstallation { .. } | Root::Unresolved { .. } => {
-                unreachable!("constructor refuses non-AppData roots")
+                unreachable!("constructor refuses unsupported file roots")
             }
         }
     }
@@ -985,7 +1029,7 @@ impl Provider for ManifestExecutor<'_> {
         let item = ReportItem {
             provider_id: result.description.descriptor.provider_id.clone(),
             instance_id: result.description.instance_id.clone(),
-            user_id: UserId("current-user".into()),
+            user_id: self.user.clone(),
             profiles: result
                 .description
                 .profiles

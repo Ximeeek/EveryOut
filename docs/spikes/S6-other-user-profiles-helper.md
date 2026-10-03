@@ -2,6 +2,11 @@
 
 Status: PENDING USER EXECUTION
 
+Policy update: [Phase 28](../architecture/23-all-accounts-mode.md) supersedes the original
+loaded-profile exclusion with reviewed per-account helper compartments. The procedure below
+records the historical hypothesis; its exclusion/rejection expectations must be evaluated against
+the Phase 28 VM checklist when testing the new policy. No results have been supplied or inferred.
+
 ## Hypothesis and boundaries
 
 Elevation may permit metadata access to another profile but does not authorize its credentials,

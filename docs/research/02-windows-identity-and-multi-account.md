@@ -239,3 +239,11 @@ binaries. Review actual APIs and invoked binaries before implementation. [HYPOTH
 43. [Microsoft: COM elevation moniker](https://learn.microsoft.com/en-us/windows/win32/com/the-com-elevation-moniker) — accessed 2026-09-30.
 44. [Microsoft: named-pipe security](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights) — accessed 2026-09-30.
 45. [Microsoft: named-pipe impersonation](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-impersonatenamedpipeclient) — accessed 2026-09-30.
+
+## Phase 28 policy update
+
+The conservative loaded-profile recommendation above is superseded by the explicit
+[all-accounts implementation policy](../architecture/23-all-accounts-mode.md). Eligible
+mounted users now have independently reviewed helper compartments. S6 remains pending;
+this policy change supplies no runtime evidence and does not validate inaccessible
+cross-session desktop access or another user's credential APIs.

@@ -550,6 +550,29 @@
           "additionalProperties": false,
           "properties": {
             "base": {
+              "const": "user-profile",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "relative": {
+              "type": "string"
+            },
+            "scope": {
+              "$ref": "#/$defs/Scope"
+            }
+          },
+          "required": ["base", "id", "relative", "scope", "owner"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base": {
               "const": "registry",
               "type": "string"
             },
