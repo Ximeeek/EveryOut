@@ -898,3 +898,40 @@ fn a_subset_of_risks_does_not_confirm_the_other_flags() {
     assert_eq!(item(&report).aggregate, AggregateStatus::Blocked);
     assert_eq!(ops.mutations.get(), 0);
 }
+
+#[test]
+fn all_account_compartments_retain_scope_and_independent_category_confirmation() {
+    let (_fixture, ops) = setup();
+    let provider = LabProvider::new(Category::WindowsMicrosoftAndDevTools);
+    let first = Engine::for_account(owner().user_id.clone(), &ops);
+    let second = Engine::for_account(owner().user_id, &ops);
+    let earlier = prepare(&first, &provider, &mut |_| {});
+    let token = earlier.confirm_category();
+    let run = prepare(&second, &provider, &mut |_| {});
+    assert_eq!(run.preview().account_scope, AccountScope::AllUsers);
+    let report = second.apply(
+        run,
+        Approval {
+            category_confirmation: Some(token),
+            ..Default::default()
+        },
+        &|| false,
+        &mut |_| {},
+    );
+    assert_eq!(report.account_scope, AccountScope::AllUsers);
+    assert_eq!(item(&report).aggregate, AggregateStatus::Blocked);
+    assert_eq!(ops.mutations.get(), 0);
+    let run = prepare(&second, &provider, &mut |_| {});
+    let token = run.confirm_category();
+    let report = second.apply(
+        run,
+        Approval {
+            category_confirmation: Some(token),
+            ..Default::default()
+        },
+        &|| false,
+        &mut |_| {},
+    );
+    assert_eq!(item(&report).aggregate, AggregateStatus::CompleteLocalScope);
+    assert_eq!(report.account, owner().user_id);
+}

@@ -43,6 +43,12 @@ vocabulary!(AccountMode {
     Current,
     AllAccounts
 });
+// Immutable run scope. AllUsers is available only inside the elevated helper;
+// each account retains an independent owner-bound current-account compartment.
+vocabulary!(AccountScope {
+    CurrentUser,
+    AllUsers
+});
 vocabulary!(ExecutionMode { DryRun, Apply });
 /// Ask never escalates. HardKillAfter2s requires caller review of unsaved-work loss.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

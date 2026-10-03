@@ -1,4 +1,4 @@
-//! Current-account and current-session process metadata and explicit-target closing.
+//! Current-session and helper owner-bound process metadata and explicit-target closing.
 //!
 //! WM_CLOSE is asynchronous so prompts cannot block the two-second policy timer.
 //! S7 remains unverified for real applications: HWND reuse between the last owner
@@ -39,6 +39,7 @@ pub struct Process {
     image: PathBuf,
     session_id: u32,
     creation: u64,
+    owner_sid: Option<String>,
 }
 impl Process {
     pub fn pid(&self) -> u32 {
@@ -123,6 +124,30 @@ fn same_user(handle: HANDLE) -> Result<bool> {
         )
     } != 0)
 }
+fn same_owner(handle: HANDLE, owner: Option<&str>) -> Result<bool> {
+    let Some(owner) = owner else {
+        return same_user(handle);
+    };
+    if !crate::accounts::valid_user_sid(owner) {
+        return Err(PlatformError::new(ErrorKind::ScopeViolation));
+    }
+    let target = token_user(handle)?;
+    let mut sid = ptr::null_mut();
+    if unsafe {
+        windows_sys::Win32::Security::Authorization::ConvertStringSidToSidW(
+            crate::native::wide(owner).as_ptr(),
+            &mut sid,
+        )
+    } == 0
+    {
+        return Err(last_error());
+    }
+    let same = unsafe { EqualSid((*(target.as_ptr().cast::<TOKEN_USER>())).User.Sid, sid) } != 0;
+    unsafe {
+        LocalFree(sid);
+    }
+    Ok(same)
+}
 fn session(pid: u32) -> Result<u32> {
     let mut id = 0;
     // SAFETY: writable session output; no process mutation.
@@ -170,6 +195,22 @@ fn open(pid: u32, rights: u32) -> Result<Handle> {
 /// Lists metadata without opening process memory. Other sessions/users are excluded.
 /// Access-denied ownership remains explicitly unknown in `unavailable`.
 pub fn enumerate_current_user() -> Result<ProcessInventory> {
+    enumerate(None, &[])
+}
+/// Helper-only metadata enumeration for one owner across sessions. Revalidation
+/// pins SID, session, image and creation time. S6 desktop access is UNVERIFIED.
+pub fn enumerate_account(profile: &crate::accounts::AccountProfile) -> Result<ProcessInventory> {
+    profile.revalidate(&crate::accounts::NativeProfiles)?;
+    enumerate(Some(profile.sid()), &[])
+}
+pub fn enumerate_account_matches(
+    profile: &crate::accounts::AccountProfile,
+    names: &[String],
+) -> Result<ProcessInventory> {
+    profile.revalidate(&crate::accounts::NativeProfiles)?;
+    enumerate(Some(profile.sid()), names)
+}
+fn enumerate(owner: Option<&str>, names: &[String]) -> Result<ProcessInventory> {
     // SAFETY: snapshot requests only process entries, no modules/heaps/threads.
     let raw = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if raw == INVALID_HANDLE_VALUE {
@@ -197,21 +238,31 @@ pub fn enumerate_current_user() -> Result<ProcessInventory> {
             break;
         }
         let pid = entry.th32ProcessID;
-        if pid != 0 {
+        let length = entry
+            .szExeFile
+            .iter()
+            .position(|c| *c == 0)
+            .unwrap_or(entry.szExeFile.len());
+        let candidate = String::from_utf16_lossy(&entry.szExeFile[..length]);
+        if pid != 0
+            && (names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(&candidate)))
+        {
             let observed = (|| -> Result<Option<Process>> {
-                if session(pid)? != current_session {
+                let target_session = session(pid)?;
+                if owner.is_none() && target_session != current_session {
                     return Ok(None);
                 }
                 let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
-                if !same_user(handle.0)? {
+                if !same_owner(handle.0, owner)? {
                     return Ok(None);
                 }
                 let process = Process {
                     pid,
                     image: image(handle.0)?,
-                    session_id: current_session,
+                    session_id: target_session,
                     creation: creation(handle.0)?,
                     handle,
+                    owner_sid: owner.map(str::to_owned),
                 };
                 Ok(Some(process))
             })();
@@ -255,10 +306,10 @@ fn validate(process: &Process, handle: HANDLE) -> Result<()> {
         return Err(PlatformError::new(ErrorKind::ScopeViolation));
     }
     if creation(process.handle.0)? != process.creation || creation(handle)? != process.creation
-        || image(handle)? != process.image || !same_user(handle)?
+        || image(handle)? != process.image || !same_owner(handle, process.owner_sid.as_deref())?
         || session(process.pid)? != process.session_id
         // SAFETY: current-process ID query only.
-        || process.session_id != session(unsafe { GetCurrentProcessId() })?
+        || (process.owner_sid.is_none() && process.session_id != session(unsafe { GetCurrentProcessId() })?)
     {
         return Err(PlatformError::new(ErrorKind::StalePlan));
     }
@@ -294,7 +345,12 @@ unsafe extern "system" fn collect(hwnd: HWND, parameter: LPARAM) -> i32 {
     }
     1
 }
-fn request(process: &Process, handle: HANDLE, count: &mut usize) -> Result<Instant> {
+fn request(
+    process: &Process,
+    handle: HANDLE,
+    count: &mut usize,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Instant> {
     let mut state = Windows {
         pid: process.pid,
         items: Vec::new(),
@@ -310,6 +366,9 @@ fn request(process: &Process, handle: HANDLE, count: &mut usize) -> Result<Insta
     }
     let mut first_request = None;
     for hwnd in state.items {
+        if cancelled() {
+            return Err(PlatformError::new(ErrorKind::Cancelled));
+        }
         if exited(handle, 0)? {
             break;
         }
@@ -329,7 +388,9 @@ fn request(process: &Process, handle: HANDLE, count: &mut usize) -> Result<Insta
         first_request.get_or_insert_with(Instant::now);
         *count += 1;
     }
-    // No-window processes get the same observation interval, with zero requests.
+    // UNVERIFIED S6: EnumWindows may expose no windows in a foreign session.
+    // As for current-session no-window processes, Ask never escalates; the
+    // explicitly approved HardKillAfter2s policy still waits the full interval.
     Ok(first_request.unwrap_or_else(Instant::now))
 }
 fn close_one(
@@ -337,7 +398,11 @@ fn close_one(
     policy: ProcessClosePolicy,
     dry_run: bool,
     result: &mut ProcessCloseResult,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<ProcessCloseStatus> {
+    if cancelled() {
+        return Err(PlatformError::new(ErrorKind::Cancelled));
+    }
     let handle = open(
         process.pid,
         PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
@@ -349,7 +414,7 @@ fn close_one(
     if dry_run {
         return Ok(ProcessCloseStatus::WouldClose);
     }
-    let start = request(process, handle.0, &mut result.windows_requested)?;
+    let start = request(process, handle.0, &mut result.windows_requested, cancelled)?;
     loop {
         let remaining = GRACE.saturating_sub(start.elapsed());
         if remaining.is_zero() {
@@ -366,6 +431,9 @@ fn close_one(
     if policy == ProcessClosePolicy::Ask {
         return Ok(ProcessCloseStatus::StillRunning);
     }
+    if cancelled() {
+        return Err(PlatformError::new(ErrorKind::Cancelled));
+    }
     // Terminate rights are acquired only after the grace deadline, never for preview/Ask.
     let kill = open(
         process.pid,
@@ -376,6 +444,9 @@ fn close_one(
         return Ok(ProcessCloseStatus::ClosedGracefully);
     }
     result.force_after = Some(start.elapsed());
+    if cancelled() {
+        return Err(PlatformError::new(ErrorKind::Cancelled));
+    }
     // SAFETY: exact retained identity, same owner/session, explicit force policy only.
     if unsafe { TerminateProcess(kill.0, 1) } == 0 {
         return Err(last_error());
@@ -396,6 +467,16 @@ pub fn close_processes(
     policy: ProcessClosePolicy,
     dry_run: bool,
 ) -> ProcessCloseReport {
+    close_processes_with_cancellation(selected, policy, dry_run, &|| false)
+}
+/// Helper lifetime/pipe cancellation is rechecked before every graceful request
+/// and force effect, not merely once before a potentially long process batch.
+pub fn close_processes_with_cancellation(
+    selected: &[&Process],
+    policy: ProcessClosePolicy,
+    dry_run: bool,
+    cancelled: &dyn Fn() -> bool,
+) -> ProcessCloseReport {
     let mut report = ProcessCloseReport {
         results: Vec::new(),
         remaining: Vec::new(),
@@ -410,7 +491,7 @@ pub fn close_processes(
             force_after: None,
         };
         let outcome = if seen.insert((process.pid, process.creation)) {
-            close_one(process, policy, dry_run, &mut result)
+            close_one(process, policy, dry_run, &mut result, cancelled)
         } else {
             Err(PlatformError::new(ErrorKind::ScopeViolation))
         };

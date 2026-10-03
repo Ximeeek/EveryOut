@@ -103,7 +103,7 @@ It can exercise the boundary, but no other-account inventory or deletion is avai
    Expect no UAC, no helper, and the current-account status. Repeat with a manually elevated
    driver; ambient elevation must not widen mode. No real app/profile/process is targeted.
 3. Run the same command with `finish`. Accept UAC for test user A. Expect authenticated IPC,
-   `ScopeUnavailable` for enumeration, `Finished`, and helper exit. Inspect process metadata
+   `ProfilesReady` (Phase 28; `ScopeUnavailable` was the Phase 27 result), `Finished`, and helper exit. Inspect process metadata
    only. Repeat under a standard user with separate test administrator consent; account scope
    must still bind to A's retained parent token, never the administrator's HKCU/AppData.
 4. Restore baseline and repeat `finish`, declining UAC. Expect `UacDeclined` fallback, one
@@ -132,8 +132,89 @@ It can exercise the boundary, but no other-account inventory or deletion is avai
 
 See the [implemented boundary and limits](../architecture/22-elevated-helper.md).
 Publisher signing, hostile installation trust, real cross-user ACL denial and UAC behavior
-remain unverified until the corresponding VM evidence is recorded. No helper test authorizes
-enumerating/wiping foreign profiles or loading hives; those belong to phase 28.
+remain unverified until the corresponding VM evidence is recorded. These Phase 27 transport tests supply no multi-user/hive validation; use the Phase 28 checklist
+below for the new account compartments.
+
+## All-accounts mode (phase 28)
+
+Status: **NOT RUN — S6 remains PENDING USER EXECUTION**. Execute manually only in
+a disposable Windows 10/11 VM with local test users A and B. Keep B logged on for
+the simultaneous-session arm, including locked/disconnected cases; use neutral
+labels in exported evidence. Network access stays disconnected. Never run these
+experiments on the development host or authenticated personal profiles.
+
+1. Restore a token-free checkpoint. Prepare A/B synthetic fixture folders under
+   their own standard AppData paths, including `EveryOutFixtureElectron/Cookies`
+   and unrelated canaries. Use the same small dummy fixtures for each repetition.
+   Build the opted-in driver as in the Phase 27 section and record its helper pin.
+   Do not change a shipping candidate to validated merely to enable a wipe.
+2. Run `everyout-helper-lab.exe --disposable-vm <recorded-sha256> current` under A.
+   Expect no UAC or other-user discovery. Under all-account mode, first test UAC
+   decline, then separate-admin consent; owner roots must remain A/B, never the
+   consenting administrator. UI persistence/rescan behavior is still phase 30.
+3. With B signed out, run the same driver with `all-accounts-preview`. It performs
+   authenticated enumeration, planning and a metadata dry run only. Inspect opaque
+   account IDs, logged-on/mounted indicators and exclusions. Compare SID/root
+   associations locally using a reviewed OS metadata harness; never export SIDs or
+   absolute profile paths. Test stale `.bak`, system/service/temporary, missing,
+   denied, nonlocal, unresolved-variable and reparse/redirected profile records.
+   Record unknown nonzero ProfileList state as excluded, not validated eligibility.
+4. Inspect temporary HKU mount presence locally before and after offline preview.
+   Confirm only A/B's selected owner-bound `NTUSER.DAT` can be mounted, key names are
+   unique, no hive contents are copied/read, and all registry handles are released
+   before unload. AppData metadata must resolve from B's hive/profile. Synthetic
+   profile locations may not redirect into another account. Dry run must preserve
+   every fixture/canary and must not send process-close messages.
+5. Repeat with B logged on, then locked/disconnected, then both A/B active. Observe
+   live `HKU\B-SID` borrowing, zero RegLoadKey/RegUnLoadKey calls for B and separate
+   account report sections. Change B's logon state between enumeration, review and
+   execution; expect stale-scope refusal and fresh review. Rechecks do not prove a
+   race-free global profile lock; record any inconclusive transition evidence.
+6. Through a separately reviewed VM fixture harness exercise exact synthetic
+   registry canaries using RegistryExecutor and the normal engine guard. No actual
+   browser, broker, Credential Manager, Windows sign-in or CLI credential target is
+   authorized by this checklist. If the harness is absent, record this applied arm
+   **NOT RUN — HARNESS BLOCKED**. The shipping catalog still contains candidates;
+   the preview driver must report blocked scopes, never successful deletion.
+7. Exercise success, denied registry work, cancellation, held-key unload failure
+   and callback error. Require up to three unload attempts, separate operation and
+   cleanup outcomes, and an explicit temporary-key residual report on exhaustion.
+   A residual preview must block that account's apply while another account can
+   proceed. Recover only the exact owned temporary VM mount after releasing its
+   handles; never unload a SID/live hive. Restore the checkpoint afterwards.
+8. In B's session start only a disposable dummy app with no unsaved data. Use a
+   reviewed exact App Paths registration and retain PID, creation time, image, SID
+   and session. Review the actual process set per account. Test Ask: graceful
+   requests first, two-second observation, survivors block cleanup, no force.
+   Separately acknowledge HardKillAfter2s loss for B and test termination of only
+   the retained survivors after the full grace interval. Cross-session desktop
+   access may expose zero windows; the report must show that unverified limitation.
+   Record access-denied, unresponsive, no-window, PID reuse, new-owner/relaunch and
+   registration-change cases. Never target browsers, Office, system/security apps
+   or use hooks/injection/memory access. An absent reviewed harness blocks this arm.
+9. For fixture-only applied trials, deny A's access or change A's profile root and
+   ensure B's independent section still completes. Confirm Windows/developer
+   category and each loss/force acknowledgment bind only to that account and the
+   exact plan digest. Test missing/foreign consent, stale file identity (including
+   equal-size replacement), candidate support and overlapping physical targets.
+   Preservation and candidate blockers cannot be confirmed away.
+10. Read every report page, concatenate its JSON and check per-account plan,
+    execution, verification, three category sections, exclusions, SSO warning,
+    unload attempts and S6-unverified markers. Test changed-state dry run, replay
+    after apply, parent exit, pipe disconnect during a fixture action, finish and
+    the absolute deadline. Previously applied effects must remain accounted for;
+    no new effects are scheduled after cancellation. A disconnected client may
+    lose the final residual reply; inspect the owned temporary namespace locally.
+11. In an isolated snapshot force helper termination during a synthetic mount.
+    Record that crash cleanup is not guaranteed, identify any owned residual mount
+    locally and restore the VM. Do not mark this gap resolved by RAII fixture tests.
+12. Repeat each executable arm three times from baseline. Record OS/build,
+    revision/pin, neutral A/B/admin relationships, statuses, relative fixture
+    metadata, process timing, preservation and recovery results. Sanitize temporary
+    mount run/nonce names before exporting evidence. Leave missing/unverified arms
+    NOT RUN or INCONCLUSIVE and restore after every trial.
+
+See [all-accounts implementation and remaining limits](../architecture/23-all-accounts-mode.md).
 
 ## Evidence and restore
 

@@ -126,6 +126,12 @@ pub enum Root {
         scope: Scope,
         owner: String,
     },
+    UserProfile {
+        id: String,
+        relative: String,
+        scope: Scope,
+        owner: String,
+    },
     Registry {
         id: String,
         hive: RegistryHive,
@@ -139,6 +145,7 @@ impl Root {
         match self {
             Self::Unresolved { id, .. }
             | Self::ReviewedInstallation { id, .. }
+            | Self::UserProfile { id, .. }
             | Self::LocalAppData { id, .. }
             | Self::RoamingAppData { id, .. }
             | Self::Registry { id, .. } => id,
@@ -148,6 +155,7 @@ impl Root {
         match self {
             Self::Unresolved { .. } => "unresolved",
             Self::ReviewedInstallation { relative, .. }
+            | Self::UserProfile { relative, .. }
             | Self::LocalAppData { relative, .. }
             | Self::RoamingAppData { relative, .. } => relative,
             Self::Registry { key, .. } => key,
@@ -157,6 +165,7 @@ impl Root {
         match self {
             Self::Unresolved { owner, .. }
             | Self::ReviewedInstallation { owner, .. }
+            | Self::UserProfile { owner, .. }
             | Self::LocalAppData { owner, .. }
             | Self::RoamingAppData { owner, .. }
             | Self::Registry { owner, .. } => owner,
@@ -166,6 +175,7 @@ impl Root {
         match self {
             Self::Unresolved { scope, .. }
             | Self::ReviewedInstallation { scope, .. }
+            | Self::UserProfile { scope, .. }
             | Self::LocalAppData { scope, .. }
             | Self::RoamingAppData { scope, .. }
             | Self::Registry { scope, .. } => *scope,

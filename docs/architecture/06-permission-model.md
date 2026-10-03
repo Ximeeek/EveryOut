@@ -6,7 +6,8 @@ Phase 9 target design for EveryOut, based on
 [ADR 0002](../adr/0002-retain-tauri-rust-stack.md) and
 [ADR 0003](../adr/0003-rust-command-capability-boundary.md).
 This adopts the dossier's normal-app plus short-lived helper recommendation; implementation
-and runtime enforcement remain future work.
+and runtime enforcement are described for phases 27–28 in [22](22-elevated-helper.md) and
+[23](23-all-accounts-mode.md). Phase 28 supersedes the original loaded-profile exclusion.
 
 ## First run and normal operation
 
@@ -60,21 +61,24 @@ This extends the existing command boundary without redesigning the provider cont
 Use reviewed OS profile metadata (SID, local path, loaded/special state) to inventory candidate
 users. Keep actual SID/root associations in Rust and use neutral UI labels when needed.
 All accounts means **eligible detected profiles**, not every account known to a remote service.
-Show special/system profiles as excluded and inaccessible profiles as uncovered. V1 skips loaded
-other-user profiles, including simultaneous local/RDP sessions, and does not force their logout
-or close processes in another user's session. Active invoking-user targets follow [05](05-wipe-sequence.md).
+Show special/system/temporary profiles as excluded and inaccessible profiles as uncovered. Phase 28
+uses eligible mounted accounts without independently loading or unloading their SID hives. Reviewed
+processes can be targeted across sessions through the helper; graceful desktop access remains
+unverified, Ask never escalates, and force termination needs per-account policy acknowledgment. It never forces Windows sign-out. See [23](23-all-accounts-mode.md).
 
 Resolve roots from each selected owner, never the helper administrator's `%USERPROFILE%` or HKCU.
 Other-user filesystem access does not authorize that user's Credential Manager, broker or CLI
 operations: do not run a current-user API and label its effect as another user's cleanup.
 Without a validated per-user operation, report unsupported coverage.
 
-For supported registry targets, only a validated unloaded-hive lifecycle may be used: recheck
+For supported registry targets, use an owner-bound mounted SID hive or the scoped offline lifecycle:
+recheck
 loaded state before work, never remount/unload an already-mounted hive, track hives opened by this
 run and release only those. If state changes or lifecycle safety cannot be established, skip the
 affected action. Do not take ownership, change ACLs or bypass protections to make a wipe succeed.
 Exact profile eligibility, root validation and hive cleanup are `other-account-scope-validation`.
-The conservative loaded-profile exclusion follows Windows research §5; elevation does not solve
+The original loaded-profile exclusion followed Windows research §5; phase 28 extends that policy
+with explicit per-account review and unverified S6 limitations. Elevation does not solve
 secret access, other-user consent or application ownership.
 
 The Windows sign-in account, WAM/PRT, device join and unsupported broker caches remain protected
@@ -83,11 +87,11 @@ in both modes. Additional category confirmation never overrides these exclusions
 
 ## OPEN DECISIONS
 
-| Named spike                             | Evidence needed                                                                                                                                       | Until resolved                                                                            |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `elevated-helper-ipc-validation`        | Named-pipe ACL/endpoint authentication, nonce/run binding, helper trust/lifecycle and different administrator consent identity; Windows §5            | No privileged executable operation                                                        |
-| `other-account-scope-validation`        | OS profile enumeration, loaded-state races, per-owner roots, reparse constraints, unloaded-hive lifecycle and per-user API eligibility; Windows §§3–5 | Skip unresolved other-user targets; no cross-session close or borrowed administrator HKCU |
-| Existing `metadata-discovery-allowlist` | Exact readable metadata fields and credential-target discovery; [00](00-overview.md#open-decisions)                                                   | No configuration-content or blob-returning discovery exception                            |
+| Named spike                             | Evidence needed                                                                                                                                       | Until resolved                                                                  |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `elevated-helper-ipc-validation`        | Named-pipe ACL/endpoint authentication, nonce/run binding, helper trust/lifecycle and different administrator consent identity; Windows §5            | No privileged executable operation                                              |
+| `other-account-scope-validation`        | OS profile enumeration, loaded-state races, per-owner roots, reparse constraints, unloaded-hive lifecycle and per-user API eligibility; Windows §§3–5 | Skip unresolved scopes and failed close groups; never borrow administrator HKCU |
+| Existing `metadata-discovery-allowlist` | Exact readable metadata fields and credential-target discovery; [00](00-overview.md#open-decisions)                                                   | No configuration-content or blob-returning discovery exception                  |
 
-These are implementation-blocking validations of the adopted direction. Threat modeling and
-test strategy remain Phase 10 work.
+S6 remains unverified. Phase 28 provides conservative execution adapters and reports the remaining
+VM evidence gaps without promoting candidate providers or claiming successful inaccessible effects.

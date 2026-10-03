@@ -54,7 +54,9 @@ The helper embeds the same project catalog at build time and reloads every manif
 IDs, never manifests, filesystem roots, registry expressions, executables or command lines.
 Unknown providers, stale revisions and candidate support are separately reported.
 
-Phase 28 owns OS profile enumeration, account-ID/root associations and unloaded hives.
+The Phase 27 boundary below is historical. [Phase 28](23-all-accounts-mode.md) now supplies
+owner-bound profile enumeration, account-ID/root associations and scoped offline hives.
+At the end of Phase 27:
 Until then enumeration reports `scope-unavailable`, no helper-held plan is issued, and execute
 (including dry run) and close-processes are blocked. There is no fallback to elevated HKCU or
 known folders. Without a validated owner-root capability there is no `SafePath` and no approved
@@ -75,4 +77,5 @@ S6 remains **PENDING USER EXECUTION**. Actual UAC, over-the-shoulder administrat
 cross-user ACL denial, executable trust under hostile installation changes and real helper exit
 timing require the [manual VM checklist](../testing/vm-guide.md#elevated-helper-and-uac-phase-27).
 No experiment here resolves artifact signing, other-account scope or privileged execution gates.
-No other-user enumeration/wipe, hive loading or cross-session process closing is implemented.
+Phase 27 introduced no other-user enumeration/wipe, hive loading or cross-session process closing.
+The Phase 28 extension now implements those adapters and retains explicit S6 limitations.

@@ -13,6 +13,8 @@ pub mod manifest;
 #[cfg(windows)]
 pub mod platform;
 #[cfg(windows)]
+pub mod registry_executor;
+#[cfg(windows)]
 pub mod steam;
 pub mod validation;
 pub mod windows_dev;

@@ -53,6 +53,7 @@ impl PlatformManifest {
             .ok_or_else(scope)?;
         let (base, relative) = match root {
             Root::LocalAppData { relative, .. } => (KnownFolder::LocalAppData, relative),
+            Root::UserProfile { relative, .. } => (KnownFolder::UserProfile, relative),
             Root::RoamingAppData { relative, .. } => (KnownFolder::RoamingAppData, relative),
             _ => return Err(scope()),
         };
@@ -95,6 +96,12 @@ impl PlatformManifest {
         })
     }
     pub fn registry(&self, artifact_id: &str) -> Result<RegistryArtifact> {
+        self.registry_bound(artifact_id, None)
+    }
+    pub fn registry_for_account(&self, artifact_id: &str, hive: &str) -> Result<RegistryArtifact> {
+        self.registry_bound(artifact_id, Some(hive))
+    }
+    fn registry_bound(&self, artifact_id: &str, hive: Option<&str>) -> Result<RegistryArtifact> {
         let artifact = self
             .0
             .session_locations
@@ -117,7 +124,10 @@ impl PlatformManifest {
             RegistryTarget::Key(artifact.relative.clone())
         };
         Ok(RegistryArtifact {
-            root: RegistryRoot::from_manifest(key, &[target])?,
+            root: match hive {
+                Some(hive) => RegistryRoot::for_account(key, &[target], hive)?,
+                None => RegistryRoot::from_manifest(key, &[target])?,
+            },
             relative: artifact.relative.clone(),
             value,
             support: self.0.support,

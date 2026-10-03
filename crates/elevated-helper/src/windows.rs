@@ -276,6 +276,14 @@ impl Client {
         result
     }
     fn exchange(&mut self, request: Request) -> Result<Response, LaunchFailure> {
+        let timeout = if matches!(
+            request.command,
+            Command::Plan { .. } | Command::PlanAccounts { .. } | Command::Execute { .. }
+        ) {
+            MAX_LIFETIME
+        } else {
+            IDLE_TIMEOUT
+        };
         let frame = encode(&request).map_err(|_| LaunchFailure::AuthenticationFailed)?;
         let pipe = self
             .pipe
@@ -284,7 +292,7 @@ impl Client {
         write(pipe, &frame)?;
         let start = Instant::now();
         loop {
-            if start.elapsed() >= IDLE_TIMEOUT {
+            if start.elapsed() >= timeout {
                 return Err(LaunchFailure::Timeout);
             }
             if let Some(frame) = read(pipe)? {
@@ -515,9 +523,41 @@ pub(super) fn serve() -> Result<(), LaunchFailure> {
         return Err(LaunchFailure::AuthenticationFailed);
     }
     let pipe = server(nonce, &peer)?;
-    let mut session =
-        Session::new(peer.clone(), nonce.clone()).map_err(|_| LaunchFailure::StartFailed)?;
     let start = Instant::now();
+    let cancellation_parent = open_process(pid)?;
+    let mut cancellation_pipe = ptr::null_mut();
+    if unsafe {
+        DuplicateHandle(
+            GetCurrentProcess(),
+            pipe.0,
+            GetCurrentProcess(),
+            &mut cancellation_pipe,
+            0,
+            0,
+            DUPLICATE_SAME_ACCESS,
+        )
+    } == 0
+    {
+        return Err(LaunchFailure::StartFailed);
+    }
+    let cancellation_pipe = Handle::new(cancellation_pipe)?;
+    let cancelled = Box::new(move || {
+        !cancellation_parent.alive()
+            || start.elapsed() >= MAX_LIFETIME
+            || unsafe {
+                PeekNamedPipe(
+                    cancellation_pipe.0,
+                    ptr::null_mut(),
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                )
+            } == 0
+    });
+    let mut session = Session::new(peer.clone(), nonce.clone())
+        .map_err(|_| LaunchFailure::StartFailed)?
+        .with_backend(Box::new(crate::accounts::NativeAccounts::new(cancelled)));
     loop {
         if session.expired(start.elapsed(), parent.alive()) {
             return Ok(());
@@ -555,6 +595,7 @@ pub(super) fn serve() -> Result<(), LaunchFailure> {
             let response = session
                 .receive(&frame, &peer, start.elapsed(), parent.alive())
                 .map_err(|_| LaunchFailure::AuthenticationFailed)?;
+            session.completed_at(start.elapsed());
             write(
                 &pipe,
                 &encode(&response).map_err(|_| LaunchFailure::AuthenticationFailed)?,

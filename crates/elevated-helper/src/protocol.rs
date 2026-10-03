@@ -1,5 +1,7 @@
 //! Bounded identifiers/statuses only. Peer identity is transport-derived, never JSON.
+use everyout_core_model::ProcessClosePolicy;
 use everyout_core_model::Support;
+use everyout_engine::accounts::AccountConsent;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
 include!(concat!(env!("OUT_DIR"), "/catalog.rs"));
@@ -26,9 +28,28 @@ pub struct Selection {
 #[serde(tag = "command", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Command {
     EnumerateProfiles,
-    Plan { selections: Vec<Selection> },
-    Execute { plan_id: String, dry_run: bool },
-    CloseProcesses { plan_id: String },
+    Plan {
+        selections: Vec<Selection>,
+    },
+    PlanAccounts {
+        selections: Vec<Selection>,
+        policy: ProcessClosePolicy,
+    },
+    Review {
+        plan_id: String,
+        digest: String,
+        accounts: Vec<AccountConsent>,
+    },
+    ReadReport {
+        page: u32,
+    },
+    Execute {
+        plan_id: String,
+        dry_run: bool,
+    },
+    CloseProcesses {
+        plan_id: String,
+    },
     Report,
     Finish,
 }
@@ -44,6 +65,11 @@ pub struct Request {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Status {
+    ProfilesReady,
+    PlanReady,
+    Reviewed,
+    ApprovalRequired,
+    Completed,
     Authenticated,
     ScopeUnavailable,
     CandidateBlocked,
@@ -58,6 +84,37 @@ pub struct Response {
     pub version: u32,
     pub sequence: u64,
     pub status: Status,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<ReplyData>,
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplyData {
+    pub plan_id: Option<String>,
+    pub digest: Option<String>,
+    pub page: u32,
+    pub pages: u32,
+    /// A bounded chunk of sanitized report JSON; no SID, absolute path or secrets.
+    pub report: String,
+}
+pub struct BackendReply {
+    pub status: Status,
+    pub data: Option<ReplyData>,
+}
+impl BackendReply {
+    pub fn status(status: Status) -> Self {
+        Self { status, data: None }
+    }
+}
+/// A native helper owns the account/root and plan capabilities; test sessions use
+/// a fake backend. Dispatch occurs only after transport and payload validation.
+pub trait AccountBackend {
+    fn dispatch(
+        &mut self,
+        command: &Command,
+        catalog: &BTreeMap<String, everyout_providers::Manifest>,
+        run: &str,
+    ) -> BackendReply;
 }
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, Status> {
     let frame = serde_json::to_vec(value).map_err(|_| Status::Rejected)?;
@@ -97,6 +154,7 @@ pub struct Session {
     closed: bool,
     last: Duration,
     catalog: BTreeMap<String, everyout_providers::Manifest>,
+    backend: Option<Box<dyn AccountBackend>>,
 }
 impl Session {
     pub fn new(peer: Peer, nonce: String) -> Result<Self, Status> {
@@ -119,7 +177,17 @@ impl Session {
             closed: false,
             last: Duration::ZERO,
             catalog,
+            backend: None,
         })
+    }
+    pub fn with_backend(mut self, backend: Box<dyn AccountBackend>) -> Self {
+        self.backend = Some(backend);
+        self
+    }
+    /// A long native command is work, not idle time. The absolute lifetime still
+    /// applies independently; this method never revives a closed session.
+    pub fn completed_at(&mut self, now: Duration) {
+        self.last = now;
     }
     pub fn expired(&mut self, now: Duration, parent_alive: bool) -> bool {
         if !parent_alive || now >= MAX_LIFETIME || now.saturating_sub(self.last) >= IDLE_TIMEOUT {
@@ -167,6 +235,18 @@ impl Session {
             if !request.nonce.is_empty() {
                 return Err(Status::Rejected);
             }
+            validate_command(&request.command)?;
+            if !matches!(request.command, Command::Finish) {
+                if let Some(backend) = &mut self.backend {
+                    let reply = backend.dispatch(&request.command, &self.catalog, &self.run);
+                    return Ok(Response {
+                        version: VERSION,
+                        sequence: self.advance(now),
+                        status: reply.status,
+                        data: reply.data,
+                    });
+                }
+            }
             match request.command {
                 Command::Plan { selections } => {
                     if selections.is_empty() || selections.len() > 64 {
@@ -207,6 +287,9 @@ impl Session {
                     Status::ScopeUnavailable
                 }
                 Command::EnumerateProfiles | Command::Report => Status::ScopeUnavailable,
+                Command::PlanAccounts { .. }
+                | Command::Review { .. }
+                | Command::ReadReport { .. } => Status::ScopeUnavailable,
                 Command::Finish => {
                     self.closed = true;
                     Status::Finished
@@ -217,6 +300,7 @@ impl Session {
             version: VERSION,
             sequence: self.advance(now),
             status,
+            data: None,
         })
     }
     fn advance(&mut self, now: Duration) -> u64 {
@@ -225,4 +309,45 @@ impl Session {
         self.last = now;
         sequence
     }
+}
+#[allow(clippy::collapsible_match)]
+fn validate_command(command: &Command) -> Result<(), Status> {
+    match command {
+        Command::Plan { selections } | Command::PlanAccounts { selections, .. } => {
+            if selections.is_empty()
+                || selections.len() > 64
+                || selections
+                    .iter()
+                    .any(|s| !identifier(&s.provider_id) || !identifier(&s.account_id))
+            {
+                return Err(Status::Rejected);
+            }
+        }
+        Command::Execute { plan_id, .. } | Command::CloseProcesses { plan_id } => {
+            if !identifier(plan_id) {
+                return Err(Status::Rejected);
+            }
+        }
+        Command::Review {
+            plan_id,
+            digest,
+            accounts,
+        } => {
+            if !identifier(plan_id)
+                || !nonce_valid(digest)
+                || accounts.is_empty()
+                || accounts.len() > 64
+                || accounts.iter().any(|a| {
+                    !identifier(&a.account)
+                        || a.risks.len() > 32
+                        || a.confirmations.len() > 64
+                        || a.confirmations.iter().any(|c| !identifier(&c.0))
+                })
+            {
+                return Err(Status::Rejected);
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }

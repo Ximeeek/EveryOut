@@ -128,17 +128,42 @@ pub enum RegistryTarget {
 }
 impl RegistryRoot {
     pub fn from_manifest(root: &str, targets: &[RegistryTarget]) -> Result<Self> {
+        Self::bind(root, targets, None)
+    }
+    /// Trusted helper only: reinterpret HKCU under a borrowed owner SID or this
+    /// run's temporary HKU mount. Never use elevated administrator HKCU.
+    pub fn for_account(root: &str, targets: &[RegistryTarget], hive: &str) -> Result<Self> {
+        if components(hive)?.len() != 1
+            || !(crate::accounts::valid_user_sid(hive) || hive.starts_with("EveryOut-"))
+        {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        Self::bind(root, targets, Some(hive))
+    }
+    fn bind(root: &str, targets: &[RegistryTarget], hive: Option<&str>) -> Result<Self> {
         let parts = components(root)?;
         if parts.len() < 2 || !parts[0].eq_ignore_ascii_case("Software") {
             return Err(PlatformError::new(ErrorKind::ScopeViolation));
         }
         let mut current = ptr::null_mut();
         // SAFETY: bind current process user's HKCU, not an arbitrary or other-user hive.
-        check(unsafe {
-            RegOpenCurrentUser(
-                KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_WOW64_64KEY,
-                &mut current,
-            )
+        check(if let Some(hive) = hive {
+            unsafe {
+                RegOpenKeyExW(
+                    HKEY_USERS,
+                    wide(hive).as_ptr(),
+                    REG_OPTION_OPEN_LINK,
+                    KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_WOW64_64KEY,
+                    &mut current,
+                )
+            }
+        } else {
+            unsafe {
+                RegOpenCurrentUser(
+                    KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_WOW64_64KEY,
+                    &mut current,
+                )
+            }
         })?;
         let mut chain = vec![Key(current)];
         for part in parts {

@@ -1,7 +1,9 @@
 //! Phase 27 elevation boundary. S6 transport/UAC experiments remain unverified.
-//! No foreign-account capability is available until phase 28 and VM validation.
+//! Phase 28 adds reviewed owner-bound compartments; S6 remains unverified.
 #![deny(unsafe_op_in_unsafe_fn)]
 
+#[cfg(windows)]
+mod accounts;
 pub mod protocol;
 #[cfg(windows)]
 mod windows;

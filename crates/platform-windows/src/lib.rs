@@ -2,6 +2,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use everyout_core_model::{ActionStatus, ErrorKind};
+pub mod accounts;
 
 #[cfg(windows)]
 mod filesystem;
@@ -29,6 +30,7 @@ pub use resolver::{CurrentUserFolders, RootResolver};
 pub enum KnownFolder {
     LocalAppData,
     RoamingAppData,
+    UserProfile,
 }
 
 /// Stable, path-free diagnostics; already-completed mutations are counted on failure.

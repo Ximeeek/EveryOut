@@ -384,3 +384,62 @@ fn declined_uac_and_launch_failures_produce_distinct_current_scope_fallback() {
         assert!(fallback.requires_fresh_review);
     }
 }
+
+#[test]
+fn account_backend_is_dispatched_only_after_authentication_and_payload_validation() {
+    use std::{cell::Cell, collections::BTreeMap, rc::Rc};
+    struct Recording(Rc<Cell<usize>>);
+    impl AccountBackend for Recording {
+        fn dispatch(
+            &mut self,
+            _command: &Command,
+            _catalog: &BTreeMap<String, everyout_providers::Manifest>,
+            _run: &str,
+        ) -> BackendReply {
+            self.0.set(self.0.get() + 1);
+            BackendReply::status(Status::ProfilesReady)
+        }
+    }
+    let calls = Rc::new(Cell::new(0));
+    let mut session = authenticated().with_backend(Box::new(Recording(calls.clone())));
+    let response = session
+        .receive(
+            &encode(&request(1, Command::EnumerateProfiles)).unwrap(),
+            &peer(),
+            Duration::ZERO,
+            true,
+        )
+        .unwrap();
+    assert_eq!(response.status, Status::ProfilesReady);
+    assert_eq!(calls.get(), 1);
+    let injected = Command::Review {
+        plan_id: "plan-a".into(),
+        digest: "a".repeat(64),
+        accounts: vec![everyout_engine::accounts::AccountConsent {
+            account: "../foreign".into(),
+            ..Default::default()
+        }],
+    };
+    assert!(session
+        .receive(
+            &encode(&request(2, injected)).unwrap(),
+            &peer(),
+            Duration::ZERO,
+            true
+        )
+        .is_err());
+    assert_eq!(calls.get(), 1);
+    let calls = Rc::new(Cell::new(0));
+    let mut session = Session::new(peer(), nonce())
+        .unwrap()
+        .with_backend(Box::new(Recording(calls.clone())));
+    assert!(session
+        .receive(
+            &encode(&request(0, Command::EnumerateProfiles)).unwrap(),
+            &peer(),
+            Duration::ZERO,
+            true
+        )
+        .is_err());
+    assert_eq!(calls.get(), 0);
+}
