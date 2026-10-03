@@ -5,8 +5,9 @@ Phase 27 adds `crates/elevated-helper` as a library and a separate
 The host calls `launch(AccountMode, privileged_work_needed, expected_helper_digest)`;
 the digest is a trusted release/build pin supplied by native host code, never frontend input
 or a digest computed from an untrusted installed binary just before launching it.
-Distribution pin provisioning and publisher signing remain release work. The launcher is not
-connected to the shipping host in this phase.
+Phase 29 supplies build-time pin provisioning and connects the host commands, as described in
+[24](24-application-commands.md). Publisher signing remains release work. The launcher was not
+connected to the shipping host in Phase 27.
 
 ## Launch and trust
 

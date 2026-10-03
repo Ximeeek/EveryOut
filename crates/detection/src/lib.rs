@@ -8,9 +8,9 @@ pub mod heuristic;
 pub mod scanner;
 
 use everyout_core_model::{Category, Confidence, DetectionOrigin};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Detection {
     pub id: String,
     pub origin: DetectionOrigin,
@@ -26,14 +26,14 @@ pub struct Detection {
     pub aliases: Vec<String>,
     pub limitations: Vec<String>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignalObservation {
     pub id: String,
     /// Unknown access/type is separate from absence.
     pub present: Option<bool>,
     pub size: Option<u64>,
 }
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScanReport {
     pub known: Vec<Detection>,
     /// Includes high heuristics until S8 passes, always initially unchecked.

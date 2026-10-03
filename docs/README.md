@@ -70,6 +70,9 @@ This directory contains project decision records and contributor-facing design d
   Embedded web runtimes, package/PWA ownership, discovery and licensing, prior art, shutdown risks,
   security-product interaction, and initial catalog candidates.
 
+- [Review, execution and reports](architecture/27-review-execution-reports.md): metadata preview,
+  confirmation gates, Ask closure, scoped retry and native JSON/text export.
+
 Contributor workflow and security reporting are documented in the root
 [CONTRIBUTING.md](../CONTRIBUTING.md) and [SECURITY.md](../SECURITY.md).
 

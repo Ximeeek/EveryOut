@@ -80,25 +80,25 @@ mode; changing a child shows partial selection. Account labels are neutral when 
 cannot identify them. An undifferentiated shared account store cannot offer fictional per-account
 selection; disclose the indivisible scope instead.
 
-**Everything detected is pre-selected by default**, including known data-loss risks and the
-Windows/Microsoft + developer-tools category, subject to the explicit heuristic exception:
-all heuristic candidates, including high confidence, remain in a separate unchecked section
-until S8 passes. Known-provider selection does not depend on catalog support/confidence. Unknown
-folders below the detector's minimum signal requirement are suppressed, not list items.
+**Phase 31 desktop policy:** high-confidence selectable detections are pre-selected, including
+known data-loss risks and the Windows/Microsoft + developer-tools category. Medium/low detections
+start unchecked in separate collapsed uncertain sections. This supersedes the earlier
+known-provider/heuristic presentation defaults; see [Home selection](26-home-selection.md).
+Unknown folders below the detector's minimum signal requirement remain suppressed.
 
 “Select all” selects all resolved detected provider items and does not silently deselect risky
-ones. The heuristic candidate section has a separate explicit selection control; the main
-control preserves its unchecked default. Selection expresses intent, not execution eligibility:
+ones. Each category control includes only its own selectable detections, including uncertain
+ones, and never changes another category. Selection expresses intent, not execution eligibility:
 selected unsupported/blocked observations stay visibly selected with no executable action.
 
-| Selected item                                           | Initial selection                                                           | Additional execution requirement                                            |
-| ------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Resolved known-provider detection                       | Checked                                                                     | Validated scope and normal plan review                                      |
-| Any heuristic candidate, including high until S8 passes | Unchecked, separate section                                                 | Explicit selection plus ownership and supported-scope validation            |
-| Known permanent-data-loss risk                          | Checked                                                                     | Additional explicit confirmation naming affected data and provider/profile  |
-| Windows/Microsoft + developer-tools                     | Checked                                                                     | Separate category confirmation naming the included targets and consequences |
-| Both special category and permanent loss                | Checked                                                                     | Both confirmations required; neither substitutes for the other              |
-| Unsupported or unresolved cleaning scope                | Checked if resolved detection; unresolved candidate follows confidence rule | Blocked; confirmation cannot authorize unsupported deletion                 |
+| Selected item                            | Initial selection                                                 | Additional execution requirement                                            |
+| ---------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| High-confidence selectable detection     | Checked                                                           | Validated scope and normal plan review                                      |
+| Medium/low-confidence detection          | Unchecked, collapsed uncertain section                            | Explicit selection plus ownership and supported-scope validation            |
+| Known permanent-data-loss risk           | Checked at high confidence                                        | Additional explicit confirmation naming affected data and provider/profile  |
+| Windows/Microsoft + developer-tools      | Checked at high confidence                                        | Separate category confirmation naming the included targets and consequences |
+| Both special category and permanent loss | Checked at high confidence                                        | Both confirmations required; neither substitutes for the other              |
+| Unsupported or unresolved cleaning scope | Confidence rule when selectable; disabled without an engine scope | Blocked; confirmation cannot authorize unsupported deletion                 |
 
 Confirmations attach to the reviewed plan and its exact selected scopes. Changing scopes or effects
 invalidates affected confirmations. Declining a confirmation blocks the affected actions without

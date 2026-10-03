@@ -7,6 +7,10 @@ fresh Phase 17 fixture roots and synthetic inventory; none calls the live OS inv
 
 ## Phase 19 scope clarification
 
+The desktop presentation defaults below are superseded by
+[Phase 31 Home selection](26-home-selection.md). Detector thresholds, S8 uncertainty,
+legacy internal defaults and all execution eligibility gates remain unchanged.
+
 Phase 25 leaves low-confidence application candidates unchecked in both scanner and engine,
 including known-provider detections. Typed unresolved desktop roots are reported as incomplete
 coverage without filesystem probing. Other resolved known-provider detections retain the

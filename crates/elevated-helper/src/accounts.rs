@@ -18,6 +18,7 @@ use std::{cell::RefCell, collections::BTreeMap};
 type PhysicalSnapshot = Vec<Option<Vec<PhysicalIdentity>>>;
 type Fingerprints = BTreeMap<(String, String), PhysicalSnapshot>;
 type ExpectedAccount<'a> = Option<(&'a AccountReport, &'a Fingerprints)>;
+type ProgressSink = Box<dyn Fn(&str, everyout_engine::Progress)>;
 struct HeldPlan {
     plan: AccountsPlan,
     selections: Vec<crate::protocol::Selection>,
@@ -115,6 +116,7 @@ pub(crate) struct NativeAccounts {
     cancelled: Box<dyn Fn() -> bool>,
     source: Box<dyn ProfileSource>,
     hives: Box<dyn HiveApi>,
+    progress: ProgressSink,
 }
 impl NativeAccounts {
     pub fn new(cancelled: Box<dyn Fn() -> bool>) -> Self {
@@ -126,6 +128,7 @@ impl NativeAccounts {
             cancelled,
             source: Box::new(NativeProfiles),
             hives: Box::new(NativeHives),
+            progress: Box::new(|_, _| {}),
         }
     }
     fn page(&self, page: u32, status: Status) -> BackendReply {
@@ -167,9 +170,17 @@ impl NativeAccounts {
         }
         Ok(())
     }
-    fn enumerate(&mut self) -> Result<Status, Status> {
+    pub fn with_progress(mut self, progress: ProgressSink) -> Self {
+        self.progress = progress;
+        self
+    }
+    fn enumerate(
+        &mut self,
+        catalog: &BTreeMap<String, Manifest>,
+        run: &str,
+    ) -> Result<Status, Status> {
         self.held = None;
-        self.profiles.clear();
+        let previous = std::mem::take(&mut self.profiles);
         let inventory = inventory(&*self.source).map_err(|_| Status::ScopeUnavailable)?;
         let profiles = inventory.profiles;
         if profiles.len() > 64 {
@@ -177,10 +188,27 @@ impl NativeAccounts {
         }
         self.serial += 1;
         for (index, profile) in profiles.into_iter().enumerate() {
-            self.profiles
-                .insert(format!("account-{}-{index}", self.serial), profile);
+            let id = previous
+                .iter()
+                .find(|(_, old)| old.sid() == profile.sid())
+                .map(|(id, _)| id.clone())
+                .unwrap_or_else(|| format!("account-{}-{index}", self.serial));
+            self.profiles.insert(id, profile);
         }
-        let summaries: Vec<_> = self.profiles.iter().map(|(id,p)| serde_json::json!({ "account": id, "logged_on": p.logged_on(), "hive_mounted": p.mounted(), "limitations": [S6_UNVERIFIED,"special-temporary-nonlocal-and-ambiguous-profiles-excluded"] })).collect();
+        let manifests: Vec<_> = catalog
+            .values()
+            .filter_map(|m| serde_json::to_string(m).ok())
+            .filter_map(|json| everyout_detection::scanner::ReviewedManifest::load(&json).ok())
+            .collect();
+        let summaries: Vec<_> = self.profiles.iter().map(|(id,p)| {
+            let scanned = with_hive(&*self.hives,p,run,|hive| {
+                let resolver = AccountFolders { source: &*self.source, profile: p, hive };
+                let inventory = everyout_platform_windows::inventory::InstalledInventory { registrations: vec![], coverage: vec!["other-account-installation-registration-inventory-unavailable".into()] };
+                Ok(everyout_detection::scanner::scan(&resolver,&inventory,&manifests,&*self.cancelled))
+            });
+            let scan = scanned.operation.unwrap_or_else(|e| everyout_detection::ScanReport { coverage: vec![format!("account-scan-{:?}",e.kind)], ..Default::default() });
+            serde_json::json!({ "account": id, "logged_on": p.logged_on(), "hive_mounted": p.mounted(), "scan": scan, "residual_hive": scanned.cleanup.residual, "residual_hku_key": scanned.cleanup.temporary_key, "unload_attempts": scanned.cleanup.unload_attempts, "limitations": [S6_UNVERIFIED,"special-temporary-nonlocal-and-ambiguous-profiles-excluded"] })
+        }).collect();
         self.save(
             &serde_json::json!({ "accounts": summaries,"exclusions": inventory.exclusions }),
         )?;
@@ -237,6 +265,8 @@ impl NativeAccounts {
                         &*self.cancelled,
                         &*self.source,
                         &*self.hives,
+                        &*self.progress,
+                        false,
                     );
                     accounts.push(report);
                     physical.extend(snapshots);
@@ -292,6 +322,7 @@ impl NativeAccounts {
         &mut self,
         plan_id: &str,
         dry_run: bool,
+        close_only: bool,
         catalog: &BTreeMap<String, Manifest>,
         run: &str,
     ) -> Result<Status, Status> {
@@ -323,6 +354,8 @@ impl NativeAccounts {
                     &*self.cancelled,
                     &*self.source,
                     &*self.hives,
+                    &*self.progress,
+                    false,
                 );
                 current.push(report);
                 fingerprints.extend(physical);
@@ -343,7 +376,7 @@ impl NativeAccounts {
             return Ok(Status::PlanReady);
         }
         let approval = held.approval.as_ref().ok_or(Status::ApprovalRequired)?;
-        let report = held
+        let mut report = held
             .plan
             .execute(approval, &*self.cancelled, |expected, consent| {
                 if consent.is_none() {
@@ -378,9 +411,19 @@ impl NativeAccounts {
                     &*self.cancelled,
                     &*self.source,
                     &*self.hives,
+                    &*self.progress,
+                    close_only,
                 );
                 Ok(report)
             });
+        if close_only {
+            report.mode = ExecutionMode::DryRun;
+            for account in &mut report.accounts {
+                for section in &mut account.sections {
+                    section.mode = ExecutionMode::DryRun;
+                }
+            }
+        }
         // Consume the capability BEFORE returning results. Replay requires new
         // inventory, plan and review, even when a subset failed or was blocked.
         self.held = None;
@@ -408,7 +451,7 @@ impl AccountBackend for NativeAccounts {
         run: &str,
     ) -> BackendReply {
         let result = match command {
-            Command::EnumerateProfiles => self.enumerate(),
+            Command::EnumerateProfiles => self.enumerate(catalog, run),
             Command::Plan { selections } => {
                 self.plan(selections, ProcessClosePolicy::Ask, catalog, run)
             }
@@ -432,10 +475,10 @@ impl AccountBackend for NativeAccounts {
                 );
                 Ok(Status::Reviewed)
             })(),
-            Command::Execute { plan_id, dry_run } => self.execute(plan_id, *dry_run, catalog, run),
-            // Closure runs as part of Engine::apply after review; standalone
-            // closure cannot bypass account/category/loss acknowledgments.
-            Command::CloseProcesses { .. } => Err(Status::ApprovalRequired),
+            Command::Execute { plan_id, dry_run } => {
+                self.execute(plan_id, *dry_run, false, catalog, run)
+            }
+            Command::CloseProcesses { plan_id } => self.execute(plan_id, false, true, catalog, run),
             Command::ReadReport { page } => return self.page(*page, Status::Completed),
             Command::Report => return self.page(0, Status::Completed),
             Command::Finish => Ok(Status::Finished),
@@ -558,6 +601,8 @@ fn run_provider<P: EngineProvider + LocalOperations>(
     consent: Option<&AccountConsent>,
     cancelled: &dyn Fn() -> bool,
     validate_binding: &dyn Fn() -> Result<(), ErrorKind>,
+    progress: &dyn Fn(&str, everyout_engine::Progress),
+    close_only: bool,
 ) -> Result<RunReport, ErrorKind> {
     let engine = Engine::for_account(UserId(id.into()), provider);
     let inventory = engine.scan(&[provider], category, &mut |_| {})?;
@@ -585,7 +630,31 @@ fn run_provider<P: EngineProvider + LocalOperations>(
             .confirmed_risks
             .push(prepared.confirm_risks(&item.instance, &consent.risks));
     }
-    Ok(engine.apply(prepared, approval, cancelled, &mut |_| {}))
+    if close_only {
+        if policy != ProcessClosePolicy::Ask || cancelled() {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        if category == Category::WindowsMicrosoftAndDevTools && !consent.windows_dev_confirmed {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        for item in prepared.preview().sections.iter().flat_map(|s| &s.items) {
+            if let Some(plan) = &item.plan {
+                if plan.risks.flags.iter().any(|r| !consent.risks.contains(r))
+                    || plan
+                        .confirmations
+                        .iter()
+                        .chain(&plan.risks.confirmations)
+                        .chain(plan.actions.iter().flat_map(|a| &a.confirmations))
+                        .any(|c| !consent.confirmations.contains(c))
+                {
+                    return Err(ErrorKind::ScopeViolation);
+                }
+            }
+        }
+        engine.close_preview(&prepared, &approval)
+    } else {
+        Ok(engine.apply(prepared, approval, cancelled, &mut |p| progress(id, p)))
+    }
 }
 #[allow(clippy::too_many_arguments)]
 fn account_run(
@@ -600,6 +669,8 @@ fn account_run(
     cancelled: &dyn Fn() -> bool,
     source: &dyn ProfileSource,
     hives: &dyn HiveApi,
+    progress: &dyn Fn(&str, everyout_engine::Progress),
+    close_only: bool,
 ) -> (AccountReport, BTreeMap<(String, String), PhysicalSnapshot>) {
     let mut physical = BTreeMap::new();
     let result = with_hive(hives, profile, run, |hive| {
@@ -670,6 +741,8 @@ fn account_run(
                         consent,
                         cancelled,
                         &|| Ok(()),
+                        progress,
+                        close_only,
                     )
                 } else {
                     let provider = ManifestExecutor::load(
@@ -689,6 +762,8 @@ fn account_run(
                         None,
                         cancelled,
                         &|| Ok(()),
+                        progress,
+                        close_only,
                     )?;
                     let snapshot = provider.physical_snapshot()?;
                     if let Some((_, held)) = expected {
@@ -717,6 +792,8 @@ fn account_run(
                                 }
                                 Ok(())
                             },
+                            progress,
+                            close_only,
                         )
                     }
                 }
@@ -943,6 +1020,76 @@ mod tests {
         id
     }
     #[test]
+    fn reviewed_close_only_keeps_files_and_account_ids_for_fresh_review() {
+        let (fixture, mut backend, records, hives, catalog) = lab();
+        let run = "f".repeat(64);
+        backend.enumerate(&catalog, &run).unwrap();
+        let owners: BTreeMap<_, _> = backend
+            .profiles
+            .iter()
+            .map(|(id, p)| (p.sid().to_string(), id.clone()))
+            .collect();
+        backend
+            .plan(
+                &selections(&backend),
+                ProcessClosePolicy::Ask,
+                &catalog,
+                &run,
+            )
+            .unwrap();
+        let id = backend.held.as_ref().unwrap().plan.id().0.clone();
+        assert_eq!(
+            backend
+                .dispatch(
+                    &Command::CloseProcesses {
+                        plan_id: id.clone()
+                    },
+                    &catalog,
+                    &run
+                )
+                .status,
+            Status::ApprovalRequired
+        );
+        review(&mut backend, &catalog, &run);
+        assert_eq!(
+            backend
+                .dispatch(
+                    &Command::CloseProcesses {
+                        plan_id: id.clone()
+                    },
+                    &catalog,
+                    &run
+                )
+                .status,
+            Status::Completed
+        );
+        assert!(backend.held.is_none());
+        assert_eq!(
+            backend
+                .dispatch(&Command::CloseProcesses { plan_id: id }, &catalog, &run)
+                .status,
+            Status::ScopeUnavailable
+        );
+        for leaf in ["alpha", "beta"] {
+            assert_eq!(
+                std::fs::read(
+                    fixture
+                        .path()
+                        .join(leaf)
+                        .join("AppData/Roaming/EveryOutFixtureElectron/Cookies")
+                )
+                .unwrap(),
+                b"fixture-only"
+            );
+        }
+        records.borrow_mut().reverse();
+        backend.enumerate(&catalog, &run).unwrap();
+        for (id, profile) in &backend.profiles {
+            assert_eq!(owners.get(profile.sid()), Some(id));
+        }
+        assert!(hives.temporary.borrow().is_empty());
+    }
+    #[test]
     fn native_sequence_uses_fake_hives_and_temp_accounts_and_requires_review() {
         let (fixture, mut backend, _records, hives, catalog) = lab();
         let run = "a".repeat(64);
@@ -1047,7 +1194,7 @@ mod tests {
     fn stale_account_does_not_abort_other_account_and_hive_residual_blocks_apply() {
         let (fixture, mut backend, records, hives, catalog) = lab();
         let run = "b".repeat(64);
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
         backend
             .plan(
                 &selections(&backend),
@@ -1080,7 +1227,7 @@ mod tests {
             .join("beta/AppData/Roaming/EveryOutFixtureElectron/Cookies")
             .exists());
         records.borrow_mut()[0].path = fixture.path().join("alpha");
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
         hives.failures.set(3);
         backend
             .plan(
@@ -1110,7 +1257,7 @@ mod tests {
     fn preview_digest_wrong_account_stale_files_and_unicode_paging_are_checked() {
         let (fixture, mut backend, _records, _hives, catalog) = lab();
         let run = "c".repeat(64);
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
         backend
             .plan(
                 &selections(&backend),
@@ -1181,7 +1328,7 @@ mod tests {
     fn same_size_replacement_refuses_one_account_and_preserves_the_other() {
         let (fixture, mut backend, _records, _hives, catalog) = lab();
         let run = "d".repeat(64);
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
         backend
             .plan(
                 &selections(&backend),
@@ -1221,7 +1368,7 @@ mod tests {
         let (fixture, mut backend, _records, hives, catalog) = lab();
         let run = "f".repeat(64);
         hives.fail_load.set(true);
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
         backend
             .plan(
                 &selections(&backend),
@@ -1277,7 +1424,9 @@ mod tests {
             .join("alpha/AppData/Roaming/EveryOutFixtureElectron/Cookies");
         let cancellation_cookie = cookie.clone();
         backend.cancelled = Box::new(move || !cancellation_cookie.exists());
-        backend.enumerate().unwrap();
+        backend.enumerate(&catalog, &run).unwrap();
+        let scan_loads = hives.loads.borrow().len();
+        let scan_unloads = hives.unloads.get();
         backend
             .plan(
                 &selections(&backend),
@@ -1301,8 +1450,8 @@ mod tests {
             .join("beta/AppData/Roaming/EveryOutFixtureElectron/Cookies")
             .exists());
         assert!(hives.temporary.borrow().is_empty());
-        assert_eq!(hives.loads.borrow().len(), 2);
-        assert_eq!(hives.unloads.get(), 2);
+        assert_eq!(hives.loads.borrow().len(), scan_loads + 2);
+        assert_eq!(hives.unloads.get(), scan_unloads + 2);
         assert!(backend.report.contains("applied"));
         assert!(backend.report.contains("cancelled"));
     }

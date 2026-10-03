@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use everyout_core_model::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
     collections::HashSet,
@@ -31,21 +31,22 @@ pub trait EngineProvider: Provider {
     fn target_label(&self, action: &PlannedAction) -> String;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessPreview {
     pub identity: String,
     pub label: String,
     pub unsaved_work_loss: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdentitySync {
     pub identity: Uncertainty,
     pub sync: Uncertainty,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(ts_rs::TS)]
 pub enum Stage {
     Scan,
     Selection,
@@ -58,7 +59,7 @@ pub enum Stage {
     Report,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Progress {
     pub stage: Stage,
     pub category: Category,
@@ -66,14 +67,14 @@ pub struct Progress {
     pub action: Option<ActionId>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionReport {
     pub path: String,
     pub outcome: ActionOutcome,
     pub verification: ArtifactVerification,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemReport {
     pub instance: InstanceId,
     pub plan: Option<ProposedPlan>,
@@ -87,7 +88,7 @@ pub struct ItemReport {
     pub silent_sso: Uncertainty,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CategoryReport {
     pub category: Category,
     pub warnings: Vec<String>,
@@ -96,7 +97,7 @@ pub struct CategoryReport {
     pub counts: Counts,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Counts {
     pub succeeded: usize,
     pub failed: usize,
@@ -106,7 +107,7 @@ pub struct Counts {
     pub already_absent: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunReport {
     pub account_scope: AccountScope,
     pub account: UserId,
@@ -190,6 +191,12 @@ pub struct Inventory<'a> {
     current_user: UserId,
 }
 impl Inventory<'_> {
+    /// Native application projection; callers must omit concrete owner identities from IPC.
+    pub fn descriptions(&self) -> impl Iterator<Item = (&ProviderInstance, &ProviderDescription)> {
+        self.entries
+            .iter()
+            .map(|entry| (&entry.instance, &entry.description))
+    }
     /// Low-confidence application candidates require explicit selection.
     /// All heuristic results stay unchecked until S8 passes; selection is not approval.
     pub fn default_selection(&self, category: Category) -> Vec<InstanceId> {
@@ -355,10 +362,42 @@ impl<'a> Engine<'a> {
         policy: ProcessClosePolicy,
         progress: &mut dyn FnMut(Progress),
     ) -> Result<PreparedRun<'a>, ErrorKind> {
+        self.prepare_scoped(
+            inventory,
+            category,
+            selection,
+            &std::collections::HashMap::new(),
+            policy,
+            progress,
+        )
+    }
+    /// Profile IDs must belong to the selected instance in this exact inventory.
+    pub fn prepare_scoped(
+        &self,
+        inventory: Inventory<'a>,
+        category: Category,
+        selection: &[InstanceId],
+        profiles: &std::collections::HashMap<InstanceId, Vec<ProfileId>>,
+        policy: ProcessClosePolicy,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<PreparedRun<'a>, ErrorKind> {
         if inventory.current_user != self.current_user {
             return Err(ErrorKind::ScopeViolation);
         }
         let selected: HashSet<_> = selection.iter().collect();
+        if profiles.iter().any(|(instance, ids)| {
+            !selected.contains(instance)
+                || ids.is_empty()
+                || ids.iter().collect::<HashSet<_>>().len() != ids.len()
+                || !inventory.entries.iter().any(|entry| {
+                    entry.instance.instance_id == *instance
+                        && ids
+                            .iter()
+                            .all(|id| entry.instance.profiles.iter().any(|p| p.profile_id == *id))
+                })
+        }) {
+            return Err(ErrorKind::ScopeViolation);
+        }
         if selected.len() != selection.len()
             || selection.iter().any(|id| {
                 !inventory.entries.iter().any(|entry| {
@@ -384,12 +423,17 @@ impl<'a> Engine<'a> {
                 snapshot_id: entry.inventory.snapshot_id.clone(),
                 account_mode: AccountMode::Current,
                 instances: vec![entry.instance.instance_id.clone()],
-                profiles: entry
-                    .instance
-                    .profiles
-                    .iter()
-                    .map(|p| p.profile_id.clone())
-                    .collect(),
+                profiles: profiles
+                    .get(&entry.instance.instance_id)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        entry
+                            .instance
+                            .profiles
+                            .iter()
+                            .map(|p| p.profile_id.clone())
+                            .collect()
+                    }),
             };
             let mut blocked = entry.instance.issues.clone();
             blocked.extend(entry.inventory.issues.clone());
@@ -536,11 +580,120 @@ impl<'a> Engine<'a> {
         cancelled: &dyn Fn() -> bool,
         progress: &mut dyn FnMut(Progress),
     ) -> RunReport {
+        self.apply_with_results(run, approval, cancelled, progress, &mut |_| {})
+    }
+
+    /// Metadata-only review refresh; never close a process or mutate a target.
+    pub fn validate_preview(&self, run: &PreparedRun<'a>) -> Result<(), ErrorKind> {
+        if self.id != run.engine_id
+            || self.scope != run.scope
+            || self.current_user != run.current_user
+        {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        for item in &run.items {
+            let Some(plan) = &item.plan else {
+                continue;
+            };
+            match item.entry.provider.plan(
+                &PlanContext {
+                    inventory: &item.entry.inventory,
+                },
+                &plan.selection,
+            ) {
+                PlanResult::Ready(fresh) if *fresh == *plan => {}
+                _ => return Err(ErrorKind::StalePlan),
+            }
+            if item.entry.provider.describe(&item.entry.instance) != item.entry.description
+                || item.entry.provider.process_preview(plan)? != item.processes
+            {
+                return Err(ErrorKind::StalePlan);
+            }
+            for (action, before) in plan.actions.iter().zip(&item.observations) {
+                if &self.operations.observe(&action.owner, &action.artifact_id) != before {
+                    return Err(ErrorKind::StalePlan);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Close only reviewed processes; never schedule deletion or identity changes.
+    /// The native caller validates loss/category consent and consumes the plan.
+    pub fn close_preview(
+        &self,
+        run: &PreparedRun<'a>,
+        approval: &Approval,
+    ) -> Result<RunReport, ErrorKind> {
+        if run.policy != ProcessClosePolicy::Ask {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        if run.category == Category::WindowsMicrosoftAndDevTools
+            && approval
+                .category_confirmation
+                .as_ref()
+                .is_none_or(|token| token.run != run.id)
+        {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        for item in &run.items {
+            if let Some(plan) = &item.plan {
+                if !plan.risks.flags.iter().all(|flag| {
+                    approval.confirmed_risks.iter().any(|token| {
+                        token.run == run.id
+                            && token.instance == item.entry.instance.instance_id
+                            && token.flags.contains(flag)
+                    })
+                }) || all_confirmations(plan)
+                    .iter()
+                    .any(|id| !approval.confirmations.contains(id))
+                {
+                    return Err(ErrorKind::ScopeViolation);
+                }
+            }
+        }
+        self.validate_preview(run)?;
+        let mut report = run.preview().clone();
+        for item in &run.items {
+            let Some(plan) = &item.plan else {
+                continue;
+            };
+            if item.blocked.iter().any(|issue| issue.blocked) {
+                continue;
+            }
+            let valid = match review_plan(plan, &approval.confirmations) {
+                Ok(valid) => valid,
+                Err(_) => continue,
+            };
+            if let Err(kind) = item.entry.provider.close(&valid, ProcessClosePolicy::Ask) {
+                for result in report
+                    .sections
+                    .iter_mut()
+                    .flat_map(|s| &mut s.items)
+                    .filter(|i| i.instance == item.entry.instance.instance_id)
+                {
+                    block_report(result, item, kind, "process-prerequisite-failed");
+                }
+            }
+        }
+        Ok(report)
+    }
+
+    /// Emit completed item results without waiting for the rest of the category.
+    pub fn apply_with_results(
+        &self,
+        run: PreparedRun<'a>,
+        approval: Approval,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(Progress),
+        result: &mut dyn FnMut(&ItemReport),
+    ) -> RunReport {
         let mut reports = Vec::new();
         for item in &run.items {
             let mut report = preview_item(item);
             report.aggregate = AggregateStatus::Blocked;
             let Some(plan) = &item.plan else {
+                result(&report);
                 reports.push(report);
                 continue;
             };
@@ -747,6 +900,7 @@ impl<'a> Engine<'a> {
             }
             cancelled_run |= cancelled();
             report.aggregate = aggregate_item(&report, cancelled_run);
+            result(&report);
             reports.push(report);
         }
         emit(progress, Stage::Report, run.category, None, None);

@@ -32,8 +32,9 @@ from closing through verification. No automatic browser/app restart follows a wi
 1. **Scan:** call `detect` and `describe` for metadata inventory, owners, profile scopes, risks and
    coverage gaps. Presence means possible persisted state, never proven authentication. Discovery
    rules remain those of [03](03-heuristic-detection.md), not a new recursive search policy.
-2. **Selection:** apply the existing defaults: resolved detections checked, medium/low heuristic
-   candidates separately unchecked. Expand user/profile scopes where safe metadata permits.
+2. **Selection:** apply the [phase 31 desktop defaults](26-home-selection.md): high-confidence
+   selectable detections checked, medium/low detections separately unchecked in collapsed sections.
+   Expand user/profile scopes where safe metadata permits.
    Resolve aliases and shared stores before planning; do not infer another category's selection.
 3. **Dry run:** `plan` fixes targets, manifest revisions, scope, shared effects and blockers;
    `execute(dryRun)` revalidates metadata without closing processes, editing preferences, deleting

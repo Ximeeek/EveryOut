@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 macro_rules! id {
     ($($name:ident),+ $(,)?) => {$(
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
         #[serde(transparent)]
         pub struct $name(pub String);
     )+};
@@ -28,7 +28,7 @@ id!(
 
 macro_rules! vocabulary {
     ($name:ident { $($variant:ident),+ $(,)? }) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
         #[serde(rename_all = "kebab-case")]
         pub enum $name { $($variant),+ }
     };
@@ -51,7 +51,7 @@ vocabulary!(AccountScope {
 });
 vocabulary!(ExecutionMode { DryRun, Apply });
 /// Ask never escalates. HardKillAfter2s requires caller review of unsaved-work loss.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProcessClosePolicy {
     Ask,
@@ -106,7 +106,7 @@ vocabulary!(AggregateStatus {
     DryRun,
     NotRequested
 });
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 #[serde(rename_all = "kebab-case")]
 pub enum RiskFlag {
     LocalOnlyDocuments,
@@ -159,7 +159,7 @@ vocabulary!(Uncertainty {
     NotRequested
 });
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
 pub struct RiskAssessment {
     pub flags: Vec<RiskFlag>,
@@ -171,7 +171,7 @@ pub struct RiskAssessment {
 }
 
 /// Stable explanation codes only: never arbitrary OS messages or captured command output.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderIssue {
     pub phase: Phase,
     pub provider_id: ProviderId,
@@ -183,18 +183,18 @@ pub struct ProviderIssue {
     pub blocked: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct OwnerIdentity {
     pub user_id: UserId,
     pub installation_id: InstallationId,
     pub root_id: RootId,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProfileScope {
     pub profile_id: ProfileId,
     pub root_id: RootId,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderDescriptor {
     pub provider_id: ProviderId,
     pub name: String,
@@ -204,7 +204,7 @@ pub struct ProviderDescriptor {
     pub evidence: Vec<EvidenceRef>,
     pub limitations: Vec<String>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderInstance {
     pub provider_id: ProviderId,
     pub instance_id: InstanceId,
@@ -219,7 +219,9 @@ pub struct ProviderInstance {
 }
 
 /// Identity confidence and catalog support cannot substitute for detection provenance.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS,
+)]
 #[serde(rename_all = "kebab-case")]
 pub enum DetectionOrigin {
     KnownProvider,
@@ -232,21 +234,21 @@ impl DetectionOrigin {
         resolved_owner && self == Self::KnownProvider
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct MetadataObservation {
     pub artifact_id: ArtifactId,
     pub kind: ArtifactKind,
     pub exists: bool,
     pub size: Option<u64>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct DetectionResult {
     pub snapshot_id: SnapshotId,
     pub instances: Vec<ProviderInstance>,
     pub observations: Vec<MetadataObservation>,
     pub issues: Vec<ProviderIssue>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderDescription {
     pub descriptor: ProviderDescriptor,
     pub instance_id: InstanceId,
@@ -254,7 +256,7 @@ pub struct ProviderDescription {
     pub risks: RiskAssessment,
     pub expected_effects: Vec<String>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct Selection {
     pub snapshot_id: SnapshotId,
     pub account_mode: AccountMode,
@@ -264,7 +266,7 @@ pub struct Selection {
 
 /// Fixed logical target, resolved inside Rust by later platform/engine phases.
 /// No arbitrary absolute path, shell command or secret content can be submitted here.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct PlannedAction {
     pub action_id: ActionId,
     pub artifact_id: ArtifactId,
@@ -279,7 +281,7 @@ pub struct PlannedAction {
     pub blockers: Vec<String>,
     pub confirmations: Vec<ConfirmationId>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProposedPlan {
     pub plan_id: PlanId,
     pub provider_id: ProviderId,
@@ -340,33 +342,33 @@ pub enum PlanResult {
     Ready(Box<ProposedPlan>),
     Blocked { issues: Vec<ProviderIssue> },
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ActionOutcome {
     pub action_id: ActionId,
     pub status: ActionStatus,
     pub issues: Vec<ProviderIssue>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ExecutionResult {
     pub plan_id: PlanId,
     pub mode: ExecutionMode,
     pub outcomes: Vec<ActionOutcome>,
     pub issues: Vec<ProviderIssue>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ArtifactVerification {
     pub artifact_id: ArtifactId,
     pub status: VerificationStatus,
     pub observation: Option<MetadataObservation>,
     pub issues: Vec<ProviderIssue>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct VerificationResult {
     pub plan_id: PlanId,
     pub artifacts: Vec<ArtifactVerification>,
     pub issues: Vec<ProviderIssue>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderResult {
     pub description: ProviderDescription,
     pub execution: ExecutionResult,
@@ -374,7 +376,7 @@ pub struct ProviderResult {
     pub aggregate: AggregateStatus,
 }
 /// Export projection intentionally excludes OwnerIdentity and concrete targets.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ReportItem {
     pub provider_id: ProviderId,
     pub instance_id: InstanceId,
@@ -393,7 +395,7 @@ pub struct ReportItem {
     pub silent_sso: Uncertainty,
     pub remote_revocation: Uncertainty,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct SanitizedReport {
     pub applications: Vec<ReportItem>,
     pub browsers: Vec<ReportItem>,
