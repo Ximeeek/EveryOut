@@ -812,6 +812,7 @@ dependencies = [
  "everyout-engine",
  "everyout-platform-windows",
  "everyout-providers",
+ "everyout-test-support",
  "serde",
  "serde_json",
  "sha2",

@@ -861,14 +861,16 @@ mod tests {
         BTreeMap::from([(manifest.id.clone(), manifest)])
     }
     type Lab = (
-        tempfile::TempDir,
+        everyout_test_support::FixtureTree,
         NativeAccounts,
         Rc<RefCell<Vec<ProfileRecord>>>,
         Rc<Hives>,
         BTreeMap<String, Manifest>,
     );
     fn lab() -> Lab {
-        let fixture = tempfile::tempdir().unwrap();
+        // Match the other Windows fixture tests: hosted runners may give their
+        // isolated scratch directory through RUNNER_TEMP rather than %TEMP%.
+        let fixture = everyout_test_support::FixtureTree::empty().unwrap();
         let catalog = catalog();
         let mut records = Vec::new();
         for (sid, leaf, live) in [(A, "alpha", false), (B, "beta", true)] {
