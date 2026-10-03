@@ -56,3 +56,6 @@ English copy is centralized in the strings module. No network or filesystem plug
 is added. Frontend tests mock the complete API and cover policy, independence, partial
 states, badges, warnings, retries, invalidation and review transfer. Native tests use
 temporary synthetic fixture stores to check profile narrowing and hostile scope IDs.
+
+Phase 32 replaces the placeholder with [review, execution and reports](27-review-execution-reports.md).
+Returning from review clears the consumed inventory and requires a fresh Home scan.

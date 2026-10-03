@@ -42,7 +42,7 @@ fn command_acl_allows_only_local_main_window() {
     assert!(get_ipc_response(&main, request("https://example.com")).is_err());
     let capability: serde_json::Value =
         serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
-    assert_eq!(capability["permissions"].as_array().unwrap().len(), 9);
+    assert_eq!(capability["permissions"].as_array().unwrap().len(), 11);
     assert!(capability["permissions"]
         .as_array()
         .unwrap()

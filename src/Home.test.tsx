@@ -21,6 +21,8 @@ vi.mock("./api", () => ({
   getSettings: vi.fn(),
   setSettings: vi.fn(),
   enableAllAccountsMode: vi.fn(),
+  buildPlan: vi.fn(),
+  dryRun: vi.fn(),
 }));
 const review = vi.fn();
 function item(id: string, extra: Partial<DetectedItem> = {}): DetectedItem {
@@ -314,8 +316,9 @@ it("rescan discards previous selections and binds Review to the new inventory", 
   expect(review.mock.calls[0][0].inventory_id).toBe("inventory-2");
 });
 
-it("App stores selection across Review and navigation and invalidates it when settings are saved", async () => {
+it("App transfers stored profile selection to planning and discards consumed inventory on return", async () => {
   vi.mocked(api.setSettings).mockImplementation(async (next) => next);
+  vi.mocked(api.buildPlan).mockRejectedValue("stale-plan");
   const user = userEvent.setup();
   render(<App />);
   await user.click(await screen.findByRole("button", { name: h.scan }));
@@ -324,13 +327,19 @@ it("App stores selection across Review and navigation and invalidates it when se
   await user.click(screen.getByRole("checkbox", { name: "Chat — Profile 2" }));
   await user.click(screen.getByRole("button", { name: h.review }));
   expect(screen.getByRole("heading", { name: h.reviewTitle })).toBeVisible();
-  expect(screen.getByText(h.reviewPlaceholder)).toBeVisible();
-  expect(screen.getByText("3 selected")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: h.back }));
-  await user.click(screen.getByText("Profile (2)"));
-  expect(
-    screen.getByRole("checkbox", { name: "Chat — Profile 2" }),
-  ).not.toBeChecked();
+  await waitFor(() =>
+    expect(api.buildPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profiles: [{ item: "Chat", profiles: ["chat-p1"] }],
+      }),
+    ),
+  );
+  await user.click(
+    screen.getByRole("button", {
+      name: "Return to selection for a fresh scan",
+    }),
+  );
+  expect(screen.getByRole("button", { name: h.review })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByRole("button", { name: "Save settings" }));
   await screen.findByText("Settings saved.");

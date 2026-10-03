@@ -7,6 +7,7 @@ import type {
   Settings,
 } from "./api";
 import Home from "./Home";
+import WipeFlow from "./WipeFlow";
 import { emptyHome } from "./selection";
 import type { HomeState } from "./selection";
 import {
@@ -301,7 +302,7 @@ export default function App() {
                 key={route}
                 type="button"
                 aria-current={page === route ? "page" : undefined}
-                disabled={busy}
+                disabled={busy || page === "review"}
                 onClick={() => {
                   setPage(route);
                   requestAnimationFrame(() => title.current?.focus());
@@ -361,22 +362,18 @@ export default function App() {
                   />
                 </>
               )}
-              {page === "review" && (
-                <>
-                  <p>{h.reviewPlaceholder}</p>
-                  <p>
-                    {selection?.items.length ?? 0} {h.selected}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPage("home");
-                      requestAnimationFrame(() => title.current?.focus());
-                    }}
-                  >
-                    {h.back}
-                  </button>
-                </>
+              {page === "review" && selection && home.inventory && (
+                <WipeFlow
+                  inventory={home.inventory}
+                  selection={selection}
+                  setBusy={setBusy}
+                  back={() => {
+                    updateHome(emptyHome);
+                    storeSelection(null);
+                    setPage("home");
+                    requestAnimationFrame(() => title.current?.focus());
+                  }}
+                />
               )}
               {page === "settings" && !firstRun && (
                 <Preferences

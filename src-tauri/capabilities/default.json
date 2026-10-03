@@ -12,6 +12,8 @@
     "allow-get-settings",
     "allow-set-settings",
     "allow-get-last-report",
-    "allow-enable-all-accounts-mode"
+    "allow-enable-all-accounts-mode",
+    "allow-close-reviewed",
+    "allow-export-report"
   ]
 }

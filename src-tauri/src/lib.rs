@@ -6,6 +6,7 @@ pub mod bridge;
 mod commands;
 pub mod dto;
 mod native;
+pub mod reports;
 pub mod settings;
 use tauri::Manager;
 include!(concat!(env!("OUT_DIR"), "/helper_pin.rs"));
@@ -28,6 +29,8 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::get_last_report,
+            commands::close_reviewed,
+            commands::export_report,
             commands::enable_all_accounts_mode
         ])
         .run(tauri::generate_context!())

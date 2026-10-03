@@ -31,3 +31,8 @@ export const setSettings = (settings: Settings) =>
 export const getLastReport = () => invoke<ReportDto | null>("get_last_report");
 export const enableAllAccountsMode = () =>
   invoke<ModeResult>("enable_all_accounts_mode");
+
+export const closeReviewed = (request: ExecuteRequest) =>
+  invoke<ReportDto>("close_reviewed", { request });
+export const exportReport = (format: import("./types").ExportFormat) =>
+  invoke<string>("export_report", { format });

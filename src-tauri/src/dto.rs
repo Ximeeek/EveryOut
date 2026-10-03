@@ -31,6 +31,7 @@ pub enum CommandError {
     HelperUnavailable,
     WorkerUnavailable,
     Cancelled,
+    ReportIo,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -95,6 +96,9 @@ impl ScanDto {
 pub struct SelectionRequest {
     pub inventory_id: String,
     pub items: Vec<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub skipped: Option<Vec<String>>,
     /// Omission preserves the legacy whole-instance selection. Entries narrow scope only.
     #[serde(default)]
     pub profiles: Vec<ProfileSelection>,
@@ -137,6 +141,8 @@ pub struct PlanDto {
 pub struct ActionDto {
     pub id: String,
     pub path: String,
+    pub bytes: Option<f64>,
+    pub locked: bool,
     pub outcome: ActionStatus,
     pub verification: VerificationStatus,
     pub issues: Vec<String>,
@@ -144,6 +150,10 @@ pub struct ActionDto {
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct ItemDto {
     pub instance: String,
+    pub provider: Option<String>,
+    pub loss: LossAssessment,
+    pub locked: bool,
+    pub affected_data: Vec<String>,
     pub status: AggregateStatus,
     pub actions: Vec<ActionDto>,
     pub risks: Vec<RiskFlag>,
@@ -163,6 +173,14 @@ impl From<&ItemReport> for ItemDto {
         let plan = item.plan.as_ref();
         Self {
             instance: item.instance.0.clone(),
+            provider: plan.map(|p| p.provider_id.0.clone()),
+            loss: plan
+                .map(|p| p.risks.permanent_data_loss)
+                .unwrap_or(LossAssessment::Unknown),
+            locked: item.issues.iter().any(|i| i.kind == ErrorKind::Locked),
+            affected_data: plan
+                .map(|p| p.risks.affected_data.clone())
+                .unwrap_or_default(),
             status: item.aggregate,
             actions: item
                 .actions
@@ -170,6 +188,18 @@ impl From<&ItemReport> for ItemDto {
                 .map(|a| ActionDto {
                     id: a.outcome.action_id.0.clone(),
                     path: a.path.clone(),
+                    locked: a
+                        .outcome
+                        .issues
+                        .iter()
+                        .chain(&a.verification.issues)
+                        .any(|i| i.kind == ErrorKind::Locked),
+                    bytes: a
+                        .verification
+                        .observation
+                        .as_ref()
+                        .and_then(|m| m.size)
+                        .map(|n| n as f64),
                     outcome: a.outcome.status,
                     verification: a.verification.status,
                     issues: a
@@ -237,6 +267,7 @@ pub struct AccountDto {
 }
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct ReportDto {
+    pub skipped: Vec<SkippedItemDto>,
     pub mode: ExecutionMode,
     pub account_mode: AccountMode,
     pub process_close_policy: ProcessClosePolicy,
@@ -293,6 +324,7 @@ impl ReportDto {
     pub fn current(runs: &[RunReport], policy: ProcessClosePolicy, mode: ExecutionMode) -> Self {
         Self {
             mode,
+            skipped: vec![],
             account_mode: AccountMode::Current,
             process_close_policy: policy,
             accounts: vec![AccountDto {
@@ -309,6 +341,7 @@ impl ReportDto {
     pub fn elevated(report: &AccountsReport, policy: ProcessClosePolicy) -> Self {
         Self {
             mode: report.mode,
+            skipped: vec![],
             account_mode: AccountMode::AllAccounts,
             process_close_policy: policy,
             accounts: report
@@ -371,4 +404,20 @@ pub enum ModeFailure {
     AuthenticationFailed,
     Timeout,
     TrustPinUnavailable,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExportFormat {
+    Json,
+    Text,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+pub struct SkippedItemDto {
+    pub account: String,
+    pub category: Category,
+    pub instance: String,
+    pub provider: String,
+    pub name: String,
 }

@@ -618,6 +618,67 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
+    /// Close only reviewed processes; never schedule deletion or identity changes.
+    /// The native caller validates loss/category consent and consumes the plan.
+    pub fn close_preview(
+        &self,
+        run: &PreparedRun<'a>,
+        approval: &Approval,
+    ) -> Result<RunReport, ErrorKind> {
+        if run.policy != ProcessClosePolicy::Ask {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        if run.category == Category::WindowsMicrosoftAndDevTools
+            && approval
+                .category_confirmation
+                .as_ref()
+                .is_none_or(|token| token.run != run.id)
+        {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        for item in &run.items {
+            if let Some(plan) = &item.plan {
+                if !plan.risks.flags.iter().all(|flag| {
+                    approval.confirmed_risks.iter().any(|token| {
+                        token.run == run.id
+                            && token.instance == item.entry.instance.instance_id
+                            && token.flags.contains(flag)
+                    })
+                }) || all_confirmations(plan)
+                    .iter()
+                    .any(|id| !approval.confirmations.contains(id))
+                {
+                    return Err(ErrorKind::ScopeViolation);
+                }
+            }
+        }
+        self.validate_preview(run)?;
+        let mut report = run.preview().clone();
+        for item in &run.items {
+            let Some(plan) = &item.plan else {
+                continue;
+            };
+            if item.blocked.iter().any(|issue| issue.blocked) {
+                continue;
+            }
+            let valid = match review_plan(plan, &approval.confirmations) {
+                Ok(valid) => valid,
+                Err(_) => continue,
+            };
+            if let Err(kind) = item.entry.provider.close(&valid, ProcessClosePolicy::Ask) {
+                for result in report
+                    .sections
+                    .iter_mut()
+                    .flat_map(|s| &mut s.items)
+                    .filter(|i| i.instance == item.entry.instance.instance_id)
+                {
+                    block_report(result, item, kind, "process-prerequisite-failed");
+                }
+            }
+        }
+        Ok(report)
+    }
+
     /// Emit completed item results without waiting for the rest of the category.
     pub fn apply_with_results(
         &self,

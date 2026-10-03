@@ -21,6 +21,7 @@ pub fn typescript() -> String {
         cfg: Config::default(),
         declarations: BTreeMap::new(),
     };
+    types.visit::<ExportFormat>();
     types.visit::<Settings>();
     types.visit::<ScanDto>();
     types.visit::<SelectionRequest>();

@@ -97,6 +97,7 @@ fn fixture(folders: &FixtureFolders, risks: bool) -> String {
 }
 fn select(scan: ScanDto) -> SelectionRequest {
     SelectionRequest {
+        skipped: None,
         profiles: vec![],
         inventory_id: scan.inventory_id,
         items: scan
@@ -525,6 +526,13 @@ fn bridge_blocks_concurrent_wipes_cancel_stops_mutations_and_stores_last_report(
     finished.recv_timeout(Duration::from_secs(10)).unwrap();
     let report = bridge.get_last_report().unwrap().unwrap();
     assert_eq!(report.accounts[0].sections[1].succeeded, 0);
+    for format in [ExportFormat::Json, ExportFormat::Text] {
+        let relative = bridge.export_report(format).unwrap();
+        let content = fs::read_to_string(config.path().join(relative)).unwrap();
+        assert!(!content.contains("synthetic-session"));
+        assert!(!content.contains(config.path().to_str().unwrap()));
+        assert!(content.contains("current-account"));
+    }
     drop(bridge);
     worker_thread.join().unwrap();
 }
@@ -564,4 +572,176 @@ fn no_pin_fallback_discards_review_and_persists_current_without_uac() {
     );
     drop(bridge);
     thread.join().unwrap();
+}
+struct AskGate {
+    open: std::cell::Cell<bool>,
+    survives: std::cell::Cell<bool>,
+    identity: std::cell::Cell<u32>,
+    closes: std::cell::Cell<usize>,
+}
+impl ProcessGate for AskGate {
+    fn preview(&self) -> Result<Vec<ProcessPreview>, ErrorKind> {
+        Ok(if self.open.get() {
+            vec![ProcessPreview {
+                identity: format!("fixture-process-{}", self.identity.get()),
+                label: "synthetic program".into(),
+                unsaved_work_loss: true,
+            }]
+        } else {
+            vec![]
+        })
+    }
+    fn close(&self, policy: ProcessClosePolicy) -> Result<(), ErrorKind> {
+        assert_eq!(policy, ProcessClosePolicy::Ask);
+        self.closes.set(self.closes.get() + 1);
+        if self.survives.get() {
+            Err(ErrorKind::Locked)
+        } else {
+            self.open.set(false);
+            Ok(())
+        }
+    }
+    fn revalidate(&self) -> Result<(), ErrorKind> {
+        if self.open.get() {
+            Err(ErrorKind::Locked)
+        } else {
+            Ok(())
+        }
+    }
+}
+#[test]
+fn ask_close_is_reviewed_consumes_plan_and_never_deletes_targets() {
+    let folders = FixtureFolders::create().unwrap();
+    let json = fixture(&folders, true);
+    let gate = AskGate {
+        open: true.into(),
+        survives: true.into(),
+        identity: 1.into(),
+        closes: 0.into(),
+    };
+    let provider = ManifestExecutor::load(
+        &json,
+        &folders,
+        UserId("current-account".into()),
+        InstallationId("chrome".into()),
+        &gate,
+    )
+    .unwrap();
+    let classified = CategoryFixture(&provider);
+    let mut session = CurrentSession::new(
+        &provider,
+        vec![(Category::WindowsMicrosoftAndDevTools, &classified)],
+    );
+    let before = folders.snapshot().unwrap();
+    let scan = session.scan().unwrap();
+    let plan = session
+        .build_plan(select(scan), ProcessClosePolicy::Ask)
+        .unwrap();
+    let item = &plan.report.accounts[0].sections[2].items[0];
+    assert!(!item.processes.is_empty());
+    assert!(item
+        .actions
+        .iter()
+        .any(|a| a.bytes.is_some_and(|n| n > 0.0)));
+    for risk in [true, false] {
+        let mut approval = approve(&plan);
+        if risk {
+            approval.confirmed_risks.clear();
+        } else {
+            approval.category_tokens.clear();
+        }
+        assert_eq!(
+            session.close_reviewed(approval).unwrap_err(),
+            CommandError::ConfirmationRequired
+        );
+    }
+    assert_eq!(gate.closes.get(), 0);
+    gate.identity.set(2);
+    assert_eq!(
+        session.close_reviewed(approve(&plan)).unwrap_err(),
+        CommandError::StalePlan
+    );
+    gate.identity.set(1);
+    let locked = session.close_reviewed(approve(&plan)).unwrap();
+    assert!(locked.accounts[0].sections[2].items[0].locked);
+    assert_eq!(folders.snapshot().unwrap(), before);
+    assert_eq!(
+        session.dry_run(&plan.plan_id).unwrap_err(),
+        CommandError::StalePlan
+    );
+    gate.survives.set(false);
+    let scan = session.scan().unwrap();
+    let plan = session
+        .build_plan(select(scan), ProcessClosePolicy::Ask)
+        .unwrap();
+    session.close_reviewed(approve(&plan)).unwrap();
+    assert!(!gate.open.get());
+    assert_eq!(folders.snapshot().unwrap(), before);
+    let scan = session.scan().unwrap();
+    let plan = session
+        .build_plan(select(scan), ProcessClosePolicy::Ask)
+        .unwrap();
+    assert!(plan.report.accounts[0].sections[2].items[0]
+        .processes
+        .is_empty());
+    let report = session
+        .execute(approve(&plan), &|| false, &mut |_| {})
+        .unwrap();
+    assert!(report.accounts[0].sections[2].succeeded > 0);
+}
+#[test]
+fn skipped_only_plan_reports_choice_without_confirmations_or_mutation() {
+    let folders = FixtureFolders::create().unwrap();
+    let json = fixture(&folders, true);
+    let provider = ManifestExecutor::load(
+        &json,
+        &folders,
+        UserId("current-account".into()),
+        InstallationId("chrome".into()),
+        &Gate,
+    )
+    .unwrap();
+    let mut session = CurrentSession::new(&provider, vec![(Category::Browser, &provider)]);
+    let scan = session.scan().unwrap();
+    let mut selection = select(scan);
+    for ids in [
+        vec!["foreign-item".into()],
+        vec![selection.items[0].clone(), selection.items[0].clone()],
+    ] {
+        let mut invalid = selection.clone();
+        invalid.items.clear();
+        invalid.skipped = Some(ids);
+        assert_eq!(
+            session
+                .build_plan(invalid, ProcessClosePolicy::Ask)
+                .unwrap_err(),
+            CommandError::InvalidSelection
+        );
+    }
+    let before = folders.snapshot().unwrap();
+    selection.skipped = Some(std::mem::take(&mut selection.items));
+    let plan = session
+        .build_plan(selection, ProcessClosePolicy::Ask)
+        .unwrap();
+    assert_eq!(plan.report.skipped.len(), 1);
+    assert!(plan.report.accounts[0]
+        .sections
+        .iter()
+        .all(|s| s.status == AggregateStatus::NotRequested));
+    assert!(plan.category_tokens.is_empty());
+    let report = session
+        .execute(approve(&plan), &|| false, &mut |_| {})
+        .unwrap();
+    assert_eq!(report.skipped[0].provider, "chrome");
+    assert_eq!(folders.snapshot().unwrap(), before);
+    let export =
+        everyout_lib::reports::export(folders.path(), &report, ExportFormat::Text).unwrap();
+    let content = fs::read_to_string(
+        folders
+            .path()
+            .join(export.strip_prefix("reports/").unwrap()),
+    )
+    .unwrap();
+    assert!(content.contains("Skipped by choice"));
+    assert!(!content.contains("synthetic-session"));
 }

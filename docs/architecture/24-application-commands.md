@@ -90,8 +90,9 @@ without rewriting files. CI runs that check. The DTOs use JSON-compatible number
 IDs and serde's exact enum spellings. The approach is independent of Tauri macros and works with
 the locked Tauri 2.12 channel/invoke API. Generated types are excluded from handwritten formatting.
 
-AppManifest registers exactly nine app commands. Configuration enables exactly the `default`
-capability for the local `main` window, containing only those command grants. There are no fs,
+Phase 32 adds `close_reviewed` and `export_report`; AppManifest registers eleven app commands. Configuration enables exactly the `default`
+capability for the local `main` window, containing only those command grants. See [review and reports](27-review-execution-reports.md)
+for the close-only boundary and host-owned export destination. There are no fs,
 shell, HTTP, opener or general core-default permissions. Tauri's built-in Channel transport needs
 no event-listen/emit grant. Strict CSP is retained. A mock-runtime IPC test verifies local main
 access and rejection of another window and remote content using the generated ACL context.

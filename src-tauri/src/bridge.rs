@@ -25,6 +25,7 @@ enum Request {
     Plan(SelectionRequest),
     DryRun(String),
     Execute(ExecuteRequest, EventSink),
+    Close(ExecuteRequest),
     Enable,
     Settings(Settings),
 }
@@ -34,6 +35,7 @@ enum Reply {
     Mode(ModeResult),
     Settings(Settings),
     Started(RunStarted),
+    Report(ReportDto),
 }
 type ResponseSender = mpsc::Sender<Result<Reply, CommandError>>;
 struct Envelope {
@@ -45,6 +47,7 @@ struct Shared {
     active: Mutex<Option<String>>,
     settings: Mutex<Settings>,
     report: Mutex<Option<ReportDto>>,
+    reports_directory: std::path::PathBuf,
 }
 #[derive(Clone)]
 pub struct Bridge {
@@ -80,6 +83,7 @@ impl Bridge {
             active: Mutex::new(None),
             settings: Mutex::new(settings),
             report: Mutex::new(None),
+            reports_directory: store.reports_directory()?,
         });
         let (sender, receiver) = mpsc::channel();
         Ok((
@@ -106,7 +110,7 @@ impl Bridge {
             if active.is_some() {
                 return Err(CommandError::Busy);
             }
-            if let Request::Execute(request, _) = &request {
+            if let Request::Execute(request, _) | Request::Close(request) = &request {
                 *active = Some(request.plan_id.clone());
                 self.shared.cancelled.store(false, Ordering::Release);
             }
@@ -153,6 +157,16 @@ impl Bridge {
             Reply::Started(dto) => Ok(dto),
             _ => Err(CommandError::WorkerUnavailable),
         }
+    }
+    pub fn close_reviewed(&self, request: ExecuteRequest) -> Result<ReportDto, CommandError> {
+        match self.call(Request::Close(request))? {
+            Reply::Report(dto) => Ok(dto),
+            _ => Err(CommandError::WorkerUnavailable),
+        }
+    }
+    pub fn export_report(&self, format: ExportFormat) -> Result<String, CommandError> {
+        let report = self.get_last_report()?.ok_or(CommandError::StalePlan)?;
+        crate::reports::export(&self.shared.reports_directory, &report, format)
     }
     pub fn enable_all_accounts_mode(&self) -> Result<ModeResult, CommandError> {
         match self.call(Request::Enable)? {
@@ -329,7 +343,7 @@ impl Worker {
     ) {
         let mut elevated: Option<Elevated> = None;
         while let Ok(envelope) = self.receiver.recv() {
-            let executing = matches!(&envelope.request, Request::Execute(..));
+            let executing = matches!(&envelope.request, Request::Execute(..) | Request::Close(..));
             let mut acknowledged = false;
             let result = (|| {
                 let settings = self.settings()?;
@@ -441,6 +455,34 @@ impl Worker {
                             current.dry_run(&id).map(Reply::Plan)
                         }
                     }
+                    Request::Close(request) => {
+                        let report = if settings.account_mode == AccountMode::AllAccounts {
+                            let helper =
+                                elevated.as_mut().ok_or(CommandError::HelperUnavailable)?;
+                            let plan = dry_elevated(helper, &request.plan_id)?;
+                            validate_approval(&plan, &request)?;
+                            if settings.process_close_policy != ProcessClosePolicy::Ask {
+                                return Err(CommandError::InvalidSelection);
+                            }
+                            {
+                                let mut sink: EventSink = Box::new(|_| {});
+                                execute_elevated(
+                                    helper,
+                                    request,
+                                    &mut sink,
+                                    &|| self.cancelled(),
+                                    true,
+                                )?
+                            }
+                        } else {
+                            current.close_reviewed(request)?
+                        };
+                        current.invalidate();
+                        if let Ok(mut active) = self.shared.active.lock() {
+                            *active = None;
+                        }
+                        Ok(Reply::Report(report))
+                    }
                     Request::Execute(request, mut sink) => {
                         let plan = if settings.account_mode == AccountMode::AllAccounts {
                             elevated
@@ -465,6 +507,7 @@ impl Worker {
                                     request,
                                     &mut sink,
                                     &|| self.cancelled(),
+                                    false,
                                 )
                             } else {
                                 current.execute(request, &|| self.cancelled(), &mut sink)
@@ -481,8 +524,7 @@ impl Worker {
                             Err(error) => WipeEvent::Failed { run_id, error },
                         };
                         current.invalidate();
-                        // A helper is authorized for one reviewed run only; dropping disconnects it.
-                        elevated = None;
+                        // Plans are consumed by the helper; retain the authenticated owner map for retries.
                         if let Ok(mut active) = self.shared.active.lock() {
                             *active = None;
                             self.shared.cancelled.store(false, Ordering::Release);
@@ -634,9 +676,38 @@ fn plan_elevated(
     if selection.inventory_id != helper.inventory || helper.inventory.is_empty() {
         return Err(CommandError::StalePlan);
     }
+    let skipped_ids = selection.skipped.clone().unwrap_or_default();
+    if skipped_ids.len() > 64
+        || skipped_ids.iter().collect::<HashSet<_>>().len() != skipped_ids.len()
+        || skipped_ids.iter().any(|id| selection.items.contains(id))
+    {
+        return Err(CommandError::InvalidSelection);
+    }
+    let catalog = crate::native::catalog()?;
+    let skipped = skipped_ids
+        .iter()
+        .map(|id| {
+            let chosen = helper
+                .selections
+                .get(id)
+                .ok_or(CommandError::InvalidSelection)?;
+            let manifest = &catalog
+                .iter()
+                .find(|(_, m)| m.id == chosen.provider_id)
+                .ok_or(CommandError::InvalidSelection)?
+                .1;
+            Ok(SkippedItemDto {
+                account: chosen.account_id.clone(),
+                category: manifest.category,
+                instance: id.clone(),
+                provider: manifest.id.clone(),
+                name: manifest.name.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, CommandError>>()?;
     let unique: HashSet<_> = selection.items.iter().collect();
     if unique.len() != selection.items.len()
-        || selection.items.is_empty()
+        || (selection.items.is_empty() && skipped.is_empty())
         || selection.items.len() > 64
     {
         return Err(CommandError::InvalidSelection);
@@ -652,6 +723,24 @@ fn plan_elevated(
                 .ok_or(CommandError::InvalidSelection)
         })
         .collect::<Result<Vec<_>, _>>()?;
+    if selections.is_empty() {
+        let mut report = ReportDto::current(&[], policy, ExecutionMode::DryRun);
+        report.account_mode = AccountMode::AllAccounts;
+        report.accounts.clear();
+        report.skipped = skipped;
+        let dto = PlanDto {
+            plan_id: opaque("plan"),
+            category_tokens: vec![],
+            report,
+        };
+        helper.held = Some(HeldElevated {
+            dto: dto.clone(),
+            helper_id: String::new(),
+            digest: String::new(),
+        });
+        helper.inventory.clear();
+        return Ok(dto);
+    }
     let response = helper
         .client
         .request(Command::PlanAccounts { selections, policy })
@@ -662,7 +751,8 @@ fn plan_elevated(
     let (json, id, digest) = helper_report(&mut helper.client, response)?;
     let report: AccountsReport =
         serde_json::from_str(&json).map_err(|_| CommandError::HelperUnavailable)?;
-    let report = ReportDto::elevated(&report, policy);
+    let mut report = ReportDto::elevated(&report, policy);
+    report.skipped = skipped;
     let tokens = report
         .accounts
         .iter()
@@ -697,6 +787,9 @@ fn dry_elevated(helper: &mut Elevated, id: &str) -> Result<PlanDto, CommandError
         .as_mut()
         .filter(|h| h.dto.plan_id == id)
         .ok_or(CommandError::StalePlan)?;
+    if held.helper_id.is_empty() {
+        return Ok(held.dto.clone());
+    }
     let response = helper
         .client
         .request(Command::Execute {
@@ -711,7 +804,9 @@ fn dry_elevated(helper: &mut Elevated, id: &str) -> Result<PlanDto, CommandError
     let (json, _, _) = helper_report(&mut helper.client, response)?;
     let report: AccountsReport =
         serde_json::from_str(&json).map_err(|_| CommandError::HelperUnavailable)?;
+    let skipped = held.dto.report.skipped.clone();
     held.dto.report = ReportDto::elevated(&report, held.dto.report.process_close_policy);
+    held.dto.report.skipped = skipped;
     Ok(held.dto.clone())
 }
 fn execute_elevated(
@@ -719,6 +814,7 @@ fn execute_elevated(
     request: ExecuteRequest,
     sink: &mut EventSink,
     cancelled: &dyn Fn() -> bool,
+    close_only: bool,
 ) -> Result<ReportDto, CommandError> {
     let held = helper
         .held
@@ -727,6 +823,11 @@ fn execute_elevated(
         .ok_or(CommandError::StalePlan)?;
     if cancelled() {
         return Err(CommandError::Cancelled);
+    }
+    if held.helper_id.is_empty() {
+        let mut report = held.dto.report;
+        report.mode = ExecutionMode::Apply;
+        return Ok(report);
     }
     let accounts =
         held.dto
@@ -770,9 +871,15 @@ fn execute_elevated(
     let response = helper
         .client
         .request_streamed(
-            Command::Execute {
-                plan_id: held.helper_id,
-                dry_run: false,
+            if close_only {
+                Command::CloseProcesses {
+                    plan_id: held.helper_id,
+                }
+            } else {
+                Command::Execute {
+                    plan_id: held.helper_id,
+                    dry_run: false,
+                }
             },
             cancelled,
             &mut |event| {
@@ -799,7 +906,8 @@ fn execute_elevated(
     let (json, _, _) = helper_report(&mut helper.client, response)?;
     let report: AccountsReport =
         serde_json::from_str(&json).map_err(|_| CommandError::HelperUnavailable)?;
-    let report = ReportDto::elevated(&report, held.dto.report.process_close_policy);
+    let mut report = ReportDto::elevated(&report, held.dto.report.process_close_policy);
+    report.skipped = held.dto.report.skipped;
     for account in &report.accounts {
         for section in &account.sections {
             for item in &section.items {

@@ -11,6 +11,13 @@ impl SettingsStore {
             path: directory.join("settings.json"),
         }
     }
+    pub fn reports_directory(&self) -> Result<PathBuf, CommandError> {
+        Ok(self
+            .path
+            .parent()
+            .ok_or(CommandError::ReportIo)?
+            .join("reports"))
+    }
     pub fn load(&self) -> Result<Settings, CommandError> {
         match fs::read(&self.path) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| CommandError::SettingsIo),

@@ -6,7 +6,7 @@ export type AccountMode = "current" | "all-accounts";
 
 export type AccountScanDto = { account: string, logged_on: boolean | null, residual_hive: boolean, residual_hku_key: string | null, unload_attempts: number, limitations: Array<string>, };
 
-export type ActionDto = { id: string, path: string, outcome: ActionStatus, verification: VerificationStatus, issues: Array<string>, };
+export type ActionDto = { id: string, path: string, bytes: number | null, locked: boolean, outcome: ActionStatus, verification: VerificationStatus, issues: Array<string>, };
 
 export type ActionStatus = "would-apply" | "applied" | "already-absent" | "skipped" | "blocked" | "failed";
 
@@ -16,7 +16,7 @@ export type Category = "application" | "browser" | "windows-microsoft-and-dev-to
 
 export type CategoryToken = { account: string, category: Category, token: string, };
 
-export type CommandError = "busy" | "stale-plan" | "invalid-selection" | "confirmation-required" | "settings-io" | "helper-unavailable" | "worker-unavailable" | "cancelled";
+export type CommandError = "busy" | "stale-plan" | "invalid-selection" | "confirmation-required" | "settings-io" | "helper-unavailable" | "worker-unavailable" | "cancelled" | "report-io";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -30,7 +30,9 @@ export type ExecuteRequest = { plan_id: string, confirmed_risks: Array<RiskAccep
 
 export type ExecutionMode = "dry-run" | "apply";
 
-export type ItemDto = { instance: string, status: AggregateStatus, actions: Array<ActionDto>, risks: Array<RiskFlag>, confirmations: Array<string>, profiles: Array<string>, processes: Array<string>, limitations: Array<string>, issues: Array<string>, identity: Uncertainty, sync: Uncertainty, authentication: Uncertainty, remote_revocation: Uncertainty, silent_sso: Uncertainty, };
+export type ExportFormat = "json" | "text";
+
+export type ItemDto = { instance: string, provider: string | null, loss: LossAssessment, locked: boolean, affected_data: Array<string>, status: AggregateStatus, actions: Array<ActionDto>, risks: Array<RiskFlag>, confirmations: Array<string>, profiles: Array<string>, processes: Array<string>, limitations: Array<string>, issues: Array<string>, identity: Uncertainty, sync: Uncertainty, authentication: Uncertainty, remote_revocation: Uncertainty, silent_sso: Uncertainty, };
 
 export type LossAssessment = "known" | "none" | "unknown";
 
@@ -44,7 +46,7 @@ export type ProcessClosePolicy = "ask" | "hard-kill-after2s";
 
 export type ProfileSelection = { item: string, profiles: Array<string>, };
 
-export type ReportDto = { mode: ExecutionMode, account_mode: AccountMode, process_close_policy: ProcessClosePolicy, accounts: Array<AccountDto>, };
+export type ReportDto = { skipped: Array<SkippedItemDto>, mode: ExecutionMode, account_mode: AccountMode, process_close_policy: ProcessClosePolicy, accounts: Array<AccountDto>, };
 
 export type RiskAcceptance = { account: string, instance: string, flags: Array<RiskFlag>, confirmations: Array<string>, };
 
@@ -56,13 +58,15 @@ export type ScanDto = { inventory_id: string, mode: AccountMode, groups: Array<D
 
 export type SectionDto = { category: Category, status: AggregateStatus, warnings: Array<string>, items: Array<ItemDto>, succeeded: number, failed: number, skipped: number, locked: number, would_apply: number, already_absent: number, };
 
-export type SelectionRequest = { inventory_id: string, items: Array<string>,
+export type SelectionRequest = { inventory_id: string, items: Array<string>, skipped?: Array<string>,
 /**
  * Omission preserves the legacy whole-instance selection. Entries narrow scope only.
  */
 profiles: Array<ProfileSelection>, };
 
 export type Settings = { process_close_policy: ProcessClosePolicy, account_mode: AccountMode, first_run_completed: boolean, };
+
+export type SkippedItemDto = { account: string, category: Category, instance: string, provider: string, name: string, };
 
 export type Stage = "scan" | "selection" | "dry-run" | "review" | "closing" | "cleaning" | "identity-sync" | "verification" | "report";
 

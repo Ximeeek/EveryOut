@@ -261,3 +261,25 @@ summary {
     flex: 1;
   }
 }
+.flow-actions,
+.report-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.report-tabs [aria-selected="true"] {
+  background: #325c68;
+  outline: 2px solid #a5d8dd;
+}
+.target-list code {
+  overflow-wrap: anywhere;
+}
+.report-item {
+  border-top: 1px solid #425863;
+  padding: 0.75rem 0;
+}
+.wipe-flow h5 {
+  font-size: 1rem;
+  margin: 1rem 0 0.5rem;
+}

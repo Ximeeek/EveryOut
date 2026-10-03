@@ -73,3 +73,20 @@ pub async fn enable_all_accounts_mode(
     let state = state.inner().clone();
     background(move || state.enable_all_accounts_mode()).await
 }
+
+#[tauri::command]
+pub async fn close_reviewed(
+    state: State<'_, Bridge>,
+    request: ExecuteRequest,
+) -> Result<ReportDto, CommandError> {
+    let state = state.inner().clone();
+    background(move || state.close_reviewed(request)).await
+}
+#[tauri::command]
+pub async fn export_report(
+    state: State<'_, Bridge>,
+    format: ExportFormat,
+) -> Result<String, CommandError> {
+    let state = state.inner().clone();
+    background(move || state.export_report(format)).await
+}

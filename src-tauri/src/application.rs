@@ -122,8 +122,34 @@ impl<'a> CurrentSession<'a> {
         if request.inventory_id != self.inventory_id || self.inventory_id.is_empty() {
             return Err(CommandError::StalePlan);
         }
+        let skipped_ids = request.skipped.unwrap_or_default();
+        if skipped_ids.len() > 64
+            || skipped_ids.iter().collect::<HashSet<_>>().len() != skipped_ids.len()
+            || skipped_ids.iter().any(|id| request.items.contains(id))
+        {
+            return Err(CommandError::InvalidSelection);
+        }
+        let mut skipped = Vec::new();
+        for id in skipped_ids {
+            let (category, instance, description) = self
+                .inventories
+                .iter()
+                .find_map(|(category, inv)| {
+                    inv.descriptions()
+                        .find(|(i, _)| i.instance_id.0 == id)
+                        .map(|(i, d)| (*category, i, d))
+                })
+                .ok_or(CommandError::InvalidSelection)?;
+            skipped.push(SkippedItemDto {
+                account: "current-account".into(),
+                category,
+                instance: id,
+                provider: instance.provider_id.0.clone(),
+                name: description.descriptor.name.clone(),
+            });
+        }
         let selected: HashSet<_> = request.items.iter().collect();
-        if selected.is_empty()
+        if (selected.is_empty() && skipped.is_empty())
             || selected.len() != request.items.len()
             || request.items.len() > 64
             || request.profiles.len() > 64
@@ -194,10 +220,12 @@ impl<'a> CurrentSession<'a> {
         }
         self.inventory_id.clear();
         let reports: Vec<_> = runs.iter().map(|r| r.preview().clone()).collect();
+        let mut report = ReportDto::current(&reports, policy, ExecutionMode::DryRun);
+        report.skipped = skipped;
         let dto = PlanDto {
             plan_id: id,
             category_tokens: tokens,
-            report: ReportDto::current(&reports, policy, ExecutionMode::DryRun),
+            report,
         };
         self.held = Some(HeldCurrent {
             runs,
@@ -217,6 +245,43 @@ impl<'a> CurrentSession<'a> {
                 .map_err(|_| CommandError::StalePlan)?;
         }
         Ok(held.dto.clone())
+    }
+    /// Closing is separate from deletion and always consumes the reviewed plan.
+    pub fn close_reviewed(&mut self, request: ExecuteRequest) -> Result<ReportDto, CommandError> {
+        let plan = self.dry_run(&request.plan_id)?;
+        validate_approval(&plan, &request)?;
+        if plan.report.process_close_policy != ProcessClosePolicy::Ask {
+            return Err(CommandError::InvalidSelection);
+        }
+        let held = self.held.take().ok_or(CommandError::StalePlan)?;
+        let mut reports = Vec::new();
+        for run in held.runs {
+            let mut approval = Approval {
+                category_confirmation: Some(run.confirm_category()),
+                ..Default::default()
+            };
+            for accepted in request
+                .confirmed_risks
+                .iter()
+                .filter(|r| r.account == "current-account")
+            {
+                approval.confirmed_risks.push(
+                    run.confirm_risks(&InstanceId(accepted.instance.clone()), &accepted.flags),
+                );
+                approval
+                    .confirmations
+                    .extend(accepted.confirmations.iter().cloned().map(ConfirmationId));
+            }
+            reports.push(
+                self.engine
+                    .close_preview(&run, &approval)
+                    .map_err(|_| CommandError::StalePlan)?,
+            );
+        }
+        let mut report =
+            ReportDto::current(&reports, ProcessClosePolicy::Ask, ExecutionMode::DryRun);
+        report.skipped = held.dto.report.skipped;
+        Ok(report)
     }
     pub fn execute(
         &mut self,
@@ -292,11 +357,13 @@ impl<'a> CurrentSession<'a> {
             );
             reports.push(report);
         }
-        Ok(ReportDto::current(
+        let mut report = ReportDto::current(
             &reports,
             held.dto.report.process_close_policy,
             ExecutionMode::Apply,
-        ))
+        );
+        report.skipped = held.dto.report.skipped;
+        Ok(report)
     }
 }
 

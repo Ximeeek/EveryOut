@@ -120,6 +120,8 @@ export const commandErrors: Record<CommandError, string> = {
     "The administrator helper is unavailable. Current-account mode is available.",
   "worker-unavailable": "The local command could not be completed. Try again.",
   cancelled: "The operation was cancelled.",
+  "report-io":
+    "The report could not be saved. Check access to the app configuration folder.",
 };
 export const unknownError = "The local command failed. Try again.";
 export const modeFailures: Record<ModeFailure, string> = {
@@ -169,8 +171,6 @@ export const homeStrings = {
     "Scan coverage is incomplete. Some targets could not be verified.",
   selected: "selected",
   reviewTitle: "Review selection",
-  reviewPlaceholder:
-    "Your selection is stored for review. Plan review and cleanup will be available in the next phase.",
   back: "Back to selection",
   unclassified: "Unclassified detections",
 } as const;
@@ -205,4 +205,125 @@ export const signalNames: Record<string, string> = {
   "storage-layout": "An expected session storage layout was detected.",
   "known-provider": "A reviewed catalog provider detected this scope.",
   "registered-identity": "A registered application identity was detected.",
+};
+export const wipeStrings = {
+  loading: "Preparing metadata-only dry run…",
+  review: "Review local effects",
+  paths: "Reviewed relative target paths",
+  bytes: "bytes",
+  unknownSize: "Size unavailable; directory sizes are not summed recursively.",
+  counts: "Planned targets",
+  locked: "Locked",
+  removed: "Removed / changed",
+  failed: "Failed",
+  omitted: "Skipped",
+  finishSkipped: "Finish report without cleanup",
+  riskHeading: "Confirm permanent data loss",
+  lossHelp:
+    "Deletion cannot be undone. Confirm every risk for every selected item. These confirmations do not deselect any targets or authorize protected data.",
+  confirmEffect: "I accept the listed local effects and coverage limitations.",
+  windowsHeading: "Confirm Windows/Microsoft and developer tools",
+  windowsConfirm:
+    "I understand silent SSO and that EveryOut never signs me out of Windows.",
+  forceConfirm: "I accept force closing the listed programs after 2 seconds.",
+  execute: "Clear reviewed local data",
+  processes: "Programs blocking cleanup",
+  askHelp:
+    "Save your work first. Request graceful closure, close the programs yourself and retry, or skip affected items. Ask never force closes a program. A fresh review follows any process change.",
+  close: "Close gracefully",
+  refresh: "Retry process check",
+  skip: "Skip affected items",
+  skipped: "Items skipped by choice; no cleanup was requested for them.",
+  none: "No selected blocking programs were reported.",
+  executing: "Clearing local data",
+  cancel: "Cancel remaining work",
+  cancelling: "Cancellation requested; waiting for retained results…",
+  reports: "Local cleanup report",
+  remains: "What remains",
+  remainsHelp:
+    "Saved passwords, autofill, history, passkeys, unsupported stores and remote sessions remain outside cleanup. Unknown verification is not proof of absence.",
+  coverage:
+    "Additional coverage is unresolved; no complete cleanup is claimed.",
+  residualHive:
+    "A temporary account hive remains mounted. Manual recovery is required before another run.",
+  unverified: "Unverified scope or coverage",
+  uncertainty:
+    "Browser identity and sync are not proven cleared; authentication and remote logout are not verified.",
+  retry: "Retry failed or locked items",
+  retryHelp:
+    "A retry is a new run limited to failed or locked provider/account items and the previously selected profiles. It requires a fresh scan, plan and confirmations.",
+  unavailable:
+    "Some previous targets could not be matched safely. Return to selection and scan again.",
+  json: "Export JSON",
+  text: "Export text",
+  exported: "Saved under the app configuration folder:",
+  recover: "Return to selection for a fresh scan",
+  unknownOutcome: "Unacknowledged outcome; effects unknown",
+  noResults:
+    "No completed report is available. Retained item results are shown; unacknowledged effects remain unknown.",
+  profiles: "Reviewed profiles",
+  identity: "Identity",
+  sync: "Sync",
+  sso: "Silent SSO",
+} as const;
+export const lossDescriptions: Record<import("./api").RiskFlag, string> = {
+  "local-only-documents":
+    "Local-only documents may be permanently deleted without a server copy.",
+  "drafts-or-offline-messages":
+    "Unsent drafts and offline messages may be permanently lost.",
+  "settings-or-profiles":
+    "Local settings or selected profile data may be permanently lost.",
+  "wallet-or-key-material":
+    "Local wallet or key material may be lost, preventing access to funds or accounts.",
+  "vault-or-2fa-recovery":
+    "Local vault or two-factor recovery data may be lost, preventing account recovery.",
+  "saved-passwords-passkeys-autofill-history":
+    "Protected passwords, passkeys, autofill and history must be preserved. Confirmation cannot authorize deleting them.",
+  "shared-store":
+    "The reviewed shared store may contain data belonging to multiple selected owners.",
+  unknown:
+    "The local data loss is unknown. Unsupported operations and preservation conflicts remain blocked.",
+};
+export const outcomeNames: Record<import("./api").ActionStatus, string> = {
+  "would-apply": "Would remove or change",
+  applied: "Removed / changed",
+  "already-absent": "Already absent",
+  skipped: "Skipped",
+  blocked: "Blocked",
+  failed: "Failed",
+};
+export const verificationNames: Record<
+  import("./api").VerificationStatus,
+  string
+> = {
+  "target-absent": "Verified absent",
+  "target-present": "Residual data present",
+  inaccessible: "Verification inaccessible",
+  unknown: "Unverified",
+  "not-performed": "Not verified",
+};
+export const aggregateNames: Record<import("./api").AggregateStatus, string> = {
+  "complete-local-scope": "Complete supported local scope",
+  partial: "Partial",
+  blocked: "Blocked",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  "dry-run": "Dry run",
+  "not-requested": "Not requested",
+};
+export const stageNames: Record<import("./api").Stage, string> = {
+  scan: "Scanning",
+  selection: "Selecting",
+  "dry-run": "Dry run",
+  review: "Review",
+  closing: "Closing programs",
+  cleaning: "Cleaning",
+  "identity-sync": "Identity / sync",
+  verification: "Verifying",
+  report: "Reporting",
+};
+export const uncertaintyNames: Record<import("./api").Uncertainty, string> = {
+  unknown: "Unknown",
+  unsupported: "Unsupported",
+  "not-requested": "Not requested",
 };

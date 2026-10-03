@@ -53,6 +53,8 @@ fn main() {
         tauri_build::Attributes::new()
             .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest())
             .app_manifest(tauri_build::AppManifest::new().commands(&[
+                "close_reviewed",
+                "export_report",
                 "scan",
                 "build_plan",
                 "dry_run",
