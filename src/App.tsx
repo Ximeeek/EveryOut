@@ -1,14 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { enableAllAccountsMode, getSettings, setSettings } from "./api";
-import type { AccountMode, CommandError, Settings } from "./api";
+import type {
+  AccountMode,
+  CommandError,
+  SelectionRequest,
+  Settings,
+} from "./api";
+import Home from "./Home";
+import { emptyHome } from "./selection";
+import type { HomeState } from "./selection";
 import {
   commandErrors,
   modeFailures,
   strings as s,
   unknownError,
+  homeStrings as h,
 } from "./strings";
 
-type Page = "home" | "settings" | "about";
+type Page = "home" | "settings" | "about" | "review";
 type Notice = { text: string; error: boolean } | null;
 
 function errorText(error: unknown) {
@@ -208,6 +217,8 @@ export default function App() {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
+  const [home, updateHome] = useState<HomeState>(emptyHome);
+  const [selection, storeSelection] = useState<SelectionRequest | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const saving = useRef(false);
   useEffect(() => {
@@ -235,6 +246,8 @@ export default function App() {
   async function save(next: Settings) {
     if (saving.current) return;
     saving.current = true;
+    updateHome(emptyHome);
+    storeSelection(null);
     setBusy(true);
     setNotice(null);
     let fallback: string | null = null;
@@ -327,14 +340,42 @@ export default function App() {
                   ? s.homeTitle
                   : page === "settings"
                     ? s.settings
-                    : s.aboutTitle}
+                    : page === "review"
+                      ? h.reviewTitle
+                      : s.aboutTitle}
               </h2>
               {page === "home" && (
                 <>
                   <p>{s.homeDescription}</p>
-                  <div className="placeholder">
-                    <p>{s.placeholder}</p>
-                  </div>
+                  <Home
+                    state={home}
+                    update={updateHome}
+                    busy={busy}
+                    setBusy={setBusy}
+                    disabled={firstRun}
+                    review={(request) => {
+                      storeSelection(request);
+                      setPage("review");
+                      requestAnimationFrame(() => title.current?.focus());
+                    }}
+                  />
+                </>
+              )}
+              {page === "review" && (
+                <>
+                  <p>{h.reviewPlaceholder}</p>
+                  <p>
+                    {selection?.items.length ?? 0} {h.selected}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPage("home");
+                      requestAnimationFrame(() => title.current?.focus());
+                    }}
+                  >
+                    {h.back}
+                  </button>
                 </>
               )}
               {page === "settings" && !firstRun && (

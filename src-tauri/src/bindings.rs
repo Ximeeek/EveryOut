@@ -35,5 +35,11 @@ pub fn typescript() -> String {
         output.push_str(&declaration);
         output.push_str("\n\n");
     }
-    output.trim_end().to_owned() + "\n"
+    output
+        .trim_end()
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }

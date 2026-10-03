@@ -16,6 +16,7 @@ vi.mock("./api", () => ({
   getSettings: vi.fn(),
   setSettings: vi.fn(),
   enableAllAccountsMode: vi.fn(),
+  scan: vi.fn(),
 }));
 const defaults: Settings = {
   process_close_policy: "ask",
@@ -44,7 +45,7 @@ async function openSettings() {
   persisted.first_run_completed = true;
   const user = userEvent.setup();
   render(<App />);
-  await screen.findByText(s.placeholder);
+  await screen.findByRole("button", { name: "Scan" });
   await user.click(screen.getByRole("button", { name: s.settings }));
   return user;
 }
@@ -72,7 +73,7 @@ describe("first run", () => {
     expect(api.enableAllAccountsMode).not.toHaveBeenCalled();
     view.unmount();
     render(<App />);
-    await screen.findByText(s.placeholder);
+    await screen.findByRole("button", { name: "Scan" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("enables all accounts only on explicit submission and persists that answer", async () => {
@@ -293,7 +294,7 @@ it("shows every About limitation from the strings module and navigates back home
     expect(screen.getByText(description)).toBeVisible();
   }
   await user.click(screen.getByRole("button", { name: s.home }));
-  expect(screen.getByText(s.placeholder)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Scan" })).toBeVisible();
   expect(api.setSettings).not.toHaveBeenCalled();
   expect(api.enableAllAccountsMode).not.toHaveBeenCalled();
 });

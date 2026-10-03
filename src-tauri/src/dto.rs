@@ -43,6 +43,12 @@ pub struct DetectedItem {
     pub default_selected: bool,
     pub selectable: bool,
     pub limitations: Vec<String>,
+    pub profiles: Vec<String>,
+    pub risks: Vec<RiskFlag>,
+    pub loss: LossAssessment,
+    pub signals: Vec<String>,
+    pub unverified: bool,
+    pub sync_warning: bool,
 }
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct DetectionGroup {
@@ -89,6 +95,15 @@ impl ScanDto {
 pub struct SelectionRequest {
     pub inventory_id: String,
     pub items: Vec<String>,
+    /// Omission preserves the legacy whole-instance selection. Entries narrow scope only.
+    #[serde(default)]
+    pub profiles: Vec<ProfileSelection>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileSelection {
+    pub item: String,
+    pub profiles: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(deny_unknown_fields)]

@@ -736,6 +736,35 @@ fn provenance_and_low_confidence_candidate_policy_control_selection() {
 }
 
 #[test]
+fn scoped_preparation_rejects_unknown_instance_and_profile_ids_without_mutation() {
+    let (_fixture, ops) = setup();
+    let engine = Engine::new(owner().user_id, &ops);
+    let provider = LabProvider::new(Category::Browser);
+    for instance in [provider.instance, "foreign-instance"] {
+        let inventory = engine
+            .scan(&[&provider], Category::Browser, &mut |_| {})
+            .unwrap();
+        let selected = inventory.default_selection(Category::Browser);
+        let profiles = std::collections::HashMap::from([(
+            InstanceId(instance.into()),
+            vec![ProfileId("foreign-profile".into())],
+        )]);
+        assert!(matches!(
+            engine.prepare_scoped(
+                inventory,
+                Category::Browser,
+                &selected,
+                &profiles,
+                ProcessClosePolicy::Ask,
+                &mut |_| {}
+            ),
+            Err(ErrorKind::ScopeViolation)
+        ));
+    }
+    assert_eq!(ops.mutations.get(), 0);
+}
+
+#[test]
 fn unresolved_owner_cannot_enter_the_executable_inventory() {
     let (_fixture, ops) = setup();
     let engine = Engine::new(owner().user_id, &ops);

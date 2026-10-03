@@ -380,6 +380,14 @@ impl Worker {
                                     }
                                 }
                                 if present.contains(prefix) {
+                                    for item in dto
+                                        .groups
+                                        .iter_mut()
+                                        .flat_map(|g| &mut g.items)
+                                        .filter(|i| i.provider.as_deref() == Some(prefix))
+                                    {
+                                        item.signals = detected.signals.clone();
+                                    }
                                     continue;
                                 }
                                 dto.push(
@@ -396,6 +404,12 @@ impl Worker {
                                         default_selected: false,
                                         selectable: false,
                                         limitations: detected.limitations,
+                                        profiles: vec![],
+                                        risks: vec![RiskFlag::Unknown],
+                                        loss: LossAssessment::Unknown,
+                                        signals: detected.signals,
+                                        unverified: true,
+                                        sync_warning: detected.category == Some(Category::Browser),
                                     },
                                 );
                             }
@@ -565,9 +579,18 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                         provider: Some(m.id.clone()),
                         name: m.name.clone(),
                         origin: detected.origin,
-                        default_selected: detected.selected && !account.residual_hive,
+                        default_selected: detected.confidence == Confidence::High
+                            && detected.category.is_some()
+                            && !account.residual_hive,
                         selectable: detected.category.is_some() && !account.residual_hive,
                         limitations: detected.limitations,
+                        // The helper binds an indivisible provider scope per Windows account.
+                        profiles: vec![],
+                        risks: m.risks.flags.clone(),
+                        loss: m.risks.permanent_data_loss,
+                        signals: detected.signals,
+                        unverified: m.confidence.status.as_deref() != Some("verified"),
+                        sync_warning: m.category == Category::Browser,
                     },
                 );
             } else {
@@ -585,6 +608,12 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                         default_selected: false,
                         selectable: false,
                         limitations: detected.limitations,
+                        profiles: vec![],
+                        risks: vec![RiskFlag::Unknown],
+                        loss: LossAssessment::Unknown,
+                        signals: detected.signals,
+                        unverified: true,
+                        sync_warning: detected.category == Some(Category::Browser),
                     },
                 );
             }
@@ -598,6 +627,10 @@ fn plan_elevated(
     policy: ProcessClosePolicy,
 ) -> Result<PlanDto, CommandError> {
     helper.held = None;
+    // Never silently expand a requested profile subset into the helper's whole-account scope.
+    if !selection.profiles.is_empty() {
+        return Err(CommandError::InvalidSelection);
+    }
     if selection.inventory_id != helper.inventory || helper.inventory.is_empty() {
         return Err(CommandError::StalePlan);
     }

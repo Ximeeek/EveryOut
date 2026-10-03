@@ -20,7 +20,7 @@ export type CommandError = "busy" | "stale-plan" | "invalid-selection" | "confir
 
 export type Confidence = "high" | "medium" | "low";
 
-export type DetectedItem = { id: string, account: string, provider: string | null, name: string, origin: DetectionOrigin, default_selected: boolean, selectable: boolean, limitations: Array<string>, };
+export type DetectedItem = { id: string, account: string, provider: string | null, name: string, origin: DetectionOrigin, default_selected: boolean, selectable: boolean, limitations: Array<string>, profiles: Array<string>, risks: Array<RiskFlag>, loss: LossAssessment, signals: Array<string>, unverified: boolean, sync_warning: boolean, };
 
 export type DetectionGroup = { category: Category | null, confidence: Confidence, items: Array<DetectedItem>, };
 
@@ -32,6 +32,8 @@ export type ExecutionMode = "dry-run" | "apply";
 
 export type ItemDto = { instance: string, status: AggregateStatus, actions: Array<ActionDto>, risks: Array<RiskFlag>, confirmations: Array<string>, profiles: Array<string>, processes: Array<string>, limitations: Array<string>, issues: Array<string>, identity: Uncertainty, sync: Uncertainty, authentication: Uncertainty, remote_revocation: Uncertainty, silent_sso: Uncertainty, };
 
+export type LossAssessment = "known" | "none" | "unknown";
+
 export type ModeFailure = "uac-declined" | "start-failed" | "authentication-failed" | "timeout" | "trust-pin-unavailable";
 
 export type ModeResult = { effective_mode: AccountMode, requires_fresh_review: boolean, reason: ModeFailure | null, };
@@ -39,6 +41,8 @@ export type ModeResult = { effective_mode: AccountMode, requires_fresh_review: b
 export type PlanDto = { plan_id: string, category_tokens: Array<CategoryToken>, report: ReportDto, };
 
 export type ProcessClosePolicy = "ask" | "hard-kill-after2s";
+
+export type ProfileSelection = { item: string, profiles: Array<string>, };
 
 export type ReportDto = { mode: ExecutionMode, account_mode: AccountMode, process_close_policy: ProcessClosePolicy, accounts: Array<AccountDto>, };
 
@@ -52,7 +56,11 @@ export type ScanDto = { inventory_id: string, mode: AccountMode, groups: Array<D
 
 export type SectionDto = { category: Category, status: AggregateStatus, warnings: Array<string>, items: Array<ItemDto>, succeeded: number, failed: number, skipped: number, locked: number, would_apply: number, already_absent: number, };
 
-export type SelectionRequest = { inventory_id: string, items: Array<string>, };
+export type SelectionRequest = { inventory_id: string, items: Array<string>,
+/**
+ * Omission preserves the legacy whole-instance selection. Entries narrow scope only.
+ */
+profiles: Array<ProfileSelection>, };
 
 export type Settings = { process_close_policy: ProcessClosePolicy, account_mode: AccountMode, first_run_completed: boolean, };
 

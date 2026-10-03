@@ -1,4 +1,4 @@
-import type { CommandError, ModeFailure } from "./api";
+import type { Category, CommandError, ModeFailure, RiskFlag } from "./api";
 
 export const strings = {
   appName: "EveryOut",
@@ -14,8 +14,6 @@ export const strings = {
   homeTitle: "Review before you clear",
   homeDescription:
     "EveryOut clears supported local app and browser session data. It stays offline and never reads or displays secrets. Clearing local data does not guarantee logout on servers or other devices.",
-  placeholder:
-    "Scan and selection will be available in the next phase. No scan or cleanup is started on this screen.",
   welcome: "Welcome to EveryOut",
   introduction:
     "EveryOut can remove local session data to help you log out of apps and browsers. Deletion cannot be undone and may remove local-only data. You will review targets and risks before any cleanup.",
@@ -135,4 +133,76 @@ export const modeFailures: Record<ModeFailure, string> = {
     "The administrator helper timed out. Current-account mode is available. Other accounts were not cleaned; a fresh scan and review will be required.",
   "trust-pin-unavailable":
     "This build cannot verify the administrator helper. Current-account mode is available. Other accounts were not cleaned; a fresh scan and review will be required.",
+};
+
+export const homeStrings = {
+  scan: "Scan",
+  scanning: "Scanning…",
+  review: "Review",
+  empty: "No detections were found in this category.",
+  uncertain: "Uncertain detections",
+  uncertainHelp:
+    "Medium and low confidence detections start unchecked. Selecting an item does not validate its cleanup scope.",
+  high: "High confidence",
+  medium: "Medium confidence",
+  low: "Low confidence",
+  unverified: "Unverified",
+  unavailable: "Selection unavailable: no reviewed scope or account access.",
+  sync: "Sync / identity warning",
+  syncHelp:
+    "Sync or automatic sign-in can recreate data or access after this wipe. Local deletion does not remove server data or guarantee a lasting sign-out. Metadata does not prove active sync or sign-in.",
+  windowsWarning:
+    "Browsers and Office may silently sign in again through Windows SSO after local cleanup. Full logout means disconnecting the account from Windows. EveryOut does not disconnect Windows accounts or alter the Windows sign-in identity.",
+  loss: "Permanent data loss risk",
+  unknownLoss: "Data loss risk is unknown",
+  select: "Select",
+  profile: "Profile",
+  account: "Windows account",
+  currentAccount: "Current Windows account",
+  indivisible:
+    "This provider's detected scope is indivisible within this Windows account.",
+  signals: "Detection signals",
+  unspecifiedSignal:
+    "Additional metadata evidence was reported; its meaning is unverified.",
+  noSignals: "No additional detection signals were supplied.",
+  incomplete:
+    "Scan coverage is incomplete. Some targets could not be verified.",
+  selected: "selected",
+  reviewTitle: "Review selection",
+  reviewPlaceholder:
+    "Your selection is stored for review. Plan review and cleanup will be available in the next phase.",
+  back: "Back to selection",
+  unclassified: "Unclassified detections",
+} as const;
+
+export const categoryNames: Record<Category, string> = {
+  application: "Applications",
+  browser: "Browsers",
+  "windows-microsoft-and-dev-tools":
+    "Windows/Microsoft accounts & developer tools",
+};
+export const riskNames: Record<RiskFlag, string> = {
+  "local-only-documents": "local-only documents",
+  "drafts-or-offline-messages": "drafts or offline messages",
+  "settings-or-profiles": "settings or profiles",
+  "wallet-or-key-material": "wallet or key material",
+  "vault-or-2fa-recovery": "vault or 2FA recovery data",
+  "saved-passwords-passkeys-autofill-history":
+    "saved passwords, passkeys, autofill or history (preservation required)",
+  "shared-store": "data in a shared store",
+  unknown: "unknown local data",
+};
+export const signalNames: Record<string, string> = {
+  "artifact-present": "Expected session artifact metadata is present.",
+  "store-present": "An expected local session store exists.",
+  "scope-unresolved":
+    "The provider's data ownership or scope could not be resolved.",
+  "root-present": "The expected provider data root exists.",
+  "cookies-present": "Session cookie storage metadata is present.",
+  identity: "An installed application identity was detected.",
+  ownership: "Metadata maps the data store to an owner.",
+  "runtime-packaging": "Application runtime packaging was detected.",
+  "storage-layout": "An expected session storage layout was detected.",
+  "known-provider": "A reviewed catalog provider detected this scope.",
+  "registered-identity": "A registered application identity was detected.",
 };

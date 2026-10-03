@@ -155,16 +155,6 @@ legend {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.placeholder {
-  margin-top: 2rem;
-  padding: 1.25rem;
-  border: 1px dashed #607780;
-  border-radius: 0.6rem;
-  color: #c0cdd1;
-}
-.placeholder p {
-  margin: 0;
-}
 dialog {
   color: #eff4f5;
   width: min(calc(100% - 2rem), 40rem);
@@ -201,6 +191,64 @@ dd {
 }
 .skip-link:focus {
   transform: none;
+}
+.category {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #425863;
+}
+.provider-group,
+.uncertain {
+  border: 1px solid #425863;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  margin: 0.75rem 0;
+}
+summary {
+  cursor: pointer;
+  font-weight: 650;
+  padding: 0.5rem 0;
+}
+.detections {
+  list-style: none;
+  padding: 0;
+}
+.detection-row {
+  padding: 0.75rem 0;
+  border-top: 1px solid #425863;
+}
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.badge {
+  border: 1px solid #607780;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.9rem;
+}
+.badge.warning,
+.badge.risk {
+  margin: 0;
+  color: #ffe1a8;
+  background: #362b18;
+}
+.selection-summary {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  border: 1px solid #607780;
+  border-radius: 0.6rem;
+  background: #172630;
+}
+.selection-summary span {
+  flex: 1 1 12rem;
 }
 @media (max-width: 540px) {
   .app-shell {

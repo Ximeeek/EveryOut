@@ -66,16 +66,17 @@ layout has been validated.
 
 ## Presentation and execution eligibility
 
-Phase 19 keeps **all heuristic detections unchecked, including high**, until S8 calibration
-passes. High/medium/low detections appear in a separate unchecked section with evidence and
-missing ownership/coverage information. The numerical gates above remain unverified. Selecting
-one cannot manufacture a provider cleaning rule. Even a high-confidence app identity has no
-executable plan until a validated manifest or exception adapter defines safe session scope.
+Phase 31 supersedes the earlier unchecked-high presentation policy in the desktop UI:
+high-confidence selectable detections start selected; medium/low detections appear in a
+separate collapsed, unchecked section with their evidence. Discoveries without a reviewed
+engine scope remain disabled regardless of confidence. See [Home selection](26-home-selection.md)
+for the scan projection and retained legacy internal defaults.
 
-Resolved known-provider detections follow the default selection rules in
-[04](04-classification-rules.md), independently of catalog support/confidence. Heuristic identity
-confidence, catalog evidence confidence
-and executable scope validation are separate fields; none implies the others.
+S8 calibration is still pending and the numerical gates above remain unverified. Selecting
+a detection cannot manufacture a provider cleaning rule. Even a high-confidence app identity
+has no executable plan until a validated manifest or exception adapter defines safe session scope.
+Heuristic identity confidence, catalog evidence confidence and executable scope validation
+are separate fields; none implies the others.
 
 ## AV/EDR and anti-cheat constraints
 

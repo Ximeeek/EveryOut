@@ -78,7 +78,6 @@ impl<'a> CurrentSession<'a> {
                 .engine
                 .scan(&providers, category, &mut |_| {})
                 .map_err(|_| CommandError::InvalidSelection)?;
-            let defaults = inventory.default_selection(category);
             for (instance, description) in inventory.descriptions() {
                 dto.push(
                     Some(category),
@@ -89,9 +88,24 @@ impl<'a> CurrentSession<'a> {
                         provider: Some(instance.provider_id.0.clone()),
                         name: description.descriptor.name.clone(),
                         origin: instance.detection_origin,
-                        default_selected: defaults.contains(&instance.instance_id),
+                        default_selected: instance.confidence == Confidence::High,
                         selectable: true,
                         limitations: description.descriptor.limitations.clone(),
+                        profiles: instance
+                            .profiles
+                            .iter()
+                            .map(|p| p.profile_id.0.clone())
+                            .collect(),
+                        risks: description.risks.flags.clone(),
+                        loss: description.risks.permanent_data_loss,
+                        signals: vec!["known-provider".into()],
+                        unverified: description.descriptor.support != Support::Validated
+                            || description
+                                .descriptor
+                                .limitations
+                                .iter()
+                                .any(|l| l.contains("unverified")),
+                        sync_warning: category == Category::Browser,
                     },
                 );
             }
@@ -112,6 +126,7 @@ impl<'a> CurrentSession<'a> {
         if selected.is_empty()
             || selected.len() != request.items.len()
             || request.items.len() > 64
+            || request.profiles.len() > 64
             || request.items.iter().any(|id| {
                 !self.inventories.iter().any(|(_, inv)| {
                     inv.descriptions().any(|(i, _)| {
@@ -121,6 +136,31 @@ impl<'a> CurrentSession<'a> {
             })
         {
             return Err(CommandError::InvalidSelection);
+        }
+        let mut profile_ids: std::collections::HashMap<InstanceId, Vec<ProfileId>> =
+            std::collections::HashMap::new();
+        for scope in request.profiles {
+            if !selected.contains(&scope.item)
+                || scope.profiles.is_empty()
+                || scope.profiles.len() > 256
+                || scope.profiles.iter().collect::<HashSet<_>>().len() != scope.profiles.len()
+                || profile_ids.contains_key(&InstanceId(scope.item.clone()))
+                || !self.inventories.iter().any(|(_, inv)| {
+                    inv.descriptions().any(|(i, _)| {
+                        i.instance_id.0 == scope.item
+                            && scope
+                                .profiles
+                                .iter()
+                                .all(|id| i.profiles.iter().any(|p| p.profile_id.0 == *id))
+                    })
+                })
+            {
+                return Err(CommandError::InvalidSelection);
+            }
+            profile_ids.insert(
+                InstanceId(scope.item),
+                scope.profiles.into_iter().map(ProfileId).collect(),
+            );
         }
         let id = opaque("plan");
         let mut runs = Vec::new();
@@ -134,9 +174,14 @@ impl<'a> CurrentSession<'a> {
             if ids.is_empty() {
                 continue;
             }
+            let scoped = profile_ids
+                .iter()
+                .filter(|(id, _)| ids.contains(id))
+                .map(|(id, profiles)| (id.clone(), profiles.clone()))
+                .collect();
             let run = self
                 .engine
-                .prepare(inventory, category, &ids, policy, &mut |_| {})
+                .prepare_scoped(inventory, category, &ids, &scoped, policy, &mut |_| {})
                 .map_err(|_| CommandError::InvalidSelection)?;
             if category == Category::WindowsMicrosoftAndDevTools {
                 tokens.push(CategoryToken {

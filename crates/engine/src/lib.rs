@@ -362,10 +362,42 @@ impl<'a> Engine<'a> {
         policy: ProcessClosePolicy,
         progress: &mut dyn FnMut(Progress),
     ) -> Result<PreparedRun<'a>, ErrorKind> {
+        self.prepare_scoped(
+            inventory,
+            category,
+            selection,
+            &std::collections::HashMap::new(),
+            policy,
+            progress,
+        )
+    }
+    /// Profile IDs must belong to the selected instance in this exact inventory.
+    pub fn prepare_scoped(
+        &self,
+        inventory: Inventory<'a>,
+        category: Category,
+        selection: &[InstanceId],
+        profiles: &std::collections::HashMap<InstanceId, Vec<ProfileId>>,
+        policy: ProcessClosePolicy,
+        progress: &mut dyn FnMut(Progress),
+    ) -> Result<PreparedRun<'a>, ErrorKind> {
         if inventory.current_user != self.current_user {
             return Err(ErrorKind::ScopeViolation);
         }
         let selected: HashSet<_> = selection.iter().collect();
+        if profiles.iter().any(|(instance, ids)| {
+            !selected.contains(instance)
+                || ids.is_empty()
+                || ids.iter().collect::<HashSet<_>>().len() != ids.len()
+                || !inventory.entries.iter().any(|entry| {
+                    entry.instance.instance_id == *instance
+                        && ids
+                            .iter()
+                            .all(|id| entry.instance.profiles.iter().any(|p| p.profile_id == *id))
+                })
+        }) {
+            return Err(ErrorKind::ScopeViolation);
+        }
         if selected.len() != selection.len()
             || selection.iter().any(|id| {
                 !inventory.entries.iter().any(|entry| {
@@ -391,12 +423,17 @@ impl<'a> Engine<'a> {
                 snapshot_id: entry.inventory.snapshot_id.clone(),
                 account_mode: AccountMode::Current,
                 instances: vec![entry.instance.instance_id.clone()],
-                profiles: entry
-                    .instance
-                    .profiles
-                    .iter()
-                    .map(|p| p.profile_id.clone())
-                    .collect(),
+                profiles: profiles
+                    .get(&entry.instance.instance_id)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        entry
+                            .instance
+                            .profiles
+                            .iter()
+                            .map(|p| p.profile_id.clone())
+                            .collect()
+                    }),
             };
             let mut blocked = entry.instance.issues.clone();
             blocked.extend(entry.inventory.issues.clone());

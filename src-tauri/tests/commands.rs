@@ -97,6 +97,7 @@ fn fixture(folders: &FixtureFolders, risks: bool) -> String {
 }
 fn select(scan: ScanDto) -> SelectionRequest {
     SelectionRequest {
+        profiles: vec![],
         inventory_id: scan.inventory_id,
         items: scan
             .groups
@@ -106,6 +107,121 @@ fn select(scan: ScanDto) -> SelectionRequest {
             .map(|i| i.id.clone())
             .collect(),
     }
+}
+
+#[test]
+fn scan_projects_confidence_profiles_and_engine_risks_without_secret_reads() {
+    let folders = FixtureFolders::create().unwrap();
+    let json = fixture(&folders, true);
+    let before = folders.snapshot().unwrap();
+    let gate = Gate;
+    for confidence in ["high", "medium", "low"] {
+        let mut manifest: Value = serde_json::from_str(&json).unwrap();
+        manifest["confidence"]["level"] = json!(confidence);
+        let provider = ManifestExecutor::load(
+            &manifest.to_string(),
+            &folders,
+            UserId("current-account".into()),
+            InstallationId("chrome".into()),
+            &gate,
+        )
+        .unwrap();
+        let mut session = CurrentSession::new(&provider, vec![(Category::Browser, &provider)]);
+        let scan = session.scan().unwrap();
+        let item = &scan.groups[0].items[0];
+        assert_eq!(item.default_selected, confidence == "high");
+        assert!(!item.profiles.is_empty());
+        assert_eq!(item.risks, vec![RiskFlag::SettingsOrProfiles]);
+        assert_eq!(item.loss, LossAssessment::Known);
+        assert!(item.sync_warning);
+        assert!(!serde_json::to_string(&scan)
+            .unwrap()
+            .contains(folders.path().to_str().unwrap()));
+    }
+    assert_eq!(folders.snapshot().unwrap(), before);
+}
+
+#[test]
+fn selected_profile_subset_is_bound_to_preview_and_invalid_scopes_are_rejected() {
+    let folders = FixtureFolders::create().unwrap();
+    let json = fixture(&folders, false);
+    let manifest: Value = serde_json::from_str(&json).unwrap();
+    let second = folders.path().join("Google/Chrome/User Data/Profile 1");
+    for entry in manifest["session_locations"].as_array().unwrap() {
+        let path = second.join(entry["relative"].as_str().unwrap());
+        if entry["kind"] == "file" {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"synthetic-session").unwrap();
+        } else {
+            fs::create_dir_all(path).unwrap();
+        }
+    }
+    let before = folders.snapshot().unwrap();
+    let gate = Gate;
+    let provider = ManifestExecutor::load(
+        &json,
+        &folders,
+        UserId("current-account".into()),
+        InstallationId("chrome".into()),
+        &gate,
+    )
+    .unwrap();
+    let mut session = CurrentSession::new(&provider, vec![(Category::Browser, &provider)]);
+    let scan = session.scan().unwrap();
+    let item = &scan.groups[0].items[0];
+    assert_eq!(item.profiles.len(), 2);
+    let selected_profile = item.profiles[0].clone();
+    let base = select(scan.clone());
+    for profiles in [
+        vec![],
+        vec!["foreign-profile".into()],
+        vec![selected_profile.clone(), selected_profile.clone()],
+    ] {
+        let mut request = base.clone();
+        request.profiles.push(ProfileSelection {
+            item: item.id.clone(),
+            profiles,
+        });
+        assert_eq!(
+            session
+                .build_plan(request, ProcessClosePolicy::Ask)
+                .unwrap_err(),
+            CommandError::InvalidSelection
+        );
+    }
+    let mut foreign = base.clone();
+    foreign.profiles.push(ProfileSelection {
+        item: "unselected-instance".into(),
+        profiles: vec![selected_profile.clone()],
+    });
+    assert_eq!(
+        session
+            .build_plan(foreign, ProcessClosePolicy::Ask)
+            .unwrap_err(),
+        CommandError::InvalidSelection
+    );
+    let mut duplicate = base.clone();
+    let scope = ProfileSelection {
+        item: item.id.clone(),
+        profiles: vec![selected_profile.clone()],
+    };
+    duplicate.profiles = vec![scope.clone(), scope.clone()];
+    assert_eq!(
+        session
+            .build_plan(duplicate, ProcessClosePolicy::Ask)
+            .unwrap_err(),
+        CommandError::InvalidSelection
+    );
+    let mut request = base;
+    request.profiles = vec![scope];
+    let plan = session
+        .build_plan(request, ProcessClosePolicy::Ask)
+        .unwrap();
+    assert_eq!(
+        plan.report.accounts[0].sections[1].items[0].profiles,
+        vec![selected_profile]
+    );
+    assert_eq!(folders.snapshot().unwrap(), before);
 }
 fn approve(plan: &PlanDto) -> ExecuteRequest {
     ExecuteRequest {
