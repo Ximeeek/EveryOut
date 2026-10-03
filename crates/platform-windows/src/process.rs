@@ -383,7 +383,18 @@ fn request(
         }
         // SAFETY: exact checked top-level window, pointer-free asynchronous WM_CLOSE.
         if unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) } == 0 {
-            return Err(last_error());
+            let error = last_error();
+            // A window may be destroyed after EnumWindows/owner validation, for
+            // example when an earlier WM_CLOSE shuts down the same application.
+            // Treat only this disappearance as a stale observation; other API
+            // failures still block dependent cleanup.
+            if error.os_code == Some(ERROR_INVALID_WINDOW_HANDLE) {
+                if exited(handle, 0)? {
+                    break;
+                }
+                continue;
+            }
+            return Err(error);
         }
         first_request.get_or_insert_with(Instant::now);
         *count += 1;
