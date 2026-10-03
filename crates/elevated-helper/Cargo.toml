@@ -19,6 +19,7 @@ everyout-core-model = { path = "../core-model" }
 everyout-providers = { path = "../providers" }
 everyout-platform-windows = { path = "../platform-windows" }
 everyout-engine = { path = "../engine" }
+everyout-detection = { path = "../detection" }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"

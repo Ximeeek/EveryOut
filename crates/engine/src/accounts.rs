@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub const S6_UNVERIFIED: &str =
     "unverified-s6-profile-logon-races-hive-lifecycle-cross-session-close";
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountReport {
     pub account: UserId,
     pub logged_on: bool,
@@ -67,7 +67,7 @@ pub struct AccountConsent {
     pub confirmations: Vec<ConfirmationId>,
     pub force_close_acknowledged: bool,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountsReport {
     pub scope: AccountScope,
     pub mode: ExecutionMode,

@@ -15,3 +15,22 @@ tauri-build = { version = "2.7.0", features = [] }
 
 [dependencies]
 tauri = { version = "2.12.0", features = [] }
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+tempfile = "3"
+everyout-core-model = { path = "../crates/core-model" }
+everyout-engine = { path = "../crates/engine" }
+everyout-providers = { path = "../crates/providers" }
+everyout-detection = { path = "../crates/detection" }
+everyout-platform-windows = { path = "../crates/platform-windows" }
+everyout-elevated-helper = { path = "../crates/elevated-helper" }
+
+[dev-dependencies]
+tauri = { version = "2.12.0", features = ["test"] }
+everyout-platform-windows = { path = "../crates/platform-windows", features = ["test-fixtures"] }
+everyout-test-support = { path = "../crates/test-support" }
+
+[[example]]
+name = "bindings"
+path = "examples/bindings.rs"

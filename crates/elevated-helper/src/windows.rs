@@ -262,6 +262,23 @@ pub struct Client {
 }
 impl Client {
     pub fn request(&mut self, command: Command) -> Result<Response, LaunchFailure> {
+        self.request_with_cancellation(command, &|| false)
+    }
+    /// Disconnect on cancellation; helper gates still finish in-flight hive cleanup.
+    /// Unacknowledged effects must be reported as unknown by the native host.
+    pub fn request_with_cancellation(
+        &mut self,
+        command: Command,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Response, LaunchFailure> {
+        self.request_streamed(command, cancelled, &mut |_| {})
+    }
+    pub fn request_streamed(
+        &mut self,
+        command: Command,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(ProgressFrame),
+    ) -> Result<Response, LaunchFailure> {
         let request = Request {
             version: VERSION,
             run: self.run.clone(),
@@ -269,13 +286,21 @@ impl Client {
             nonce: String::new(),
             command,
         };
-        let result = self.exchange(request);
+        let result = self.exchange_cancellable(request, cancelled, progress);
         if result.is_err() {
             self.pipe.take();
         }
         result
     }
     fn exchange(&mut self, request: Request) -> Result<Response, LaunchFailure> {
+        self.exchange_cancellable(request, &|| false, &mut |_| {})
+    }
+    fn exchange_cancellable(
+        &mut self,
+        request: Request,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(ProgressFrame),
+    ) -> Result<Response, LaunchFailure> {
         let timeout = if matches!(
             request.command,
             Command::Plan { .. } | Command::PlanAccounts { .. } | Command::Execute { .. }
@@ -292,10 +317,20 @@ impl Client {
         write(pipe, &frame)?;
         let start = Instant::now();
         loop {
+            if cancelled() {
+                return Err(LaunchFailure::StartFailed);
+            }
             if start.elapsed() >= timeout {
                 return Err(LaunchFailure::Timeout);
             }
             if let Some(frame) = read(pipe)? {
+                if let Ok(event) = serde_json::from_slice::<ProgressFrame>(&frame) {
+                    if event.version != VERSION || event.sequence != self.next {
+                        return Err(LaunchFailure::AuthenticationFailed);
+                    }
+                    progress(event);
+                    continue;
+                }
                 let response: Response = serde_json::from_slice(&frame)
                     .map_err(|_| LaunchFailure::AuthenticationFailed)?;
                 if response.version != VERSION || response.sequence != self.next {
@@ -541,6 +576,39 @@ pub(super) fn serve() -> Result<(), LaunchFailure> {
         return Err(LaunchFailure::StartFailed);
     }
     let cancellation_pipe = Handle::new(cancellation_pipe)?;
+    let sequence = std::rc::Rc::new(std::cell::Cell::new(0u64));
+    let progress_sequence = sequence.clone();
+    let progress_pipe = pipe.0 as usize;
+    let progress = Box::new(move |account: &str, progress: everyout_engine::Progress| {
+        // SAFETY: the server handle outlives its synchronous backend; duplicate is
+        // owned here so dropping a progress frame never closes the server handle.
+        let mut duplicate = ptr::null_mut();
+        if unsafe {
+            DuplicateHandle(
+                GetCurrentProcess(),
+                progress_pipe as HANDLE,
+                GetCurrentProcess(),
+                &mut duplicate,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
+        } == 0
+        {
+            return;
+        }
+        if let Ok(pipe) = Handle::new(duplicate) {
+            let frame = ProgressFrame {
+                version: VERSION,
+                sequence: progress_sequence.get(),
+                account: account.into(),
+                progress,
+            };
+            if let Ok(bytes) = encode(&frame) {
+                let _ = write(&pipe, &bytes);
+            }
+        }
+    });
     let cancelled = Box::new(move || {
         !cancellation_parent.alive()
             || start.elapsed() >= MAX_LIFETIME
@@ -557,7 +625,9 @@ pub(super) fn serve() -> Result<(), LaunchFailure> {
     });
     let mut session = Session::new(peer.clone(), nonce.clone())
         .map_err(|_| LaunchFailure::StartFailed)?
-        .with_backend(Box::new(crate::accounts::NativeAccounts::new(cancelled)));
+        .with_backend(Box::new(
+            crate::accounts::NativeAccounts::new(cancelled).with_progress(progress),
+        ));
     loop {
         if session.expired(start.elapsed(), parent.alive()) {
             return Ok(());
@@ -592,6 +662,11 @@ pub(super) fn serve() -> Result<(), LaunchFailure> {
             return Ok(());
         }
         if let Some(frame) = read(&pipe)? {
+            sequence.set(
+                decode(&frame)
+                    .map_err(|_| LaunchFailure::AuthenticationFailed)?
+                    .sequence,
+            );
             let response = session
                 .receive(&frame, &peer, start.elapsed(), parent.alive())
                 .map_err(|_| LaunchFailure::AuthenticationFailed)?;

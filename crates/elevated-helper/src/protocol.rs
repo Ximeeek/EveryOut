@@ -6,6 +6,15 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::Duration};
 include!(concat!(env!("OUT_DIR"), "/catalog.rs"));
 pub const VERSION: u32 = 1;
+/// Progress frames belong to the same authenticated request sequence as its final response.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProgressFrame {
+    pub version: u32,
+    pub sequence: u64,
+    pub account: String,
+    pub progress: everyout_engine::Progress,
+}
 pub const MAX_FRAME: usize = 8192;
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_LIFETIME: Duration = Duration::from_secs(300);

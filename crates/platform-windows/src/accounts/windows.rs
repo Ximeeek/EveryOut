@@ -340,6 +340,13 @@ impl NativeProfiles {
     /// Unregistered/custom installations remain unsupported for process closing.
     pub fn installation_paths(&self, hive: &str, names: &[String]) -> Result<Vec<PathBuf>> {
         let user = open(HKEY_USERS, hive)?;
+        self.paths_under(user.0, names)
+    }
+    /// Same fixed App Paths metadata allowlist for the invoking account.
+    pub fn current_installation_paths(&self, names: &[String]) -> Result<Vec<PathBuf>> {
+        self.paths_under(HKEY_CURRENT_USER, names)
+    }
+    fn paths_under(&self, user: HKEY, names: &[String]) -> Result<Vec<PathBuf>> {
         let mut paths = Vec::new();
         for name in names {
             if crate::components(name)?.len() != 1 {
@@ -347,7 +354,7 @@ impl NativeProfiles {
             }
             let location =
                 format!("Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{name}");
-            for parent in [user.0, HKEY_LOCAL_MACHINE] {
+            for parent in [user, HKEY_LOCAL_MACHINE] {
                 let key = match open(parent, &location) {
                     Ok(key) => key,
                     Err(e) if native::absent(&e) => continue,

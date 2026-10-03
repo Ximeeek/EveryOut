@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 
 use everyout_core_model::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
     collections::HashSet,
@@ -31,21 +31,22 @@ pub trait EngineProvider: Provider {
     fn target_label(&self, action: &PlannedAction) -> String;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessPreview {
     pub identity: String,
     pub label: String,
     pub unsaved_work_loss: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdentitySync {
     pub identity: Uncertainty,
     pub sync: Uncertainty,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(ts_rs::TS)]
 pub enum Stage {
     Scan,
     Selection,
@@ -58,7 +59,7 @@ pub enum Stage {
     Report,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Progress {
     pub stage: Stage,
     pub category: Category,
@@ -66,14 +67,14 @@ pub struct Progress {
     pub action: Option<ActionId>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionReport {
     pub path: String,
     pub outcome: ActionOutcome,
     pub verification: ArtifactVerification,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemReport {
     pub instance: InstanceId,
     pub plan: Option<ProposedPlan>,
@@ -87,7 +88,7 @@ pub struct ItemReport {
     pub silent_sso: Uncertainty,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CategoryReport {
     pub category: Category,
     pub warnings: Vec<String>,
@@ -96,7 +97,7 @@ pub struct CategoryReport {
     pub counts: Counts,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Counts {
     pub succeeded: usize,
     pub failed: usize,
@@ -106,7 +107,7 @@ pub struct Counts {
     pub already_absent: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunReport {
     pub account_scope: AccountScope,
     pub account: UserId,
@@ -190,6 +191,12 @@ pub struct Inventory<'a> {
     current_user: UserId,
 }
 impl Inventory<'_> {
+    /// Native application projection; callers must omit concrete owner identities from IPC.
+    pub fn descriptions(&self) -> impl Iterator<Item = (&ProviderInstance, &ProviderDescription)> {
+        self.entries
+            .iter()
+            .map(|entry| (&entry.instance, &entry.description))
+    }
     /// Low-confidence application candidates require explicit selection.
     /// All heuristic results stay unchecked until S8 passes; selection is not approval.
     pub fn default_selection(&self, category: Category) -> Vec<InstanceId> {
@@ -536,11 +543,59 @@ impl<'a> Engine<'a> {
         cancelled: &dyn Fn() -> bool,
         progress: &mut dyn FnMut(Progress),
     ) -> RunReport {
+        self.apply_with_results(run, approval, cancelled, progress, &mut |_| {})
+    }
+
+    /// Metadata-only review refresh; never close a process or mutate a target.
+    pub fn validate_preview(&self, run: &PreparedRun<'a>) -> Result<(), ErrorKind> {
+        if self.id != run.engine_id
+            || self.scope != run.scope
+            || self.current_user != run.current_user
+        {
+            return Err(ErrorKind::ScopeViolation);
+        }
+        for item in &run.items {
+            let Some(plan) = &item.plan else {
+                continue;
+            };
+            match item.entry.provider.plan(
+                &PlanContext {
+                    inventory: &item.entry.inventory,
+                },
+                &plan.selection,
+            ) {
+                PlanResult::Ready(fresh) if *fresh == *plan => {}
+                _ => return Err(ErrorKind::StalePlan),
+            }
+            if item.entry.provider.describe(&item.entry.instance) != item.entry.description
+                || item.entry.provider.process_preview(plan)? != item.processes
+            {
+                return Err(ErrorKind::StalePlan);
+            }
+            for (action, before) in plan.actions.iter().zip(&item.observations) {
+                if &self.operations.observe(&action.owner, &action.artifact_id) != before {
+                    return Err(ErrorKind::StalePlan);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit completed item results without waiting for the rest of the category.
+    pub fn apply_with_results(
+        &self,
+        run: PreparedRun<'a>,
+        approval: Approval,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(Progress),
+        result: &mut dyn FnMut(&ItemReport),
+    ) -> RunReport {
         let mut reports = Vec::new();
         for item in &run.items {
             let mut report = preview_item(item);
             report.aggregate = AggregateStatus::Blocked;
             let Some(plan) = &item.plan else {
+                result(&report);
                 reports.push(report);
                 continue;
             };
@@ -747,6 +802,7 @@ impl<'a> Engine<'a> {
             }
             cancelled_run |= cancelled();
             report.aggregate = aggregate_item(&report, cancelled_run);
+            result(&report);
             reports.push(report);
         }
         emit(progress, Stage::Report, run.category, None, None);

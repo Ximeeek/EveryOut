@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Empty capability for the static placeholder window.",
+  "description": "Local main-window application commands and typed IPC channel delivery.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": [
+    "allow-scan",
+    "allow-build-plan",
+    "allow-dry-run",
+    "allow-execute",
+    "allow-cancel",
+    "allow-get-settings",
+    "allow-set-settings",
+    "allow-get-last-report",
+    "allow-enable-all-accounts-mode"
+  ]
 }
