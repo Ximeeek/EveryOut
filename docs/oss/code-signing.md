@@ -94,13 +94,17 @@ Require separate custody for Authenticode credentials and the catalog Ed25519 ke
 helper first, hash its final bytes, compile the host with that hash, sign the host, package those
 exact binaries, then sign the installers. Publish final hashes and verify the installed helper
 against the embedded pin. Preserve unsigned build checkpoints for independent verification.
-These are release requirements for Phase 35, not an implemented signing pipeline. [HYPOTHESIS]
+The [release workflow](../../.github/workflows/release.yml) implements this sequence behind
+`SIGNPATH_ENABLED`, with no fallback after a signing failure. It checks extracted MSI binaries,
+publisher subject, chain-policy verification, timestamp certificates and the final helper pin.
+Provider approval and the signed end-to-end path remain unverified. See the exact
+[variables, secret and manual approval gates](release-process.md#configure-signing-only-after-onboarding).
 
 Tauri can patch the host with bundle-type information during packaging, invalidating an existing
 signature. Its `--no-binary-patching` option preserves an already-signed host, with a trade-off for
-per-format updater selection. Phase 35 must either preserve that host explicitly or capture and
-sign each final patched host before packaging; verify the binaries extracted from both MSI and
-NSIS, including generated uninstallers where applicable.
+per-format updater selection. The release workflow chooses MSI only, preserves the host with
+that option, and verifies the exact extracted host/helper bytes. NSIS and its generated
+uninstallers are not shipped by this workflow.
 [VERIFIED: https://tauri.app/release/tauri-bundler/all-versions/, accessed 2026-10-03]
 [HYPOTHESIS]
 
@@ -130,8 +134,8 @@ This is a project recommendation, not a guarantee of acceptance or warning-free 
 4. If accepted, configure repository access, signing roles, approval policy and artifact metadata;
    add “Free code signing provided by SignPath.io, certificate by SignPath Foundation” only when
    actually provided, and link the real service/provider pages. Authorize each release personally.
-5. Have Phase 35 implement and verify helper-first signing, locked builds, timestamping,
-   provenance and final checksum publication before claiming signed distribution.
+5. Validate the implemented helper-first signing path, timestamping, provenance and final
+   checksum publication end to end after onboarding, before claiming signed distribution.
 6. If refused, request a Certum eligibility/cost/custody quote personally. Reconsider Azure only
    with a genuinely eligible organizational identity or a documented eligibility expansion.
 7. Record the provider's decision and validation evidence, then update the ADR status and release

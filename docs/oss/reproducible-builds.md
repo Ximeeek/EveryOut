@@ -7,9 +7,12 @@ defined environment. Similar functionality, matching versions and a valid signat
 prove bit reproducibility.
 [VERIFIED: https://reproducible-builds.org/docs/definition/, accessed 2026-10-03]
 
-EveryOut has Rust 1.98.1 and pnpm 11.19.0 pins and committed Cargo/frontend lockfiles; CI selects
-Node 24 and `windows-latest`, rather than a complete immutable Windows toolchain image. No
-independent two-build comparison is claimed in this phase.
+EveryOut has Rust 1.98.1 and pnpm 11.19.0 pins and committed Cargo/frontend lockfiles. The
+[release workflow](../../.github/workflows/release.yml) also selects exact Node/MSVC/SDK inputs
+from [release-tools.json](../../scripts/release-tools.json), verifies the pinned WiX archive and
+records the hosted image and tool binary identities. `windows-latest` is not an immutable image.
+The workflow compares two fresh target directories on one runner and the release checkpoints;
+this is an advisory measurement, not independent reproduction.
 [VERIFIED: https://github.com/Ximeeek/EveryOut/blob/a739ca4/rust-toolchain.toml, accessed 2026-10-03]
 [VERIFIED: https://github.com/Ximeeek/EveryOut/blob/a739ca4/package.json, accessed 2026-10-03]
 [VERIFIED: https://github.com/Ximeeek/EveryOut/blob/a739ca4/.github/workflows/ci.yml, accessed 2026-10-03]
@@ -17,7 +20,9 @@ independent two-build comparison is claimed in this phase.
 
 Treat unsigned frontend assets and unsigned PE build checkpoints as reproducibility candidates.
 Do not advertise installers, PDBs or full signed releases as bit reproducible until independent
-comparisons establish each claim. Phase 35 must publish measured results and differences.
+comparisons establish each claim. `reproducibility.json` publishes measured results and differences,
+or explicitly records that the comparison was unavailable. Every mismatch remains a failed byte
+comparison. Publication review must investigate unexplained unsigned PE/frontend differences.
 [HYPOTHESIS]
 
 ## Required build controls
@@ -89,6 +94,15 @@ each unexplained difference as a failed comparison rather than silently strippin
 hashes match. WebView2 download mode and evolving remote payloads also require explicit inputs.
 [HYPOTHESIS]
 
+Local Phase 35 validation on 2026-10-03 built and extracted unsigned MSI packages successfully.
+The two fresh target directories and reference comparison matched the three frontend files,
+but reported differences in the unsigned helper, host, two PDBs and MSI. The unsigned EXE COFF
+timestamps differed; that is an observed input to the mismatch, not proof that all remaining
+bytes are equivalent. The comparison script includes PE machine/timestamp metadata alongside
+the full-file hashes and never strips fields to manufacture a match. Signed CI and independent
+reproduction remain unverified. See the
+[Microsoft PE/COFF format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format).
+
 ## Third-party verification procedure
 
 Require the release to provide `SHA256SUMS.txt`, corresponding source/tag/commit, CI run and job
@@ -118,15 +132,19 @@ These are Phase 35 deliverables; missing evidence means the associated claim is 
 
    ```powershell
    pnpm install --frozen-lockfile
-   cargo run --locked -p xtask -- catalog-table --check
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-desktop.ps1
+   ./scripts/check-release.ps1
+   . ./scripts/release-environment.ps1 -Local
+   ./scripts/build-release.ps1 -WorkDir target/release-local
    ```
 
-   That script locks the helper build but does not pass `--locked` to its host build or sign
-   artifacts. It is a developer baseline, not the future signed release verifier. For a signed
-   release, follow its published stage commands, supplying the final released helper hash when
-   compiling the unsigned host. Do not let a fresh helper overwrite that input.
-   [VERIFIED: https://github.com/Ximeeek/EveryOut/blob/a739ca4/scripts/build-desktop.ps1, accessed 2026-10-03]
+   Use a fresh WorkDir. The release script locks helper and host builds, preserves unsigned
+   checkpoints, packages MSI without host patching and verifies extracted host/helper bytes.
+   WebView2 is a separate prerequisite, with no downloaded or bundled runtime input. The ordinary
+   `scripts/build-desktop.ps1` remains an unsigned developer baseline, not the release verifier.
+   For a signed release, extract the exact helper from `final-binaries.zip` and pass its absolute
+   path with `-ReferenceHelper` when rebuilding an unsigned host. This preserves the released
+   helper pin while independently compiling the unsigned helper checkpoint. See the actual
+   [stage commands and two-build procedure](release-process.md#local-verification-without-tags-or-releases).
 
 5. Compare SHA-256 values of unsigned checkpoints and frontend files against the manifest.
    Preserve mismatch details with tool versions, paths and flags; compare PE sections/resources

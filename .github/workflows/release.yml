@@ -1,0 +1,211 @@
+name: Draft release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  EVERYOUT_CATALOG_PUBLIC_KEY: ${{ vars.EVERYOUT_CATALOG_PUBLIC_KEY }}
+  EVERYOUT_CATALOG_URL: ${{ vars.EVERYOUT_CATALOG_URL }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    environment: ${{ vars.SIGNPATH_ENABLED == 'true' && 'release-signing' || 'release-unsigned' }}
+    env:
+      SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ENABLED }}
+      SIGNPATH_CERTIFICATE_SUBJECT: ${{ vars.SIGNPATH_CERTIFICATE_SUBJECT }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.18.1
+      - name: Install pinned Rust
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Select pinned release environment
+        run: ./scripts/release-environment.ps1
+      - name: Validate tag and signing configuration
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_HELPER_CONFIGURATION: ${{ vars.SIGNPATH_HELPER_CONFIGURATION }}
+          SIGNPATH_HOST_CONFIGURATION: ${{ vars.SIGNPATH_HOST_CONFIGURATION }}
+          SIGNPATH_INSTALLER_CONFIGURATION: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          ./scripts/validate-release.ps1
+      - name: Frozen frontend install
+        run: pnpm install --frozen-lockfile
+      - name: Quality gates
+        run: ./scripts/check-release.ps1
+      - name: Build unsigned helper checkpoint
+        run: ./scripts/build-release.ps1 -Stage Helper
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: helper
+        with:
+          name: helper-signing-input
+          path: target/release-work/helper-input/everyout-elevated-helper.exe
+          if-no-files-found: error
+      - name: Sign helper after provider approval
+        if: vars.SIGNPATH_ENABLED == 'true'
+        id: sign-helper
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_HELPER_CONFIGURATION }}
+          github-artifact-id: ${{ steps.helper.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: target/release-work/signed-helper
+      - name: Pin final helper and build unsigned host checkpoint
+        run: ./scripts/build-release.ps1 -Stage Host -Signed:($env:SIGNPATH_ENABLED -eq 'true')
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: host
+        with:
+          name: host-signing-input
+          path: target/release-work/host-input/everyout.exe
+          if-no-files-found: error
+      - name: Sign host
+        if: vars.SIGNPATH_ENABLED == 'true'
+        id: sign-host
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_HOST_CONFIGURATION }}
+          github-artifact-id: ${{ steps.host.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: target/release-work/signed-host
+      - name: Package final binaries without patching or rebuilding
+        run: ./scripts/build-release.ps1 -Stage Bundle -Signed:($env:SIGNPATH_ENABLED -eq 'true')
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: installer
+        with:
+          name: installer-signing-input
+          path: target/release-work/installer-input/EveryOut-x64.msi
+          if-no-files-found: error
+      - name: Sign installer
+        if: vars.SIGNPATH_ENABLED == 'true'
+        id: sign-installer
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION }}
+          github-artifact-id: ${{ steps.installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: target/release-work/signed-installer
+      - name: Verify MSI contents, signatures and final helper pin
+        env:
+          HELPER_SIGNING_REQUEST: ${{ steps.sign-helper.outputs.signing-request-id }}
+          HOST_SIGNING_REQUEST: ${{ steps.sign-host.outputs.signing-request-id }}
+          INSTALLER_SIGNING_REQUEST: ${{ steps.sign-installer.outputs.signing-request-id }}
+        run: ./scripts/build-release.ps1 -Stage Finalize -Signed:($env:SIGNPATH_ENABLED -eq 'true')
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: target/release-work/assets/*
+          if-no-files-found: error
+
+  verify:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.18.1
+      - run: |
+          rustup toolchain install 1.98.1 --profile minimal --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - run: ./scripts/release-environment.ps1
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: target/reference
+      - name: Two clean builds and byte comparisons
+        run: |
+          Expand-Archive -LiteralPath target/reference/final-binaries.zip -DestinationPath target/reference/final
+          Expand-Archive -LiteralPath target/reference/unsigned-checkpoints.zip -DestinationPath target/reference/unsigned
+          try {
+            $helper = (Resolve-Path target/reference/final/everyout-elevated-helper.exe).Path
+            ./scripts/build-release.ps1 -WorkDir target/repro-one -ReferenceHelper $helper
+            ./scripts/build-release.ps1 -WorkDir target/repro-two -ReferenceHelper $helper
+            ./scripts/compare-release.ps1 -First target/repro-one/checkpoints -Second target/repro-two/checkpoints -Reference target/reference/unsigned/checkpoints -Output target/reproducibility.json
+          } catch {
+            @{ result = 'comparison-unavailable'; error = $_.Exception.Message; independentReproduction = $false } |
+              ConvertTo-Json | Set-Content target/reproducibility.json
+            Write-Warning $_.Exception.Message
+            'Reproducibility comparison unavailable; inspect reproducibility.json before publication.' >> $env:GITHUB_STEP_SUMMARY
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: reproducibility-report
+          path: target/reproducibility.json
+          if-no-files-found: error
+
+  draft:
+    needs: [build, verify]
+    if: ${{ always() && needs.build.result == 'success' }}
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: target/draft-assets
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.verify.result == 'success'
+        with:
+          name: reproducibility-report
+          path: target/draft-assets
+      - name: Checksums and draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: ./scripts/create-release-draft.ps1
