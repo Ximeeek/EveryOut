@@ -181,6 +181,11 @@ export const categoryNames: Record<Category, string> = {
   "windows-microsoft-and-dev-tools":
     "Windows/Microsoft accounts & developer tools",
 };
+export const shortCategoryNames: Record<Category, string> = {
+  application: "Apps",
+  browser: "Browsers",
+  "windows-microsoft-and-dev-tools": "Windows & dev",
+};
 export const riskNames: Record<RiskFlag, string> = {
   "local-only-documents": "local-only documents",
   "drafts-or-offline-messages": "drafts or offline messages",
