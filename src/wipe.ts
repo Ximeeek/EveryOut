@@ -26,6 +26,42 @@ export const retryable = (item: ItemDto) =>
   item.locked ||
   item.status === "failed" ||
   item.actions.some((a) => a.locked || a.outcome === "failed");
+export const needsAttention = (item: ItemDto) =>
+  item.status !== "complete-local-scope" ||
+  item.locked ||
+  item.issues.length > 0 ||
+  item.limitations.length > 0 ||
+  item.actions.some(
+    (a) =>
+      a.locked ||
+      (a.outcome !== "applied" && a.outcome !== "already-absent") ||
+      a.verification !== "target-absent" ||
+      a.issues.length > 0,
+  );
+
+export function attentionReason(item: ItemDto) {
+  if (item.issues.includes("unacknowledged"))
+    return "No result was received. The local effects are unknown.";
+  if (item.locked || item.actions.some((a) => a.locked))
+    return "Local data is locked. Close the program, then retry.";
+  if (item.status === "cancelled")
+    return "Stopped before cleanup finished. Some local data may remain.";
+  if (
+    item.status === "failed" ||
+    item.actions.some((a) => a.outcome === "failed")
+  )
+    return "A local operation failed. Check access to the selected data, then retry.";
+  if (item.actions.some((a) => a.verification === "target-present"))
+    return "Some selected local data is still present.";
+  if (
+    item.status === "blocked" ||
+    item.actions.some((a) => a.outcome === "blocked")
+  )
+    return "Cleanup was blocked. The data could not be safely removed.";
+  if (item.actions.some((a) => a.outcome === "skipped"))
+    return "Some selected data was skipped.";
+  return "The complete local scope could not be verified. Some data may remain.";
+}
 export type Target = {
   account: string;
   provider: string;

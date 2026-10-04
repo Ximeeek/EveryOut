@@ -1,11 +1,17 @@
 import { useState } from "react";
 import type { ItemDto, ReportDto } from "./api";
-import { exportReport } from "./api";
-import { categories, retryable, errorText } from "./wipe";
+import { exportReport } from "./client";
+import {
+  reportItems,
+  retryable,
+  errorText,
+  needsAttention,
+  attentionReason,
+} from "./wipe";
+import Hero from "./Hero";
+import DotIcon from "./DotIcon";
 import {
   aggregateNames,
-  categoryNames,
-  homeStrings as h,
   outcomeNames,
   uncertaintyNames,
   verificationNames,
@@ -76,31 +82,46 @@ export default function Reports({
   retry,
   working,
   canExport = true,
+  back,
+  coverage = [],
 }: {
   report: ReportDto;
   name: (account: string, item: ItemDto) => string;
-  retry: () => void;
+  retry: (instance?: string, account?: string) => void;
   working: boolean;
   canExport?: boolean;
+  back?: () => void;
+  coverage?: string[];
 }) {
-  const [category, setCategory] = useState(categories[0]);
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const extra = [...new Set(report.skipped.map((i) => i.account))]
-    .filter((id) => !report.accounts.some((a) => a.account === id))
-    .map((account) => ({
-      account,
-      sections: [],
-      limitations: [],
-      issues: [],
-      residual_hive: false,
-      residual_hku_key: null,
-      unload_attempts: 0,
-    }));
-  const accounts = [...report.accounts, ...extra].map((a) => ({
-    ...a,
-    section: a.sections.find((s) => s.category === category),
-  }));
+  const entries = reportItems(report);
+  const attention = entries.filter((entry) => needsAttention(entry.item));
+  const accountGaps = report.accounts.filter(
+    (a) =>
+      a.residual_hive ||
+      a.issues.length ||
+      a.limitations.length ||
+      a.sections.some(
+        (section) =>
+          section.warnings.length ||
+          (section.status !== "complete-local-scope" &&
+            section.status !== "not-requested"),
+      ),
+  );
+  const hasGaps =
+    coverage.length > 0 ||
+    accountGaps.length > 0 ||
+    report.skipped.length > 0 ||
+    (!entries.length && !report.skipped.length);
+  const clean = !attention.length && !hasGaps && canExport;
+  const title = attention.length
+    ? `Done, ${attention.length} ${attention.length === 1 ? "item needs" : "items need"} attention`
+    : clean
+      ? "Done"
+      : canExport
+        ? "Done, check coverage"
+        : "Cleanup interrupted";
   async function save(format: "json" | "text") {
     if (exporting) return;
     setExporting(true);
@@ -114,140 +135,147 @@ export default function Reports({
     }
   }
   return (
-    <section aria-label={w.reports}>
-      <h3>{w.reports}</h3>
-      <div className="report-tabs" role="tablist" aria-label={w.reports}>
-        {categories.map((c) => (
-          <button
-            key={c}
-            id={`tab-${c}`}
-            type="button"
-            role="tab"
-            aria-selected={category === c}
-            aria-controls="category-report"
-            onClick={() => setCategory(c)}
-          >
-            {categoryNames[c]}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id="category-report"
-        aria-labelledby={`tab-${category}`}
+    <section className="results" aria-label="Local cleanup result">
+      <Hero
+        meta="RESULT · SUPPORTED LOCAL SCOPE"
+        title={title}
+        description={
+          clean
+            ? "Selected local session data was removed and verified absent."
+            : "Review the results below. Unverified or skipped data may remain."
+        }
+        icon={clean ? "check" : "attention"}
       >
-        {accounts.map((account) => (
-          <section
-            key={account.account}
-            aria-label={`${h.account}: ${account.account}`}
-          >
-            <h4>
-              {h.account}:{" "}
-              {account.account === "current-account"
-                ? h.currentAccount
-                : account.account}
-            </h4>
-            <p>
-              {account.section?.items.some((i) =>
-                i.issues.includes("unacknowledged"),
-              )
-                ? w.unknownOutcome
-                : aggregateNames[account.section?.status ?? "not-requested"]}
-            </p>
-            {account.section && account.section.status !== "not-requested" && (
-              <p>
-                {w.removed}:{" "}
-                {Math.max(
-                  0,
-                  account.section.succeeded - account.section.already_absent,
-                )}{" "}
-                · {outcomeNames["already-absent"]}:{" "}
-                {account.section.already_absent} · {w.failed}:{" "}
-                {account.section.failed} · {w.locked}: {account.section.locked}{" "}
-                · {w.omitted}: {account.section.skipped}
-              </p>
-            )}
-            {report.skipped
-              .filter(
-                (i) => i.account === account.account && i.category === category,
-              )
-              .map((i) => (
-                <article key={i.instance}>
-                  <h5>{i.name}</h5>
-                  <p>
-                    {w.omitted} · {w.skipped}
-                  </p>
-                </article>
-              ))}
-            {account.section?.items.map((item) => (
-              <article key={item.instance} className="report-item">
-                <h5>{name(account.account, item)}</h5>
-                <ItemEffects item={item} />
-                <p>
-                  {w.identity}: {uncertaintyNames[item.identity]} · {w.sync}:{" "}
-                  {uncertaintyNames[item.sync]} · {w.sso}:{" "}
-                  {uncertaintyNames[item.silent_sso]}
-                </p>
-              </article>
-            ))}
-            <h5>{w.remains}</h5>
-            <p>{w.remainsHelp}</p>
-            {account.section?.items.flatMap((i) =>
-              i.actions
-                .filter((a) => a.verification !== "target-absent")
-                .map((a) => (
-                  <p key={`${i.instance}-${a.id}`}>
-                    <code>{a.path}</code> · {verificationNames[a.verification]}
-                  </p>
-                )),
-            )}
-            {account.limitations.length > 0 ||
-            account.issues.length > 0 ||
-            account.section?.warnings.length ? (
-              <p className="warning">{w.coverage}</p>
-            ) : null}
-            {account.residual_hive && <p role="alert">{w.residualHive}</p>}
-            {category === "browser" && !!account.section?.items.length && (
-              <>
-                <p className="warning">{h.syncHelp}</p>
-                <p>{w.uncertainty}</p>
-              </>
-            )}
-            {category === "windows-microsoft-and-dev-tools" && (
-              <p className="warning">{h.windowsWarning}</p>
-            )}
-          </section>
-        ))}
-      </div>
-      {report.accounts.some((a) =>
-        a.sections.some((s) => s.items.some(retryable)),
-      ) && (
-        <>
-          <p>{w.retryHelp}</p>
-          <button type="button" disabled={working} onClick={retry}>
-            {w.retry}
-          </button>
-        </>
+        <span className={`status-pill ${clean ? "success" : "warning"}`}>
+          {clean ? "Verified locally" : "Needs attention"}
+        </span>
+      </Hero>
+      <p className="scope-note">
+        Local cleanup only. Remote sessions remain active. Windows or browser
+        sync can sign you in again.
+      </p>
+      {back && (
+        <button
+          className="primary result-primary"
+          type="button"
+          onClick={back}
+          disabled={working}
+        >
+          Back to overview
+        </button>
       )}
-      {canExport && (
-        <div className="flow-actions">
-          <button
-            type="button"
-            disabled={exporting || working}
-            onClick={() => void save("json")}
-          >
-            {w.json}
-          </button>
-          <button
-            type="button"
-            disabled={exporting || working}
-            onClick={() => void save("text")}
-          >
-            {w.text}
-          </button>
+      <ul className="result-list" aria-label="Results by item">
+        {[...entries]
+          .sort(
+            (left, right) =>
+              Number(needsAttention(right.item)) -
+              Number(needsAttention(left.item)),
+          )
+          .map(({ account, item }) => (
+            <li key={JSON.stringify([account, item.instance])}>
+              <DotIcon
+                name={needsAttention(item) ? "attention" : "check"}
+                size={24}
+              />
+              <div className="result-copy">
+                <strong>{name(account, item)}</strong>
+                {report.account_mode === "all-accounts" && (
+                  <span className="muted">{account}</span>
+                )}
+                <p>
+                  {needsAttention(item)
+                    ? attentionReason(item)
+                    : "Selected session data verified absent."}
+                </p>
+                <details>
+                  <summary>Local data details</summary>
+                  <ItemEffects item={item} />
+                </details>
+              </div>
+              {retryable(item) ? (
+                <button
+                  className="small-button"
+                  type="button"
+                  disabled={working}
+                  onClick={() => retry(item.instance, account)}
+                  aria-label={`Retry ${name(account, item)}${report.account_mode === "all-accounts" ? ` (${account})` : ""}`}
+                >
+                  Retry
+                </button>
+              ) : (
+                <span
+                  className={`status-pill ${needsAttention(item) ? "warning" : "success"}`}
+                >
+                  {needsAttention(item) ? "Check" : "Done"}
+                </span>
+              )}
+            </li>
+          ))}
+        {report.skipped.map((item) => (
+          <li key={`skipped-${item.account}-${item.instance}`}>
+            <DotIcon name="attention" size={24} />
+            <div className="result-copy">
+              <strong>{item.name}</strong>
+              <p>Skipped by choice. No cleanup requested.</p>
+            </div>
+            <span className="status-pill warning">Skipped</span>
+          </li>
+        ))}
+      </ul>
+      {hasGaps && (
+        <div className="coverage-note">
+          <span className="status-pill warning">Coverage incomplete</span>
+          <p>
+            {coverage.length
+              ? "The scan could not verify all local stores. "
+              : ""}
+            {report.skipped.length
+              ? `${report.skipped.length} items were skipped. `
+              : ""}
+            {accountGaps.length
+              ? "Some account or category results are incomplete. "
+              : ""}
+            {!entries.length && !report.skipped.length
+              ? "No selected item results were returned."
+              : ""}
+          </p>
+          {accountGaps.map((account) => (
+            <p key={account.account}>
+              {account.account === "current-account"
+                ? "Your Windows account"
+                : account.account}
+              :{" "}
+              {account.residual_hive
+                ? w.residualHive
+                : "Some local coverage is unresolved."}
+            </p>
+          ))}
         </div>
       )}
-      {message && <p role="status">{message}</p>}
+      <details className="report-details">
+        <summary>Report & coverage</summary>
+        <p>{w.remainsHelp}</p>
+        <p>Identity, sync and remote sign-out have not been verified.</p>
+        {canExport && (
+          <div className="flow-actions">
+            <button
+              type="button"
+              disabled={exporting || working}
+              onClick={() => void save("json")}
+            >
+              Save JSON report
+            </button>
+            <button
+              type="button"
+              disabled={exporting || working}
+              onClick={() => void save("text")}
+            >
+              Save text report
+            </button>
+          </div>
+        )}
+        {message && <p role="status">{message}</p>}
+      </details>
     </section>
   );
 }

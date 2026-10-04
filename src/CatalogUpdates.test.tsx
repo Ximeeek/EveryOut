@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import CatalogUpdates from "./CatalogUpdates";
-import * as api from "./api";
+import * as api from "./client";
 
-vi.mock("./api", () => ({
+vi.mock("./client", () => ({
   checkCatalogUpdates: vi.fn(),
   activateCatalogUpdate: vi.fn(),
 }));

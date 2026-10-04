@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { buildPlan, cancel, closeReviewed, dryRun, execute, scan } from "./api";
+import {
+  buildPlan,
+  cancel,
+  closeReviewed,
+  dryRun,
+  execute,
+  scan,
+} from "./client";
 import type {
   ExecuteRequest,
   ItemDto,
@@ -10,6 +17,9 @@ import type {
   Stage,
 } from "./api";
 import Reports, { ItemEffects } from "./Reports";
+import Hero from "./Hero";
+import HoldButton from "./HoldButton";
+import CategorySummary from "./CategorySummary";
 import {
   acknowledgedCounts,
   categories,
@@ -17,12 +27,13 @@ import {
   freshSelection,
   reportItems,
   retryable,
+  needsAttention,
   targetsFor,
 } from "./wipe";
 import type { Target } from "./wipe";
 import {
-  categoryNames,
   homeStrings as h,
+  shortCategoryNames,
   lossDescriptions,
   riskNames,
   stageNames,
@@ -47,7 +58,7 @@ export default function WipeFlow({
     targetsFor(inventory, selection),
   );
   const [skipped, setSkipped] = useState<Target[]>([]);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+
   const [working, setWorking] = useState(true);
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -91,17 +102,8 @@ export default function WipeFlow({
       e.item.confirmations.length > 0 ||
       e.item.loss !== "none",
   );
-  const approved =
-    !!plan &&
-    riskEntries.every((e) =>
-      (e.item.risks.length ? e.item.risks : ["effects"]).every(
-        (flag) => checked[key(e.account, e.item, flag)],
-      ),
-    ) &&
-    (!plan.category_tokens.length || checked.windows) &&
-    (!force || checked.force);
   function request(): ExecuteRequest {
-    if (!plan || !approved) throw new Error("unapproved");
+    if (!plan) throw new Error("missing-plan");
     return {
       plan_id: plan.plan_id,
       confirmed_risks: riskEntries.map((e) => ({
@@ -110,13 +112,10 @@ export default function WipeFlow({
         flags: e.item.risks,
         confirmations: e.item.confirmations,
       })),
-      category_tokens: checked.windows
-        ? plan.category_tokens.map((t) => t.token)
+      category_tokens: plan.category_tokens.map((token) => token.token),
+      force_close_accounts: force
+        ? plan.report.accounts.map((a) => a.account)
         : [],
-      force_close_accounts:
-        force && checked.force
-          ? plan.report.accounts.map((a) => a.account)
-          : [],
     };
   }
   function name(account: string, item: ItemDto) {
@@ -133,7 +132,7 @@ export default function WipeFlow({
     setError(null);
     const approval = close ? request() : null;
     setPlan(null);
-    setChecked({});
+
     try {
       if (approval) await closeReviewed(approval);
       const fresh = await scan();
@@ -177,7 +176,6 @@ export default function WipeFlow({
   async function start() {
     if (
       !plan ||
-      !approved ||
       operation.current ||
       running ||
       (!force && blockers.length > 0)
@@ -284,9 +282,13 @@ export default function WipeFlow({
       setCancelled(false);
     }
   }
-  function retry() {
+  function retry(instance?: string, account?: string) {
     if (!report) return;
-    const failed = reportItems(report).filter((e) => retryable(e.item));
+    const failed = reportItems(report).filter(
+      (e) =>
+        retryable(e.item) &&
+        (!instance || (e.item.instance === instance && e.account === account)),
+    );
     const next = targets.filter((t) =>
       failed.some(
         (e) => e.account === t.account && e.item.provider === t.provider,
@@ -298,227 +300,235 @@ export default function WipeFlow({
     }
     void refresh(next);
   }
-  function checkbox(id: string, label: string) {
-    return (
-      <label className="choice">
-        <input
-          type="checkbox"
-          checked={!!checked[id]}
-          disabled={working}
-          onChange={(e) =>
-            setChecked((old) => ({ ...old, [id]: e.target.checked }))
-          }
-        />
-        {label}
-      </label>
-    );
-  }
+  const counts = Object.fromEntries(
+    categories.map((category) => [
+      category,
+      targets.filter((t) => t.category === category).length,
+    ]),
+  ) as Record<import("./api").Category, number>;
+  const statuses = Object.fromEntries(
+    categories.map((category) => {
+      const sections =
+        (report ?? plan?.report)?.accounts.flatMap((a) =>
+          a.sections.filter((c) => c.category === category),
+        ) ?? [];
+      const items = sections.flatMap((c) => c.items);
+      const done = items.filter((item) => !needsAttention(item)).length;
+      const stages =
+        plan?.report.accounts
+          .map((a) => progress[JSON.stringify([a.account, category])])
+          .filter(Boolean) ?? [];
+      return [
+        category,
+        !counts[category]
+          ? "Not selected"
+          : done === items.length && done > 0
+            ? "Verified locally"
+            : stages.length
+              ? stageNames[stages[stages.length - 1]]
+              : "Waiting",
+      ];
+    }),
+  );
   return (
-    <div className="wipe-flow" aria-busy={working}>
+    <div className="wipe-flow">
       {error && (
         <p className="notice error" role="alert">
           {error}
         </p>
       )}
-      {working && !running && <p role="status">{w.loading}</p>}
-      {skipped.length > 0 && !report && (
-        <aside className="warning">
-          <p>{w.skipped}</p>
-          <ul>
-            {skipped.map((t, i) => (
-              <li key={i}>
-                {categoryNames[t.category]} · {t.account} · {t.name}
-              </li>
-            ))}
-          </ul>
-        </aside>
-      )}
-      {plan && !report && !running && (
+      {working && !running && (
         <>
-          <h3>{w.review}</h3>
-          {categories.map((category) => (
-            <section
-              key={category}
-              aria-label={categoryNames[category]}
-              className="category"
-            >
-              <h4>{categoryNames[category]}</h4>
-              {entries.filter((e) => e.category === category).length === 0 && (
-                <p>{h.empty}</p>
-              )}
-              {entries
-                .filter((e) => e.category === category)
-                .map((e) => (
-                  <article key={`${e.account}-${e.item.instance}`}>
-                    <h5>
-                      {name(e.account, e.item)} · {e.account}
-                    </h5>
-                    <ItemEffects item={e.item} preview />
-                    {inventory.groups
-                      .flatMap((g) => g.items)
-                      .some(
-                        (i) =>
-                          i.provider === e.item.provider &&
-                          i.account === e.account &&
-                          i.unverified,
-                      ) && <p className="warning">{w.unverified}</p>}
-                  </article>
-                ))}
-              {category === "browser" &&
-                entries.some((e) => e.category === category) && (
-                  <p className="warning">{h.syncHelp}</p>
-                )}
-              {category === "windows-microsoft-and-dev-tools" &&
-                entries.some((e) => e.category === category) && (
-                  <p className="warning">{h.windowsWarning}</p>
-                )}
-            </section>
-          ))}
-          {riskEntries.length > 0 && (
-            <fieldset disabled={working}>
-              <legend>{w.riskHeading}</legend>
-              <p>{w.lossHelp}</p>
-              {riskEntries.map((e) => (
-                <div key={key(e.account, e.item, "risks")}>
-                  <h4>
-                    {name(e.account, e.item)} · {e.account}
-                  </h4>
-                  {e.item.affected_data.length > 0 && (
-                    <p>{e.item.affected_data.join(", ")}</p>
-                  )}
-                  {e.item.risks.length
-                    ? e.item.risks.map((flag) => (
-                        <div key={flag}>
-                          <p>{lossDescriptions[flag]}</p>
-                          {checkbox(
-                            key(e.account, e.item, flag),
-                            `${name(e.account, e.item)} · ${e.account}: ${riskNames[flag]}`,
-                          )}
-                        </div>
-                      ))
-                    : checkbox(
-                        key(e.account, e.item, "effects"),
-                        `${name(e.account, e.item)}: ${w.confirmEffect}`,
-                      )}
-                </div>
-              ))}
-            </fieldset>
-          )}
-          {plan.category_tokens.length > 0 && (
-            <fieldset disabled={working}>
-              <legend>{w.windowsHeading}</legend>
-              <p className="warning">{h.windowsWarning}</p>
-              {checkbox("windows", w.windowsConfirm)}
-            </fieldset>
-          )}
-          <section aria-label={w.processes}>
-            <h4>{w.processes}</h4>
-            {blockers.length ? (
-              <ul>
-                {blockers.map((e) => (
-                  <li key={key(e.account, e.item, "processes")}>
-                    {name(e.account, e.item)} · {e.account}
-                    <ul>
-                      {e.item.processes.map((p) => (
-                        <li key={p}>{p}</li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>{w.none}</p>
+          <Hero
+            meta="READ ONLY · LOCAL SCAN"
+            title="Checking the details"
+            description="Reviewing the selected data before anything is removed."
+            icon="grid"
+            animated
+          />
+          <CategorySummary counts={counts} />
+          <p className="control-help" role="status">
+            Preparing your local cleanup plan…
+          </p>
+        </>
+      )}
+      {!working && !plan && !report && (
+        <>
+          <Hero
+            meta="NOTHING HAS BEEN REMOVED"
+            title="Couldn’t prepare cleanup"
+            description="Return to the overview to run a fresh scan."
+            icon="attention"
+          />
+          <button className="primary" type="button" onClick={back}>
+            Scan again
+          </button>
+        </>
+      )}
+      {plan && !report && !running && !working && (
+        <>
+          <Hero
+            meta="REVIEW · NOTHING REMOVED YET"
+            title={
+              !force && blockers.length
+                ? "Save your work first"
+                : "Ready to let go?"
+            }
+            description={
+              !force && blockers.length
+                ? "Selected programs are open. Save your work before requesting a gentle close."
+                : "This permanently removes the selected local session data. There is no undo."
+            }
+          />
+          <CategorySummary counts={counts} />
+          <div className="confirmation-notice">
+            <span className="status-pill warning">Permanent deletion</span>
+            <p>
+              {riskEntries.length
+                ? `Also at risk: ${[...new Set(riskEntries.flatMap((e) => (e.item.affected_data.length ? e.item.affected_data : e.item.risks.map((risk) => riskNames[risk]))))].join(", ") || "local-only data"}.`
+                : "Local-only drafts, documents or settings may be lost with session data."}
+            </p>
+            {plan.category_tokens.length > 0 && (
+              <p>
+                Windows stays signed in. Windows sign-in can restore browser or
+                Office sessions.
+              </p>
             )}
-            {force ? (
-              <>
-                <p className="warning">{s.forceWarning}</p>
-                {checkbox("force", w.forceConfirm)}
-              </>
-            ) : (
-              <>
-                <p>{w.askHelp}</p>
-                {blockers.length > 0 && (
-                  <div className="flow-actions">
-                    <button
-                      type="button"
-                      disabled={working || !approved}
-                      onClick={() => void refresh(targets, true)}
-                    >
-                      {w.close}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={working}
-                      onClick={() => void refresh(targets)}
-                    >
-                      {w.refresh}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={working}
-                      onClick={skipBlocked}
-                    >
-                      {w.skip}
-                    </button>
-                  </div>
-                )}
-              </>
+            {force && <p>{s.forceWarning}</p>}
+            {blockers.length > 0 && (
+              <p>
+                Programs to {force ? "force close" : "close gently"}:{" "}
+                {[
+                  ...new Set(
+                    blockers.map((entry) => name(entry.account, entry.item)),
+                  ),
+                ].join(", ")}
+                .
+              </p>
             )}
-          </section>
+            <p className="muted">
+              Holding confirms the listed data loss
+              {plan.category_tokens.length
+                ? ", Windows sign-in limitations"
+                : ""}
+              {force ? " and force closing the listed programs" : ""}.
+            </p>
+          </div>
+          <HoldButton
+            key={plan.plan_id}
+            label={
+              !force && blockers.length
+                ? "Hold to close programs"
+                : entries.length
+                  ? "Hold to log out locally"
+                  : "Hold to finish report"
+            }
+            onConfirm={() => {
+              if (!force && blockers.length) void refresh(targets, true);
+              else void start();
+            }}
+          />
+          <details className="review-details">
+            <summary>
+              Review {entries.length} selected{" "}
+              {entries.length === 1 ? "item" : "items"} & data loss
+            </summary>
+            {entries.map((e) => (
+              <article key={key(e.account, e.item, "review")}>
+                <h3>
+                  {name(e.account, e.item)}{" "}
+                  <span className="muted">
+                    ·{" "}
+                    {e.account === "current-account"
+                      ? "Your Windows account"
+                      : e.account}{" "}
+                    · {shortCategoryNames[e.category]}
+                  </span>
+                </h3>
+                <ItemEffects item={e.item} preview />
+                {e.item.risks.map((risk) => (
+                  <p key={risk}>{lossDescriptions[risk]}</p>
+                ))}
+                {e.item.affected_data.length > 0 && (
+                  <p>Data at risk: {e.item.affected_data.join(", ")}</p>
+                )}
+                {e.item.processes.length > 0 && (
+                  <p>Open programs: {e.item.processes.join(", ")}</p>
+                )}
+              </article>
+            ))}
+            {inventory.groups
+              .flatMap((g) => g.items)
+              .some((i) => selection.items.includes(i.id) && i.unverified) && (
+              <p>{w.unverified}</p>
+            )}
+            {entries.some((e) => e.category === "browser") && (
+              <p>{h.syncHelp}</p>
+            )}
+          </details>
+          {!force && blockers.length > 0 && (
+            <div className="flow-actions">
+              <button type="button" onClick={() => void refresh(targets)}>
+                I closed them — check again
+              </button>
+              <button type="button" onClick={skipBlocked}>
+                Skip open programs
+              </button>
+            </div>
+          )}
+          {skipped.length > 0 && (
+            <p className="scope-note">
+              {skipped.length} {skipped.length === 1 ? "item" : "items"} skipped
+              by choice. No cleanup requested for them.
+            </p>
+          )}
           <button
-            className="primary"
+            className="text-button back-button"
             type="button"
-            disabled={working || !approved || (!force && blockers.length > 0)}
-            onClick={() => void start()}
+            onClick={back}
           >
-            {entries.length ? w.execute : w.finishSkipped}
+            Back to overview
           </button>
         </>
       )}
       {running && (
-        <section aria-label={w.executing}>
-          <h3>{w.executing}</h3>
-          <ul aria-live="polite">
-            {plan?.report.accounts.flatMap((a) =>
-              categories
-                .filter((c) =>
-                  a.sections.some(
-                    (section) =>
-                      section.category === c && section.items.length > 0,
-                  ),
-                )
-                .map((c) => (
-                  <li key={`${a.account}-${c}`}>
-                    {a.account} · {categoryNames[c]}:{" "}
-                    {progress[JSON.stringify([a.account, c])]
-                      ? stageNames[progress[JSON.stringify([a.account, c])]]
-                      : stageNames.review}
-                  </li>
-                )),
-            )}
-          </ul>
+        <>
+          <Hero
+            meta="IN PROGRESS · ON THIS DEVICE"
+            title="Letting go"
+            description="Clearing selected local sessions, then checking what remains."
+            icon="grid"
+            animated
+          />
+          <div aria-live="polite">
+            <CategorySummary counts={counts} statuses={statuses} active />
+          </div>
+          <p className="progress-caption" role="status">
+            {cancelled
+              ? "Stopping after the current operation. Completed changes will remain."
+              : "You can stop the remaining work. Completed changes cannot be undone."}
+          </p>
           <button
+            className="secondary cancel-button"
             type="button"
             disabled={cancelled}
             onClick={() => void stop()}
           >
-            {w.cancel}
+            {cancelled ? "Stopping…" : "Stop remaining work"}
           </button>
-          {cancelled && <p role="status">{w.cancelling}</p>}
-        </section>
+        </>
       )}
-      {report && !running && (
+      {report && !running && !working && (
         <Reports
           report={report}
           name={name}
           retry={retry}
           working={working}
           canExport={complete}
+          back={back}
+          coverage={inventory.coverage}
         />
       )}
-      <button type="button" disabled={working || running} onClick={back}>
-        {w.recover}
-      </button>
     </div>
   );
 }

@@ -1,20 +1,12 @@
-import { emptyHome, scopes, isSelected, selectionRequest } from "./selection";
+import { scopes } from "./selection";
 import type { HomeState } from "./selection";
 import { useRef, useEffect } from "react";
-import { scan } from "./api";
-import type {
-  Category,
-  Confidence,
-  DetectedItem,
-  SelectionRequest,
-} from "./api";
+import type { Category, Confidence, DetectedItem } from "./api";
 import {
   categoryNames,
-  commandErrors,
   homeStrings as h,
   riskNames,
   signalNames,
-  unknownError,
 } from "./strings";
 const categories = Object.keys(categoryNames) as Category[];
 
@@ -54,25 +46,11 @@ export default function Home({
   state,
   update,
   busy,
-  setBusy,
-  review,
-  disabled,
 }: {
   state: HomeState;
   update: (state: HomeState) => void;
   busy: boolean;
-  setBusy: (value: boolean) => void;
-  review: (selection: SelectionRequest) => void;
-  disabled: boolean;
 }) {
-  const scanning = useRef(false);
-  const active = useRef(true);
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-    };
-  }, []);
   const detections =
     state.inventory?.groups.flatMap((g) =>
       g.items.map((item) => ({
@@ -81,39 +59,6 @@ export default function Home({
         confidence: g.confidence,
       })),
     ) ?? [];
-  async function startScan() {
-    if (scanning.current || disabled) return;
-    scanning.current = true;
-    setBusy(true);
-    update(emptyHome);
-    try {
-      const inventory = await scan();
-      const selected: Record<string, string[]> = {};
-      for (const group of inventory.groups)
-        for (const item of group.items) {
-          if (
-            group.confidence === "high" &&
-            group.category &&
-            item.selectable &&
-            item.default_selected
-          )
-            selected[item.id] = scopes(item);
-        }
-      if (active.current) update({ inventory, selected, error: null });
-    } catch (error: unknown) {
-      if (active.current)
-        update({
-          ...emptyHome,
-          error:
-            typeof error === "string" && Object.hasOwn(commandErrors, error)
-              ? commandErrors[error as keyof typeof commandErrors]
-              : unknownError,
-        });
-    } finally {
-      scanning.current = false;
-      if (active.current) setBusy(false);
-    }
-  }
   function toggle(items: DetectedItem[], checked: boolean) {
     const selected = { ...state.selected };
     for (const item of items.filter((i) => i.selectable)) {
@@ -255,23 +200,9 @@ export default function Home({
       );
     });
   }
-  const request = selectionRequest(state);
+
   return (
     <div className="home-selection">
-      <button
-        className="primary"
-        type="button"
-        disabled={busy || disabled}
-        onClick={() => void startScan()}
-      >
-        {busy ? h.scanning : h.scan}
-      </button>
-      {busy && <p role="status">{h.scanning}</p>}
-      {state.error && (
-        <p className="notice error" role="alert">
-          {state.error}
-        </p>
-      )}
       {state.inventory && (
         <>
           {state.inventory.coverage.length > 0 && (
@@ -314,29 +245,6 @@ export default function Home({
           )}
         </>
       )}
-      <div className="selection-summary" aria-label={h.reviewTitle}>
-        {categories.map((category) => (
-          <span key={category}>
-            {categoryNames[category]}:{" "}
-            {
-              detections.filter(
-                (d) => d.category === category && isSelected(state, d.item),
-              ).length
-            }{" "}
-            {h.selected}
-          </span>
-        ))}
-        <button
-          className="primary"
-          type="button"
-          disabled={busy || !request?.items.length}
-          onClick={() => {
-            if (request?.items.length) review(request);
-          }}
-        >
-          {h.review}
-        </button>
-      </div>
     </div>
   );
 }
