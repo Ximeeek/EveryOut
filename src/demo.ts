@@ -13,6 +13,7 @@ let plan: PlanDto | null = null;
 let lastReport: ReportDto | null = null;
 let sink: ((event: WipeEvent) => void) | null = null;
 let programsClosed = false;
+let scanNumber = 0;
 const timers = new Set<ReturnType<typeof setTimeout>>();
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -52,6 +53,14 @@ export const demo: typeof native = {
     await delay(450);
     if (scenario === "error") throw "worker-unavailable";
     const inventory = demoInventory();
+    if (scenario === "rescan" && scanNumber++ % 2 === 1) {
+      inventory.groups[0].items.push({
+        ...inventory.groups[0].items[0],
+        id: "New app",
+        name: "New app",
+      });
+      inventory.groups[1].items.pop();
+    }
     inventory.mode = settings.account_mode;
     if (scenario === "empty") inventory.groups = [];
     return inventory;

@@ -81,7 +81,9 @@ it("automatically scans current-account metadata on first launch with one primar
   expect(api.enableAllAccountsMode).not.toHaveBeenCalled();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(document.querySelectorAll(".primary")).toHaveLength(1);
-  expect(screen.getByText("4 selected")).toBeVisible();
+  expect(
+    screen.getByRole("checkbox", { name: "Apps: 4 of 4 selected" }),
+  ).toBeVisible();
 });
 
 it("reaches confirmation in one click and never executes on the initial action", async () => {
@@ -143,6 +145,9 @@ it("requires acknowledgment before saving force-close preferences", async () => 
     process_close_policy: "hard-kill-after2s",
     first_run_completed: true,
   });
+  await waitFor(() =>
+    expect(screen.getByRole("radio", { name: s.ask })).toBeEnabled(),
+  );
   await user.click(screen.getByRole("radio", { name: s.ask }));
   await user.click(screen.getByRole("button", { name: s.save }));
   await waitFor(() =>
@@ -268,4 +273,56 @@ it("keeps all privacy boundaries available behind the single secondary entry", a
     expect(screen.getByText(heading)).toBeVisible();
     expect(screen.getByText(description)).toBeVisible();
   }
+});
+
+it("selects and clears categories on the overview with keyboard navigation", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Log out locally/ });
+  const apps = screen.getByRole("checkbox", { name: "Apps: 4 of 4 selected" });
+  expect(apps).toBeChecked();
+  apps.focus();
+  await user.keyboard(" ");
+  expect(apps).not.toBeChecked();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "4 sessions will be cleared",
+  );
+  await user.keyboard("{ArrowRight}");
+  const browsers = screen.getByRole("checkbox", {
+    name: "Browsers: 2 of 2 selected",
+  });
+  expect(browsers).toHaveFocus();
+  await user.keyboard("{Enter}{ArrowRight}{Enter}");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "Nothing selected",
+  );
+  expect(
+    screen.getByRole("button", { name: /Log out locally/ }),
+  ).toBeDisabled();
+  await user.keyboard("{ArrowRight}{Enter}");
+  expect(screen.getByRole("button", { name: /Log out locally/ })).toBeEnabled();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "4 sessions will be cleared",
+  );
+  expect(api.execute).not.toHaveBeenCalled();
+});
+it("shows independent rescan deltas while preserving previous counts during the scan", async () => {
+  const user = userEvent.setup();
+  const next = demoInventory();
+  next.groups[0].items.push({ ...next.groups[0].items[0], id: "new-app" });
+  next.groups[1].items.pop();
+  vi.mocked(api.scan)
+    .mockResolvedValueOnce(demoInventory())
+    .mockResolvedValueOnce(next);
+  render(<App />);
+  await screen.findByRole("button", { name: /Log out locally/ });
+  await user.click(screen.getByRole("button", { name: "Scan again" }));
+  expect(
+    screen.getByRole("checkbox", { name: "Apps: 4 of 4 selected" }),
+  ).toBeDisabled();
+  expect(screen.queryByText("Checking…")).not.toBeInTheDocument();
+  expect(await screen.findByText("+1")).toBeVisible();
+  expect(screen.getByText("−1")).toBeVisible();
+  expect(screen.getByText("No change")).toBeVisible();
+  expect(api.execute).not.toHaveBeenCalled();
 });

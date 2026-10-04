@@ -54,10 +54,24 @@ fn command_acl_allows_only_local_main_window() {
     }
     let capability: serde_json::Value =
         serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
-    assert_eq!(capability["permissions"].as_array().unwrap().len(), 13);
+    assert_eq!(capability["permissions"].as_array().unwrap().len(), 21);
     assert!(capability["permissions"]
         .as_array()
         .unwrap()
         .iter()
-        .all(|p| p.as_str().unwrap().starts_with("allow-")));
+        .all(|p| {
+            let permission = p.as_str().unwrap();
+            permission.starts_with("allow-")
+                || [
+                    "core:window:allow-minimize",
+                    "core:window:allow-toggle-maximize",
+                    "core:window:allow-close",
+                    "core:window:allow-start-dragging",
+                    "core:window:allow-internal-toggle-maximize",
+                    "core:window:allow-is-maximized",
+                    "core:event:allow-listen",
+                    "core:event:allow-unlisten",
+                ]
+                .contains(&permission)
+        }));
 }

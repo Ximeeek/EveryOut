@@ -21,9 +21,15 @@ import {
   defaultSelection,
   selectionRequest,
   isSelected,
+  categoryItems,
+  detectedCounts,
+  categoryDeltas,
+  toggleCategory,
 } from "./selection";
 import DotIcon from "./DotIcon";
 import Hero from "./Hero";
+import TitleBar from "./TitleBar";
+import { motionStyle, visibleScan } from "./motion";
 import CategorySummary from "./CategorySummary";
 import { categories } from "./wipe";
 import type { HomeState } from "./selection";
@@ -202,6 +208,16 @@ export default function App() {
   const [formVersion, setFormVersion] = useState(0);
   const [home, updateHome] = useState<HomeState>(emptyHome);
   const [selection, storeSelection] = useState<SelectionRequest | null>(null);
+  const [deltas, setDeltas] = useState<
+    ReturnType<typeof categoryDeltas> | undefined
+  >();
+  const [scanVersion, setScanVersion] = useState(0);
+  const [hidden, setHidden] = useState(document.hidden);
+  useEffect(() => {
+    const changed = () => setHidden(document.hidden);
+    document.addEventListener("visibilitychange", changed);
+    return () => document.removeEventListener("visibilitychange", changed);
+  }, []);
   const saving = useRef(false);
   const scanOperation = useRef(false);
   const initialScan = useRef<{
@@ -232,7 +248,7 @@ export default function App() {
     if (!settings || settings.account_mode !== "current") return;
     let active = true;
     if (initialScan.current?.settings !== settings)
-      initialScan.current = { settings, promise: scan() };
+      initialScan.current = { settings, promise: visibleScan(scan) };
     initialScan.current.promise
       .then((inventory) => {
         if (active) updateHome(defaultSelection(inventory));
@@ -263,7 +279,9 @@ export default function App() {
     scanOperation.current = true;
     setScanning(true);
     setNotice(null);
-    invalidate();
+    storeSelection(null);
+    setDeltas(undefined);
+    const previous = home;
     try {
       if (settings.account_mode === "all-accounts") {
         const result = await enableAllAccountsMode();
@@ -276,8 +294,10 @@ export default function App() {
           return;
         }
       }
-      const next = defaultSelection(await scan());
+      const next = defaultSelection(await visibleScan(scan));
       updateHome(next);
+      if (previous.inventory) setDeltas(categoryDeltas(previous, next));
+      setScanVersion((version) => version + 1);
       const request = selectionRequest(next);
       if (openReview && request?.items.length) {
         storeSelection(request);
@@ -342,20 +362,21 @@ export default function App() {
   ) as Record<Category, number>;
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const unavailable =
-    home.inventory?.groups
-      .flatMap((g) => g.items)
-      .filter((item) => !isSelected(home, item)).length ?? 0;
+    (home.inventory?.groups.flatMap((g) => g.items).length ?? 0) -
+    categories.reduce(
+      (sum, category) => sum + categoryItems(home, category).length,
+      0,
+    );
   const ready = !!home.inventory && total > 0;
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${hidden ? " motion-paused" : ""}`}
+      style={motionStyle}
+    >
       <a className="skip-link" href="#content">
         {s.skip}
       </a>
-      <header className="app-header">
-        <div className="brand">
-          <DotIcon name="logout" size={24} />
-          <span>EveryOut</span>
-        </div>
+      <TitleBar>
         <button
           className="text-button"
           type="button"
@@ -365,7 +386,7 @@ export default function App() {
           <DotIcon name={page === "advanced" ? "back" : "settings"} size={20} />
           {page === "advanced" ? "Back to overview" : "Customize & settings"}
         </button>
-      </header>
+      </TitleBar>
       <main id="content" tabIndex={-1}>
         <NoticeView notice={notice} dismiss={() => setNotice(null)} />
         {!settings ? (
@@ -477,6 +498,7 @@ export default function App() {
                   {[
                     "idle",
                     "scanning",
+                    "rescan",
                     "preparing",
                     "running",
                     "partial",
@@ -512,7 +534,9 @@ export default function App() {
                     ? "Couldn’t scan this device"
                     : home.inventory && !total
                       ? "Nothing selected"
-                      : "Leave your sessions behind."
+                      : home.inventory
+                        ? `${total} ${total === 1 ? "session" : "sessions"} will be cleared`
+                        : "Leave your sessions behind."
               }
               description={
                 scanning
@@ -533,13 +557,15 @@ export default function App() {
               )}
             </Hero>
             <CategorySummary
+              key={scanVersion}
               counts={counts}
-              statuses={
-                scanning
-                  ? Object.fromEntries(
-                      categories.map((category) => [category, "Checking…"]),
-                    )
-                  : undefined
+              totals={detectedCounts(home)}
+              state={home}
+              scanning={scanning}
+              disabled={busy || scanning || !home.inventory}
+              deltas={deltas}
+              toggle={(category) =>
+                updateHome((state) => toggleCategory(state, category))
               }
             />
             {home.error && (
@@ -559,7 +585,7 @@ export default function App() {
               }}
             >
               <span>
-                <DotIcon name="logout" size={24} />
+                <DotIcon name="logout" size={36} />
                 {scanning
                   ? "Checking local accounts…"
                   : home.error
@@ -570,15 +596,13 @@ export default function App() {
                         : "Check local accounts"
                       : "Log out locally"}
               </span>
-              <span className="button-meta">
-                {ready ? "REVIEW FIRST" : "READ ONLY"}
-              </span>
+              <span className="button-meta">{ready ? "REVIEW FIRST" : ""}</span>
             </button>
             <p className="control-help">
               {ready
                 ? "Review the data, then hold to confirm. Nothing is removed yet."
                 : home.inventory
-                  ? "Choose items in Customize & settings, or scan again."
+                  ? "Choose categories above, or scan again."
                   : settings.account_mode === "all-accounts"
                     ? "Administrator access is requested only when you choose to check."
                     : "Session data is never read or sent."}
@@ -592,7 +616,14 @@ export default function App() {
                 {home.inventory?.coverage.length
                   ? "Some local stores could not be checked. "
                   : ""}
-                Customize to review.
+                <button
+                  className="coverage-link"
+                  type="button"
+                  disabled={busy || scanning}
+                  onClick={() => setPage("advanced")}
+                >
+                  Review detected items
+                </button>
               </p>
             )}
             {home.inventory && (

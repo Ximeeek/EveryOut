@@ -1,4 +1,5 @@
-import type { DetectedItem, ScanDto, SelectionRequest } from "./api";
+import type { Category, DetectedItem, ScanDto, SelectionRequest } from "./api";
+import { categories } from "./wipe";
 
 export type HomeState = {
   inventory: ScanDto | null;
@@ -18,16 +19,72 @@ export function defaultSelection(inventory: ScanDto): HomeState {
   const selected: HomeState["selected"] = {};
   for (const group of inventory.groups) {
     for (const item of group.items) {
-      if (
-        group.category &&
-        group.confidence === "high" &&
-        item.selectable &&
-        item.default_selected
-      )
+      if (group.category && group.confidence === "high" && item.selectable)
         selected[item.id] = scopes(item);
     }
   }
   return { inventory, selected, error: null };
+}
+export function categoryItems(state: HomeState, category: Category) {
+  return (
+    state.inventory?.groups
+      .filter(
+        (group) => group.category === category && group.confidence === "high",
+      )
+      .flatMap((group) => group.items)
+      .filter((item) => item.selectable) ?? []
+  );
+}
+
+export function detectedCounts(state: HomeState): Record<Category, number> {
+  return Object.fromEntries(
+    categories.map((category) => [
+      category,
+      state.inventory?.groups
+        .filter((group) => group.category === category)
+        .reduce((sum, group) => sum + group.items.length, 0) ?? 0,
+    ]),
+  ) as Record<Category, number>;
+}
+
+export function toggleCategory(
+  state: HomeState,
+  category: Category,
+): HomeState {
+  const items = categoryItems(state, category);
+  const checked =
+    items.length > 0 &&
+    items.every((item) =>
+      scopes(item).every((scope) => state.selected[item.id]?.includes(scope)),
+    );
+  const selected = { ...state.selected };
+  for (const item of items) selected[item.id] = checked ? [] : scopes(item);
+  return { ...state, selected };
+}
+
+export type CategoryDelta = {
+  previous: number;
+  current: number;
+  change: number;
+  direction: "up" | "down" | "same";
+};
+export function categoryDeltas(previous: HomeState, next: HomeState) {
+  const before = detectedCounts(previous);
+  const after = detectedCounts(next);
+  return Object.fromEntries(
+    categories.map((category) => {
+      const change = after[category] - before[category];
+      return [
+        category,
+        {
+          previous: before[category],
+          current: after[category],
+          change,
+          direction: change > 0 ? "up" : change < 0 ? "down" : "same",
+        },
+      ];
+    }),
+  ) as Record<Category, CategoryDelta>;
 }
 export function selectionRequest(state: HomeState): SelectionRequest | null {
   if (!state.inventory) return null;
