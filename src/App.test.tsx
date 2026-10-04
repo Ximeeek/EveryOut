@@ -326,3 +326,44 @@ it("shows independent rescan deltas while preserving previous counts during the 
   expect(screen.getByText("No change")).toBeVisible();
   expect(api.execute).not.toHaveBeenCalled();
 });
+
+it("keeps the rescan surface stable and preserves unchecked medium-confidence categories", async () => {
+  const user = userEvent.setup();
+  const inventory = demoInventory();
+  inventory.groups.forEach((group) => {
+    group.confidence = "medium";
+  });
+  vi.mocked(api.scan).mockResolvedValue(inventory);
+  render(<App />);
+  await screen.findByRole("button", { name: /Log out locally/ });
+  const apps = screen.getByRole("checkbox", { name: "Apps: 4 of 4 selected" });
+  expect(apps).toBeEnabled();
+  await user.click(apps);
+  const primary = screen.getByRole("button", { name: /Log out locally/ });
+  const description = document.querySelector(".hero-description")!.textContent;
+  const meta = document.querySelector(".hero .meta")!.textContent;
+  await user.click(screen.getByRole("button", { name: "Scan again" }));
+  expect(primary).toHaveTextContent("Log out locally");
+  expect(primary).toHaveClass("scan-pending");
+  expect(document.querySelector(".hero-description")!.textContent).toBe(
+    description,
+  );
+  expect(document.querySelector(".hero .meta")!.textContent).toBe(meta);
+  expect(
+    document.querySelectorAll(".category-summary .dot-animated"),
+  ).toHaveLength(0);
+  expect(
+    screen
+      .getByRole("heading", { name: "Finding your sessions" })
+      .querySelector(".hero-title-text"),
+  ).not.toBeNull();
+  expect(screen.getByText("items selected", { exact: false })).toBeVisible();
+  await screen.findByRole("heading", { name: "4 sessions will be cleared" });
+  expect(
+    screen.getByRole("checkbox", { name: "Apps: 0 of 4 selected" }),
+  ).not.toBeChecked();
+  expect(
+    document.querySelector(".delta-pill.neutral .delta-beacon"),
+  ).not.toBeNull();
+  expect(api.execute).not.toHaveBeenCalled();
+});

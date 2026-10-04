@@ -6,6 +6,7 @@ import {
   defaultSelection,
   selectionRequest,
   toggleCategory,
+  rescanSelection,
 } from "./selection";
 
 it("defaults all supported high-confidence items and their profiles to selected", () => {
@@ -17,6 +18,33 @@ it("defaults all supported high-confidence items and their profiles to selected"
   expect(state.selected.Discord).toEqual(["Discord"]);
   expect(state.selected.Steam).toBeUndefined();
   expect(state.selected.Chrome).toEqual(["Chrome-default", "Chrome-work"]);
+});
+it("allows medium-confidence known providers and keeps unsupported detections excluded", () => {
+  const inventory = demoInventory();
+  inventory.groups.forEach((group) => {
+    group.confidence = "medium";
+  });
+  inventory.groups[0].items[0].selectable = false;
+  const state = defaultSelection(inventory);
+  expect(selectionRequest(state)?.items).toHaveLength(7);
+  expect(state.selected.Chrome).toHaveLength(2);
+  const cleared = toggleCategory(state, "browser");
+  expect(cleared.selected.Chrome).toEqual([]);
+  expect(toggleCategory(cleared, "browser").selected.Chrome).toHaveLength(2);
+  expect(toggleCategory(state, "application").selected.Discord).toBeUndefined();
+});
+it("retains deselected categories and exact surviving profiles on rescan", () => {
+  const before = toggleCategory(
+    defaultSelection(demoInventory()),
+    "application",
+  );
+  before.selected.Chrome = ["Chrome-work"];
+  const inventory = demoInventory();
+  inventory.groups[1].items[0].profiles.push("Chrome-new");
+  const next = rescanSelection(before, inventory);
+  expect(next.selected.Discord).toEqual([]);
+  expect(next.selected.Chrome).toEqual(["Chrome-work"]);
+  expect(selectionRequest(next)?.items).not.toContain("Discord");
 });
 it("toggles only one category, restores all profiles and handles a mixed selection", () => {
   const original = defaultSelection(demoInventory());

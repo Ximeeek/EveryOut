@@ -68,8 +68,11 @@ function DeltaFeedback({ delta }: { delta: CategoryDelta }) {
   return visible ? (
     <span
       role="status"
-      className={`delta-pill status-pill ${delta.direction === "up" ? "success" : delta.direction === "down" ? "warning" : ""}`}
+      className={`delta-pill status-pill ${delta.direction === "up" ? "success" : delta.direction === "down" ? "warning" : "neutral"}`}
     >
+      {delta.direction === "same" && (
+        <span className="delta-beacon" aria-hidden="true" />
+      )}
       {delta.direction === "same"
         ? "No change"
         : `${delta.change > 0 ? "+" : "−"}${Math.abs(delta.change)}`}
@@ -133,7 +136,6 @@ export default function CategorySummary({
             <DotIcon
               name={icons[category]}
               size={36}
-              animated={scanning}
               delta={delta?.direction}
               deltaCount={Math.abs(delta?.change ?? 0)}
             />

@@ -960,6 +960,31 @@ fieldset p {
 .category-cell[aria-checked="false"] {
   color: var(--muted);
 }
+.category-cell:disabled {
+  color: var(--text);
+}
+.category-cell[aria-checked="false"]:disabled {
+  color: var(--muted);
+}
+.primary.scan-pending:disabled {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.hero-title-text {
+  display: block;
+  animation: title-reveal var(--motion-title) ease-out both;
+}
+@keyframes title-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .category-cell:focus-visible {
   outline-offset: -4px;
 }
@@ -980,6 +1005,26 @@ fieldset p {
   right: 10px;
   pointer-events: none;
   animation: delta-feedback var(--motion-delta) both;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+}
+.delta-pill.neutral {
+  color: #c8c8c8;
+  background: var(--surface-raised);
+  border-color: var(--line);
+}
+.delta-beacon {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: feedback-pulse var(--motion-feedbackPulse) ease-in-out infinite;
+}
+@keyframes feedback-pulse {
+  50% {
+    opacity: 0.3;
+  }
 }
 @keyframes delta-feedback {
   0% {

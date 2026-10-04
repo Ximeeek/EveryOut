@@ -8,6 +8,7 @@ export default function Hero({
   description,
   icon = "logout",
   animated = false,
+  animateTitle = false,
   children,
 }: {
   meta: string;
@@ -15,6 +16,7 @@ export default function Hero({
   description: string;
   icon?: DotIconName;
   animated?: boolean;
+  animateTitle?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -24,7 +26,13 @@ export default function Hero({
       </div>
       <p className="meta">{meta}</p>
       <h1 id="flow-title" tabIndex={-1} aria-live="polite" aria-atomic="true">
-        {title}
+        {animateTitle ? (
+          <span key={title} className="hero-title-text">
+            {title}
+          </span>
+        ) : (
+          title
+        )}
       </h1>
       <p className="hero-description">{description}</p>
       {children}

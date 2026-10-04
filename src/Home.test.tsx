@@ -30,6 +30,7 @@ it("keeps uncertain and inaccessible detections out of the default scope", async
         ...inventory.groups[0].items[0],
         id: "uncertain",
         name: "Uncertain app",
+        origin: "heuristic",
       },
     ],
   });

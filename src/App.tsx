@@ -25,6 +25,7 @@ import {
   detectedCounts,
   categoryDeltas,
   toggleCategory,
+  rescanSelection,
 } from "./selection";
 import DotIcon from "./DotIcon";
 import Hero from "./Hero";
@@ -294,7 +295,7 @@ export default function App() {
           return;
         }
       }
-      const next = defaultSelection(await visibleScan(scan));
+      const next = rescanSelection(previous, await visibleScan(scan));
       updateHome(next);
       if (previous.inventory) setDeltas(categoryDeltas(previous, next));
       setScanVersion((version) => version + 1);
@@ -499,6 +500,7 @@ export default function App() {
                     "idle",
                     "scanning",
                     "rescan",
+                    "medium",
                     "preparing",
                     "running",
                     "partial",
@@ -522,11 +524,7 @@ export default function App() {
         ) : (
           <div className="dashboard">
             <Hero
-              meta={
-                scanning
-                  ? "READ ONLY · LOCAL SCAN"
-                  : "YOUR SESSIONS · YOUR DEVICE"
-              }
+              meta="YOUR SESSIONS · YOUR DEVICE"
               title={
                 scanning
                   ? "Finding your sessions"
@@ -539,16 +537,15 @@ export default function App() {
                         : "Leave your sessions behind."
               }
               description={
-                scanning
-                  ? "Checking supported apps and browsers. Your data is untouched."
-                  : home.error
-                    ? "Your data is untouched. Run a fresh scan to try again."
-                    : "Clear supported local sessions in one deliberate action."
+                home.error
+                  ? "Your data is untouched. Run a fresh scan to try again."
+                  : "Clear supported local sessions in one deliberate action."
               }
               icon={scanning ? "grid" : home.error ? "attention" : "logout"}
               animated={scanning}
+              animateTitle
             >
-              {!scanning && ready && (
+              {ready && (
                 <p className="hero-counter">
                   <span>{String(total).padStart(2, "0")}</span>
                   {total === 1 ? "item selected" : "items selected"} on this
@@ -574,7 +571,7 @@ export default function App() {
               </p>
             )}
             <button
-              className="primary"
+              className={`primary${scanning && ready ? " scan-pending" : ""}`}
               type="button"
               disabled={busy || scanning || (!!home.inventory && !total)}
               onClick={() => {
@@ -586,7 +583,7 @@ export default function App() {
             >
               <span>
                 <DotIcon name="logout" size={36} />
-                {scanning
+                {scanning && !home.inventory
                   ? "Checking local accounts…"
                   : home.error
                     ? "Scan again"

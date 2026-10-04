@@ -53,6 +53,14 @@ export const demo: typeof native = {
     await delay(450);
     if (scenario === "error") throw "worker-unavailable";
     const inventory = demoInventory();
+    if (scenario === "medium") {
+      inventory.groups.forEach((group) => {
+        group.confidence = "medium";
+        group.items.forEach((item) => {
+          item.default_selected = false;
+        });
+      });
+    }
     if (scenario === "rescan" && scanNumber++ % 2 === 1) {
       inventory.groups[0].items.push({
         ...inventory.groups[0].items[0],

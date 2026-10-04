@@ -23,6 +23,12 @@ shows an Apps increase, a Browsers decrease and unchanged Windows/dev detections
 counts. Browser checks verified that the pills disappear, the scanning wave runs,
 and reduced motion has no running animations.
 
+[Stable rescan](stable-rescan.png) keeps the selection counter, descriptions,
+category icons and primary action in place while the main glyph and heading
+animate. [No change feedback](no-change-pill.png) shows neutral capsules with a
+pulsing indicator. Both use selectable medium-confidence known providers; browser
+checks verified that category toggles work and unchecked choices survive rescan.
+
 Keyboard checks at all three scales cleared categories using Space/Enter, moved
 focus with arrow keys, disabled the primary action for an empty selection, restored
 selection and opened the deliberate confirmation without opening settings.

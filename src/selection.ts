@@ -19,7 +19,11 @@ export function defaultSelection(inventory: ScanDto): HomeState {
   const selected: HomeState["selected"] = {};
   for (const group of inventory.groups) {
     for (const item of group.items) {
-      if (group.category && group.confidence === "high" && item.selectable)
+      if (
+        group.category &&
+        item.selectable &&
+        (group.confidence === "high" || item.origin === "known-provider")
+      )
         selected[item.id] = scopes(item);
     }
   }
@@ -28,12 +32,32 @@ export function defaultSelection(inventory: ScanDto): HomeState {
 export function categoryItems(state: HomeState, category: Category) {
   return (
     state.inventory?.groups
-      .filter(
-        (group) => group.category === category && group.confidence === "high",
-      )
+      .filter((group) => group.category === category)
       .flatMap((group) => group.items)
       .filter((item) => item.selectable) ?? []
   );
+}
+export function rescanSelection(
+  previous: HomeState,
+  inventory: ScanDto,
+): HomeState {
+  const next = defaultSelection(inventory);
+  for (const group of inventory.groups) {
+    for (const item of group.items) {
+      if (item.selectable && Object.hasOwn(previous.selected, item.id)) {
+        next.selected[item.id] = scopes(item).filter((scope) =>
+          previous.selected[item.id].includes(scope),
+        );
+      } else if (
+        previous.inventory?.groups.some((group) =>
+          group.items.some((old) => old.id === item.id),
+        )
+      ) {
+        next.selected[item.id] = [];
+      }
+    }
+  }
+  return next;
 }
 
 export function detectedCounts(state: HomeState): Record<Category, number> {

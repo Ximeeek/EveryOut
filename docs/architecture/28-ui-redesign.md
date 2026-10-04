@@ -27,11 +27,14 @@ The sole secondary entry, Customize & settings, contains per-item/profile select
 account scope, process policy, catalog updates and all existing privacy boundaries.
 There are no main-screen tabs.
 
-All high-confidence, selectable, classified items start selected, with all profiles.
+Selectable, classified known providers start selected even at medium confidence,
+with all profiles. High-confidence heuristic detections also start selected.
 The earlier `default_selected` filter no longer blocks the normal flow.
-Uncertain detections stay unchecked. Unsupported scopes remain unavailable.
+Lower-confidence heuristic detections stay unchecked until explicitly selected.
+Category controls include all classified selectable detections; confidence alone
+never disables a category. Unsupported scopes remain unavailable.
 Saving preferences and catalog operations invalidate the old inventory. Rescans
-retain previous counts with disabled controls, replace the inventory on completion
+retain previous counts and selections with disabled controls, replace the inventory on completion
 and compare detected counts independently of selection. Limited coverage links
 directly to per-item review.
 The backend retains responsibility for support, ownership and protected-store checks.
@@ -98,6 +101,12 @@ for unchanged counts. Only delta pills carry status colors. Responsive rules fit
 the configured 900-by-640 and 640-by-480 logical viewports. At higher scaling, long
 reviews and results scroll vertically rather than hiding data or controls.
 
+During a rescan only the hero glyph and the animated heading change. Metadata,
+description, selection counter, category glyphs and primary-action label and color
+stay stable. The unchanged-count pill has a neutral surface and border with a
+gently pulsing indicator; it fades away with the other delta feedback. Rescans
+retain explicitly deselected items and the surviving selected profile subset.
+
 ## Safe browser preview and verification
 
 `pnpm dev` serves `http://127.0.0.1:1420`. Development browser sessions use a separate
@@ -111,6 +120,7 @@ Use Customize & settings / Development preview states, or the `?demo=` query:
 - `idle`: overview; select Log out locally to review, release early to cancel a hold.
 - `scanning`: a persistent metadata scan state.
 - `rescan`: alternate scans increase Apps, decrease Browsers and leave Windows/dev unchanged.
+- `medium`: selectable known providers with medium confidence, matching native detections.
 - `preparing`: select the primary action to freeze the read-only plan preparation.
 - `running`: review and hold to freeze category progress; Stop produces a stopped report.
 - `partial`: review and hold for two locked failures and individual retry actions.

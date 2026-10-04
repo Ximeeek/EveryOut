@@ -7,6 +7,8 @@ export const motion = {
   delta: 1800,
   roll: 650,
   stagger: 24,
+  title: 350,
+  feedbackPulse: 900,
 } as const;
 
 export const motionStyle = Object.fromEntries(
