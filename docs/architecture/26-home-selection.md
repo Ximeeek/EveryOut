@@ -1,5 +1,8 @@
 # Home scan and selection
 
+The historical screen layout below is superseded by [the UI redesign](28-ui-redesign.md).
+Selection policy and native scope validation remain in effect.
+
 Phase 31 adds Home scan results, independent category controls, profile selection,
 Windows account grouping and a shared selection passed to a Review placeholder.
 No planning, process closure or cleanup runs from this screen.
