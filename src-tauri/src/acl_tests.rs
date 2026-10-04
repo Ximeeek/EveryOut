@@ -13,7 +13,11 @@ fn command_acl_allows_only_local_main_window() {
         Bridge::channel(SettingsStore::new(fixture.path().into()), None).unwrap();
     let app = mock_builder()
         .manage(bridge)
-        .invoke_handler(tauri::generate_handler![commands::get_settings])
+        .invoke_handler(tauri::generate_handler![
+            commands::get_settings,
+            commands::check_catalog_updates,
+            commands::activate_catalog_update
+        ])
         .build(tauri::generate_context!())
         .unwrap();
     let main = WebviewWindowBuilder::new(&app, "main", Default::default())
@@ -40,9 +44,17 @@ fn command_acl_allows_only_local_main_window() {
     );
     assert!(get_ipc_response(&foreign, request("http://tauri.localhost")).is_err());
     assert!(get_ipc_response(&main, request("https://example.com")).is_err());
+    for cmd in ["check_catalog_updates", "activate_catalog_update"] {
+        let mut foreign_request = request("http://tauri.localhost");
+        foreign_request.cmd = cmd.into();
+        assert!(get_ipc_response(&foreign, foreign_request).is_err());
+        let mut remote_request = request("https://example.com");
+        remote_request.cmd = cmd.into();
+        assert!(get_ipc_response(&main, remote_request).is_err());
+    }
     let capability: serde_json::Value =
         serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
-    assert_eq!(capability["permissions"].as_array().unwrap().len(), 11);
+    assert_eq!(capability["permissions"].as_array().unwrap().len(), 13);
     assert!(capability["permissions"]
         .as_array()
         .unwrap()

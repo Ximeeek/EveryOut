@@ -12,6 +12,10 @@ export type ActionStatus = "would-apply" | "applied" | "already-absent" | "skipp
 
 export type AggregateStatus = "complete-local-scope" | "partial" | "blocked" | "failed" | "cancelled" | "dry-run" | "not-requested";
 
+export type CatalogIdentityDto = { version: string, digest: string, };
+
+export type CatalogUpdateDto = { installed_version: string, proposed_version: string | null, digest: string | null, changelog: string | null, error: string | null, helper_compatible: boolean, };
+
 export type Category = "application" | "browser" | "windows-microsoft-and-dev-tools";
 
 export type CategoryToken = { account: string, category: Category, token: string, };
@@ -46,7 +50,7 @@ export type ProcessClosePolicy = "ask" | "hard-kill-after2s";
 
 export type ProfileSelection = { item: string, profiles: Array<string>, };
 
-export type ReportDto = { skipped: Array<SkippedItemDto>, mode: ExecutionMode, account_mode: AccountMode, process_close_policy: ProcessClosePolicy, accounts: Array<AccountDto>, };
+export type ReportDto = { catalog?: CatalogIdentityDto, skipped: Array<SkippedItemDto>, mode: ExecutionMode, account_mode: AccountMode, process_close_policy: ProcessClosePolicy, accounts: Array<AccountDto>, };
 
 export type RiskAcceptance = { account: string, instance: string, flags: Array<RiskFlag>, confirmations: Array<string>, };
 

@@ -22,6 +22,7 @@ pub fn typescript() -> String {
         declarations: BTreeMap::new(),
     };
     types.visit::<ExportFormat>();
+    types.visit::<CatalogUpdateDto>();
     types.visit::<Settings>();
     types.visit::<ScanDto>();
     types.visit::<SelectionRequest>();

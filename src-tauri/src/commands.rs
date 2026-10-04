@@ -1,5 +1,20 @@
 use crate::{bridge::Bridge, dto::*};
 use tauri::{ipc::Channel, State};
+#[tauri::command]
+pub async fn check_catalog_updates(
+    state: State<'_, Bridge>,
+) -> Result<CatalogUpdateDto, CommandError> {
+    let state = state.inner().clone();
+    background(move || state.check_catalog_updates()).await
+}
+#[tauri::command]
+pub async fn activate_catalog_update(
+    state: State<'_, Bridge>,
+    digest: String,
+) -> Result<CatalogUpdateDto, CommandError> {
+    let state = state.inner().clone();
+    background(move || state.activate_catalog_update(digest)).await
+}
 async fn background<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
 ) -> Result<T, CommandError> {

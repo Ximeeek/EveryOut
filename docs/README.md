@@ -4,6 +4,19 @@ This directory contains project decision records and contributor-facing design d
 
 ## Index
 
+- [Reproducible builds and verification](oss/reproducible-builds.md): build controls, unsigned
+  checkpoints, signing boundaries and independent release verification.
+- [Code signing policy](oss/code-signing.md): Poland eligibility, Foundation conditions,
+  SmartScreen evidence, alternatives and maintainer actions.
+- [Antivirus/EDR false positives](oss/false-positives.md): safe reports, evidence, vendor
+  submissions and post-release tracking.
+- [Release process](oss/release-process.md): maintainer gates for versions, changelogs, CI,
+  signatures, checksums, publishing and monitoring.
+- [ADR 0005: Code signing](adr/0005-code-signing.md): proposed signing choice and acceptance gates.
+
+These release documents define proposed gates; provider acceptance and full bit reproducibility
+are unverified, and release workflow implementation remains Phase 35 work. [HYPOTHESIS]
+
 - [Gaming launcher catalog](catalog/apps-gaming.md): seven candidate manifests, exact Steam
   cleanup names, manual logout evidence, loss risks and synthetic fixture limits.
 

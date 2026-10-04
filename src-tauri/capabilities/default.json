@@ -4,6 +4,8 @@
   "description": "Local main-window application commands and typed IPC channel delivery.",
   "windows": ["main"],
   "permissions": [
+    "allow-check-catalog-updates",
+    "allow-activate-catalog-update",
     "allow-scan",
     "allow-build-plan",
     "allow-dry-run",

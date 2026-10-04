@@ -13,7 +13,7 @@ export const strings = {
   dismiss: "Dismiss notice",
   homeTitle: "Review before you clear",
   homeDescription:
-    "EveryOut clears supported local app and browser session data. It stays offline and never reads or displays secrets. Clearing local data does not guarantee logout on servers or other devices.",
+    "EveryOut clears supported local app and browser session data. Cleanup stays offline and never reads or displays secrets. Clearing local data does not guarantee logout on servers or other devices.",
   welcome: "Welcome to EveryOut",
   introduction:
     "EveryOut can remove local session data to help you log out of apps and browsers. Deletion cannot be undone and may remove local-only data. You will review targets and risks before any cleanup.",

@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type {
   ExecuteRequest,
+  CatalogUpdateDto,
   ModeResult,
   PlanDto,
   ReportDto,
@@ -12,6 +13,10 @@ import type {
 } from "./types";
 export type * from "./types";
 export const scan = () => invoke<ScanDto>("scan");
+export const checkCatalogUpdates = () =>
+  invoke<CatalogUpdateDto>("check_catalog_updates");
+export const activateCatalogUpdate = (digest: string) =>
+  invoke<CatalogUpdateDto>("activate_catalog_update", { digest });
 export const buildPlan = (selection: SelectionRequest) =>
   invoke<PlanDto>("build_plan", { selection });
 export const dryRun = (planId: string) =>
