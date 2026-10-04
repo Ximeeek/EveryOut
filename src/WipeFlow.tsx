@@ -334,7 +334,7 @@ export default function WipeFlow({
     <div className="wipe-flow">
       {error && (
         <p className="notice error" role="alert">
-          {error}
+          <span className="status-pill error">Couldn’t continue</span> {error}
         </p>
       )}
       {working && !running && (

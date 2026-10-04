@@ -55,6 +55,9 @@ function NoticeView({
       className={`notice ${notice.error ? "error" : ""}`}
       role={notice.error ? "alert" : "status"}
     >
+      {notice.error && (
+        <span className="status-pill error">Couldn’t continue</span>
+      )}
       <p>{notice.text}</p>
       <button type="button" onClick={dismiss}>
         {s.dismiss}

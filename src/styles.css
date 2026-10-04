@@ -515,7 +515,7 @@ code {
   background: var(--surface);
 }
 .notice.error {
-  border-color: #6d4b4b;
+  border-color: var(--line);
 }
 .notice button {
   min-height: 30px;
