@@ -62,9 +62,7 @@ async function openSettings() {
   const user = userEvent.setup();
   render(<App />);
   await screen.findByRole("button", { name: /Log out locally/ });
-  await user.click(
-    screen.getByRole("button", { name: "Customize & settings" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Settings" }));
   await user.click(screen.getByText("Account scope & closing programs"));
   return user;
 }
@@ -109,9 +107,7 @@ it("reaches confirmation in one click and never executes on the initial action",
   );
   expect(api.execute).not.toHaveBeenCalled();
   expect(document.querySelectorAll(".primary")).toHaveLength(1);
-  expect(
-    screen.getByRole("button", { name: "Customize & settings" }),
-  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Settings" })).toBeDisabled();
 });
 
 it("keeps a remembered all-accounts mode inactive until an explicit action", async () => {

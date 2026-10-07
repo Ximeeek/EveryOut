@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import {
   enableAllAccountsMode,
@@ -14,6 +14,7 @@ import type {
   Settings,
 } from "./api";
 import Home from "./Home";
+import RollingCount from "./RollingCount";
 import WipeFlow from "./WipeFlow";
 import CatalogUpdates from "./CatalogUpdates";
 import {
@@ -200,6 +201,18 @@ function Preferences({
 }
 export default function App() {
   const [page, setPage] = useState<Page>("home");
+  const [navigation, setNavigation] = useState({
+    direction: "fresh",
+    version: 0,
+  });
+  const [revealOrigin, setRevealOrigin] = useState("50% 50%");
+  function navigate(
+    next: Page,
+    direction = next === "advanced" ? "right" : "left",
+  ) {
+    setNavigation((current) => ({ direction, version: current.version + 1 }));
+    setPage(next);
+  }
   const [settings, updateSettings] = useState<Settings | null>(null);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(true);
@@ -265,11 +278,13 @@ export default function App() {
     };
   }, [settings]);
   useEffect(() => {
+    const content = document.getElementById("content");
+    if (content) content.scrollTop = 0;
     const frame = requestAnimationFrame(() =>
       document.getElementById("flow-title")?.focus(),
     );
     return () => cancelAnimationFrame(frame);
-  }, [page]);
+  }, [page, navigation.version]);
 
   function invalidate() {
     updateHome(emptyHome);
@@ -302,7 +317,7 @@ export default function App() {
       const request = selectionRequest(next);
       if (openReview && request?.items.length) {
         storeSelection(request);
-        setPage("review");
+        navigate("review");
       }
     } catch (error: unknown) {
       updateHome({ ...emptyHome, error: errorText(error) });
@@ -377,268 +392,287 @@ export default function App() {
       <a className="skip-link" href="#content">
         {s.skip}
       </a>
-      <TitleBar onBrandClick={() => setPage("home")}>
+      <TitleBar onBrandClick={() => navigate("home", "fresh")}>
         <button
           className="text-button"
           type="button"
           aria-label={page === "advanced" ? "Back to overview" : "Settings"}
           title={page === "advanced" ? "Back to overview" : "Settings"}
           disabled={busy || scanning || page === "review"}
-          onClick={() => setPage(page === "advanced" ? "home" : "advanced")}
+          onClick={() => navigate(page === "advanced" ? "home" : "advanced")}
         >
-          <DotIcon name={page === "advanced" ? "back" : "settings"} size={20} />
+          <DotIcon
+            name={page === "advanced" ? "back" : "settings"}
+            size={page === "advanced" ? 20 : 28}
+          />
           {page === "advanced" && "Back to overview"}
         </button>
       </TitleBar>
-      <main id="content" tabIndex={-1}>
-        <NoticeView notice={notice} dismiss={() => setNotice(null)} />
-        {!settings ? (
-          <>
-            <Hero
-              meta="ON THIS DEVICE"
-              title={loadFailed ? "Couldn’t load settings" : "Getting ready"}
-              description={
-                loadFailed
-                  ? "Your data is untouched. Reload settings to continue."
-                  : "Loading your local preferences."
-              }
-              icon={loadFailed ? "attention" : "grid"}
-              animated={!loadFailed}
-            />
-            {loadFailed && (
-              <button
-                className="primary"
-                type="button"
-                onClick={() => {
-                  setLoadFailed(false);
-                  setNotice(null);
-                  setLoadAttempt((attempt) => attempt + 1);
-                }}
-              >
-                Reload settings
-              </button>
-            )}
-          </>
-        ) : page === "review" && selection && home.inventory ? (
-          <WipeFlow
-            inventory={home.inventory}
-            selection={selection}
-            setBusy={setBusy}
-            back={() => {
-              invalidate();
-              setPage("home");
-              void rescan();
-            }}
-          />
-        ) : page === "advanced" ? (
-          <div className="advanced-view">
-            <p className="meta">MAKE IT YOURS</p>
-            <h1 id="flow-title" tabIndex={-1}>
-              Customize your cleanup
-            </h1>
-            <p className="muted">
-              Choose the local accounts and profiles to include. Every selection
-              gets a fresh review.
-            </p>
-            <details open>
-              <summary>Selected items · {total}</summary>
-              {home.inventory ? (
-                <Home
-                  state={home}
-                  update={updateHome}
-                  busy={busy || scanning}
-                />
-              ) : (
-                <p>Return to the overview to scan local accounts.</p>
-              )}
-            </details>
-            <details>
-              <summary>Account scope & closing programs</summary>
-              <Preferences
-                key={formVersion}
-                settings={settings}
-                firstRun={false}
-                busy={busy || scanning}
-                save={save}
+      <main
+        id="content"
+        className={page === "home" ? "overview-content" : undefined}
+        tabIndex={-1}
+      >
+        <div
+          key={navigation.version}
+          className={`page-view page-${page} enter-${navigation.direction}`}
+        >
+          <NoticeView notice={notice} dismiss={() => setNotice(null)} />
+          {!settings ? (
+            <>
+              <Hero
+                meta="ON THIS DEVICE"
+                title={loadFailed ? "Couldn’t load settings" : "Getting ready"}
+                description={
+                  loadFailed
+                    ? "Your data is untouched. Reload settings to continue."
+                    : "Loading your local preferences."
+                }
+                icon={loadFailed ? "attention" : "grid"}
+                animated={!loadFailed}
               />
-            </details>
-            <details>
-              <summary>Provider catalog</summary>
-              <CatalogUpdates
-                settings={settings}
-                busy={busy || scanning}
-                setBusy={setBusy}
-                invalidate={invalidate}
-              />
-            </details>
-            <details>
-              <summary>Privacy & supported coverage</summary>
-              <p>{s.aboutIntro}</p>
-              <dl className="limitations">
-                {s.limitations.map(([heading, description]) => (
-                  <div key={heading}>
-                    <dt>{heading}</dt>
-                    <dd>{description}</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-            {browserPreview && (
-              <details>
-                <summary>Development preview states</summary>
-                <label htmlFor="preview-state">Simulated scenario</label>
-                <select
-                  id="preview-state"
-                  className="preview-scenarios"
-                  defaultValue={
-                    new URLSearchParams(window.location.search).get("demo") ??
-                    "idle"
-                  }
-                  onChange={(event) => {
-                    window.location.search = `?demo=${event.target.value}`;
+              {loadFailed && (
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={() => {
+                    setLoadFailed(false);
+                    setNotice(null);
+                    setLoadAttempt((attempt) => attempt + 1);
                   }}
                 >
-                  {[
-                    "idle",
-                    "scanning",
-                    "rescan",
-                    "medium",
-                    "preparing",
-                    "running",
-                    "partial",
-                    "success",
-                    "error",
-                    "processes",
-                    "empty",
-                  ].map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
-                <p>
-                  To preview confirmation, choose idle and select Log out
-                  locally. Hold to run the simulation.
-                </p>
+                  Reload settings
+                </button>
+              )}
+            </>
+          ) : page === "review" && selection && home.inventory ? (
+            <WipeFlow
+              inventory={home.inventory}
+              selection={selection}
+              setBusy={setBusy}
+              back={() => {
+                invalidate();
+                navigate("home");
+                void rescan();
+              }}
+            />
+          ) : page === "advanced" ? (
+            <div className="advanced-view">
+              <p className="meta">MAKE IT YOURS</p>
+              <h1 id="flow-title" tabIndex={-1}>
+                Customize your cleanup
+              </h1>
+              <p className="muted">
+                Choose the local accounts and profiles to include. Every
+                selection gets a fresh review.
+              </p>
+              <details open>
+                <summary>Selected items · {total}</summary>
+                {home.inventory ? (
+                  <Home
+                    state={home}
+                    update={updateHome}
+                    busy={busy || scanning}
+                  />
+                ) : (
+                  <p>Return to the overview to scan local accounts.</p>
+                )}
               </details>
-            )}
-          </div>
-        ) : (
-          <div className="dashboard">
-            <Hero
-              meta="YOUR SESSIONS · YOUR DEVICE"
-              title={
-                scanning
-                  ? "Finding your sessions"
-                  : home.error
-                    ? "Couldn’t scan this device"
-                    : home.inventory && !total
-                      ? "Nothing selected"
-                      : home.inventory
-                        ? `${total} ${total === 1 ? "session" : "sessions"} will be cleared`
-                        : "Leave your sessions behind."
-              }
-              description={
-                home.error
-                  ? "Your data is untouched. Run a fresh scan to try again."
-                  : "Clear supported local sessions in one deliberate action."
-              }
-              icon={scanning ? "grid" : home.error ? "attention" : "logout"}
-              animated={scanning}
-              animateTitle
-            >
-              {home.inventory && (
-                <p className="hero-counter">
-                  <span className="hero-counter-value">
-                    {total === 0 ? "No" : String(total).padStart(2, "0")}
-                  </span>
-                  {total === 1 ? "item selected" : "items selected"} on this
-                  device
+              <details>
+                <summary>Account scope & closing programs</summary>
+                <Preferences
+                  key={formVersion}
+                  settings={settings}
+                  firstRun={false}
+                  busy={busy || scanning}
+                  save={save}
+                />
+              </details>
+              <details>
+                <summary>Provider catalog</summary>
+                <CatalogUpdates
+                  settings={settings}
+                  busy={busy || scanning}
+                  setBusy={setBusy}
+                  invalidate={invalidate}
+                />
+              </details>
+              <details>
+                <summary>Privacy & supported coverage</summary>
+                <p>{s.aboutIntro}</p>
+                <dl className="limitations">
+                  {s.limitations.map(([heading, description]) => (
+                    <div key={heading}>
+                      <dt>{heading}</dt>
+                      <dd>{description}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+              {browserPreview && (
+                <details>
+                  <summary>Development preview states</summary>
+                  <label htmlFor="preview-state">Simulated scenario</label>
+                  <select
+                    id="preview-state"
+                    className="preview-scenarios"
+                    defaultValue={
+                      new URLSearchParams(window.location.search).get("demo") ??
+                      "idle"
+                    }
+                    onChange={(event) => {
+                      window.location.search = `?demo=${event.target.value}`;
+                    }}
+                  >
+                    {[
+                      "idle",
+                      "scanning",
+                      "rescan",
+                      "medium",
+                      "preparing",
+                      "running",
+                      "partial",
+                      "success",
+                      "error",
+                      "processes",
+                      "empty",
+                    ].map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
+                  <p>
+                    To preview confirmation, choose idle and select Log out
+                    locally. Hold to run the simulation.
+                  </p>
+                </details>
+              )}
+            </div>
+          ) : (
+            <div className="dashboard">
+              <Hero
+                meta="YOUR SESSIONS · YOUR DEVICE"
+                title={
+                  scanning
+                    ? "Finding your sessions"
+                    : home.error
+                      ? "Couldn’t scan this device"
+                      : home.inventory && !total
+                        ? "Nothing selected"
+                        : home.inventory
+                          ? `${total} ${total === 1 ? "session" : "sessions"} will be cleared`
+                          : "Leave your sessions behind."
+                }
+                description={
+                  home.error
+                    ? "Your data is untouched. Run a fresh scan to try again."
+                    : "Clear supported local sessions in one deliberate action."
+                }
+                icon={scanning ? "grid" : home.error ? "attention" : "logout"}
+                animated={scanning}
+                animateTitle
+              >
+                {home.inventory && (
+                  <p className="hero-counter">
+                    <span className="hero-counter-value">
+                      <RollingCount value={total} zeroLabel="No" padded />
+                    </span>
+                    {total === 1 ? "item selected" : "items selected"} on this
+                    device
+                  </p>
+                )}
+              </Hero>
+              <CategorySummary
+                key={scanVersion}
+                counts={counts}
+                totals={detectedCounts(home)}
+                state={home}
+                scanning={scanning}
+                disabled={busy || scanning || !home.inventory}
+                deltas={deltas}
+                toggle={(category) => {
+                  if (!total)
+                    setRevealOrigin(
+                      `${15 + Math.random() * 70}% ${20 + Math.random() * 60}%`,
+                    );
+                  updateHome((state) => toggleCategory(state, category));
+                }}
+              />
+              {home.error && (
+                <p className="notice error" role="alert">
+                  {home.error}
                 </p>
               )}
-            </Hero>
-            <CategorySummary
-              key={scanVersion}
-              counts={counts}
-              totals={detectedCounts(home)}
-              state={home}
-              scanning={scanning}
-              disabled={busy || scanning || !home.inventory}
-              deltas={deltas}
-              toggle={(category) =>
-                updateHome((state) => toggleCategory(state, category))
-              }
-            />
-            {home.error && (
-              <p className="notice error" role="alert">
-                {home.error}
+              <button
+                className={`primary logout-action${ready ? " is-ready" : ""}${scanning && ready ? " scan-pending" : ""}`}
+                style={{ "--reveal-origin": revealOrigin } as CSSProperties}
+                type="button"
+                disabled={busy || scanning || (!!home.inventory && !total)}
+                onClick={() => {
+                  if (request?.items.length) {
+                    storeSelection(request);
+                    navigate("review");
+                  } else void rescan(true);
+                }}
+              >
+                <span>
+                  <DotIcon name="logout" size={36} />
+                  {scanning && !home.inventory
+                    ? "Checking local accounts…"
+                    : home.error
+                      ? "Scan again"
+                      : !home.inventory
+                        ? settings.account_mode === "all-accounts"
+                          ? "Check all Windows accounts"
+                          : "Check local accounts"
+                        : "Log out locally"}
+                </span>
+                <span className="button-meta">
+                  {ready ? "REVIEW FIRST" : ""}
+                </span>
+              </button>
+              <p className="control-help">
+                {ready
+                  ? "Review the data, then hold to confirm. Nothing is removed yet."
+                  : home.inventory
+                    ? "Choose categories above, or scan again."
+                    : settings.account_mode === "all-accounts"
+                      ? "Administrator access is requested only when you choose to check."
+                      : "Session data is never read or sent."}
               </p>
-            )}
-            <button
-              className={`primary${scanning && ready ? " scan-pending" : ""}`}
-              type="button"
-              disabled={busy || scanning || (!!home.inventory && !total)}
-              onClick={() => {
-                if (request?.items.length) {
-                  storeSelection(request);
-                  setPage("review");
-                } else void rescan(true);
-              }}
-            >
-              <span>
-                <DotIcon name="logout" size={36} />
-                {scanning && !home.inventory
-                  ? "Checking local accounts…"
-                  : home.error
-                    ? "Scan again"
-                    : !home.inventory
-                      ? settings.account_mode === "all-accounts"
-                        ? "Check all Windows accounts"
-                        : "Check local accounts"
-                      : "Log out locally"}
-              </span>
-              <span className="button-meta">{ready ? "REVIEW FIRST" : ""}</span>
-            </button>
-            <p className="control-help">
-              {ready
-                ? "Review the data, then hold to confirm. Nothing is removed yet."
-                : home.inventory
-                  ? "Choose categories above, or scan again."
-                  : settings.account_mode === "all-accounts"
-                    ? "Administrator access is requested only when you choose to check."
-                    : "Session data is never read or sent."}
-            </p>
-            {(unavailable > 0 || !!home.inventory?.coverage.length) && (
-              <p className="scope-note">
-                <span className="status-pill warning">Limited coverage</span>
-                {unavailable > 0
-                  ? `${unavailable} detected items excluded. `
-                  : ""}
-                {home.inventory?.coverage.length
-                  ? "Some local stores could not be checked. "
-                  : ""}
+              {(unavailable > 0 || !!home.inventory?.coverage.length) && (
+                <p className="scope-note">
+                  <span className="status-pill warning">Limited coverage</span>
+                  {unavailable > 0
+                    ? `${unavailable} detected items excluded. `
+                    : ""}
+                  {home.inventory?.coverage.length
+                    ? "Some local stores could not be checked. "
+                    : ""}
+                  <button
+                    className="coverage-link"
+                    type="button"
+                    disabled={busy || scanning}
+                    onClick={() => navigate("advanced")}
+                  >
+                    Review detected items
+                  </button>
+                </p>
+              )}
+              {home.inventory && (
                 <button
-                  className="coverage-link"
+                  className="text-button rescan-button"
                   type="button"
                   disabled={busy || scanning}
-                  onClick={() => setPage("advanced")}
+                  onClick={() => void rescan()}
                 >
-                  Review detected items
+                  Scan again
                 </button>
-              </p>
-            )}
-            {home.inventory && (
-              <button
-                className="text-button rescan-button"
-                type="button"
-                disabled={busy || scanning}
-                onClick={() => void rescan()}
-              >
-                Scan again
-              </button>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </main>
       <footer className="app-footer">
         <span className="meta">

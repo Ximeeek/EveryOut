@@ -25,15 +25,17 @@ const bitmaps = {
     "111000111",
   ],
   browser: [
-    "001111100",
-    "010010010",
-    "100010001",
-    "100010001",
-    "111111111",
-    "100010001",
-    "100010001",
-    "010010010",
-    "001111100",
+    "00011111000",
+    "00101010100",
+    "01001010010",
+    "10010101001",
+    "10010001001",
+    "11111111111",
+    "10010001001",
+    "10010101001",
+    "01001010010",
+    "00101010100",
+    "00011111000",
   ],
   accounts: [
     "000111000",
@@ -69,15 +71,17 @@ const bitmaps = {
     "111111111",
   ],
   settings: [
-    "000010000",
-    "001111100",
-    "011010110",
-    "010000010",
-    "111010111",
-    "010000010",
-    "011010110",
-    "001111100",
-    "000010000",
+    "00001110000",
+    "00111011100",
+    "01000000010",
+    "01001110010",
+    "11010001011",
+    "10010001001",
+    "11010001011",
+    "01001110010",
+    "01000000010",
+    "00111011100",
+    "00001110000",
   ],
   back: [
     "000000000",
@@ -119,9 +123,9 @@ export default function DotIcon({
 }) {
   const bitmap = bitmaps[name];
   const grid = bitmap.length;
-  const pitch = Math.max(4, Math.round(size / grid));
+  const pitch = Math.max(2, Math.round(size / grid));
   const pixels = pitch * grid;
-  const diameter = Math.max(2, Math.floor(pitch / 2));
+  const diameter = Math.max(1, Math.round(pitch / 2));
   const offset = Math.floor((pitch - diameter) / 2);
   let litIndex = 0;
   return (

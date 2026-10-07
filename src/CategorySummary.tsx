@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import type { Category } from "./api";
 import DotIcon from "./DotIcon";
 import type { DotIconName } from "./DotIcon";
@@ -11,38 +11,12 @@ import {
   type HomeState,
 } from "./selection";
 import { motion } from "./motion";
+import RollingCount from "./RollingCount";
 const icons: Record<Category, DotIconName> = {
   application: "apps",
   browser: "browser",
   "windows-microsoft-and-dev-tools": "accounts",
 };
-
-function RollingCount({
-  value,
-  delta,
-}: {
-  value: number;
-  delta?: CategoryDelta;
-}) {
-  if (!delta || delta.direction === "same") return <>{value}</>;
-  const steps = Math.min(Math.abs(delta.change), 30);
-  const values = Array.from({ length: steps + 1 }, (_, index) =>
-    Math.round(delta.previous + (delta.change * index) / steps),
-  );
-  return (
-    <span className="rolling-count" aria-label={String(value)}>
-      <span
-        className="rolling-track"
-        aria-hidden="true"
-        style={{ "--roll-offset": `${-steps * 14}px` } as CSSProperties}
-      >
-        {values.map((number, index) => (
-          <span key={index}>{number}</span>
-        ))}
-      </span>
-    </span>
-  );
-}
 
 function DeltaFeedback({ delta }: { delta: CategoryDelta }) {
   const [visible, setVisible] = useState(true);
@@ -148,13 +122,17 @@ export default function CategorySummary({
                   <>
                     <RollingCount
                       value={counts[category]}
-                      delta={
+                      previous={
                         counts[category] === totals[category]
-                          ? delta
+                          ? delta?.previous
                           : undefined
                       }
                     />{" "}
-                    of <RollingCount value={totals[category]} delta={delta} />{" "}
+                    of{" "}
+                    <RollingCount
+                      value={totals[category]}
+                      previous={delta?.previous}
+                    />{" "}
                     selected
                   </>
                 ) : (
@@ -164,8 +142,16 @@ export default function CategorySummary({
             </div>
             {toggle && (
               <DotIcon
-                name={mixed ? "mixed" : checked ? "checked" : "checkbox"}
-                size={20}
+                name={
+                  !items.length
+                    ? "close"
+                    : mixed
+                      ? "mixed"
+                      : checked
+                        ? "checked"
+                        : "checkbox"
+                }
+                size={!items.length ? 28 : 20}
               />
             )}
             {delta && <DeltaFeedback delta={delta} />}
@@ -175,7 +161,12 @@ export default function CategorySummary({
           <li key={category}>
             {toggle ? (
               <button
-                className="category-cell"
+                className={`category-cell${!items.length ? " category-unavailable" : ""}`}
+                title={
+                  !items.length
+                    ? "No selectable items in this category"
+                    : undefined
+                }
                 type="button"
                 role="checkbox"
                 aria-label={`${shortCategoryNames[category]}: ${counts[category]} of ${totals?.[category] ?? 0} selected`}
