@@ -1,335 +1,215 @@
 import { StrictMode } from "react";
-import { render, screen, within, act } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
-import * as api from "./api";
-import type {
-  ItemDto,
-  PlanDto,
-  ReportDto,
-  ScanDto,
-  SelectionRequest,
-  WipeEvent,
-} from "./api";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import WipeFlow from "./WipeFlow";
 import Reports from "./Reports";
-import { categories } from "./wipe";
-import {
-  categoryNames,
-  homeStrings as h,
-  strings as s,
-  wipeStrings as w,
-  unknownError,
-} from "./strings";
-vi.mock("./api", () => ({
+import * as api from "./client";
+import type { PlanDto, ReportDto, WipeEvent } from "./api";
+import { defaultSelection, selectionRequest } from "./selection";
+import { demoInventory, demoPlan, demoResult } from "./demoFixtures";
+import { unknownError, wipeStrings as w } from "./strings";
+import { HOLD_DURATION } from "./HoldButton";
+
+vi.mock("./client", () => ({
   buildPlan: vi.fn(),
   dryRun: vi.fn(),
-  execute: vi.fn(),
   scan: vi.fn(),
-  closeReviewed: vi.fn(),
+  execute: vi.fn(),
   cancel: vi.fn(),
+  closeReviewed: vi.fn(),
   exportReport: vi.fn(),
 }));
-let events: (e: WipeEvent) => void;
+const selection = selectionRequest(defaultSelection(demoInventory()))!;
 let preview: PlanDto;
-const setBusy = vi.fn(),
-  back = vi.fn();
-const selection: SelectionRequest = {
-  inventory_id: "inventory-1",
-  items: ["chat", "browser", "dev"],
-  profiles: [{ item: "chat", profiles: ["p1"] }],
-};
-function item(id: string): ItemDto {
-  return {
-    instance: id,
-    provider: id,
-    loss: id === "chat" ? "known" : "none",
-    affected_data: id === "chat" ? ["Offline chat drafts"] : [],
-    locked: false,
-    status: "dry-run",
-    actions: [
-      {
-        id: id + "-action",
-        path: id + "/local-store",
-        bytes: 128,
-        locked: false,
-        outcome: "would-apply",
-        verification: "not-performed",
-        issues: [],
-      },
-    ],
-    risks:
-      id === "chat"
-        ? ["drafts-or-offline-messages", "settings-or-profiles"]
-        : [],
-    confirmations: id === "chat" ? ["loss-chat"] : [],
-    profiles: id === "chat" ? ["p1"] : [],
-    processes: [],
-    limitations: [],
-    issues: [],
-    identity: "unknown",
-    sync: "unsupported",
-    authentication: "unknown",
-    remote_revocation: "unsupported",
-    silent_sso: "unknown",
-  };
-}
-const ids = ["chat", "browser", "dev"];
-function inventory(): ScanDto {
-  return {
-    inventory_id: "inventory-fresh",
-    mode: "current",
-    coverage: [],
-    accounts: [],
-    groups: categories.map((category, n) => ({
-      category,
-      confidence: "high",
-      items: [
-        {
-          id: ids[n],
-          provider: ids[n],
-          name: ids[n],
-          account: "current-account",
-          origin: "known-provider",
-          default_selected: true,
-          selectable: true,
-          profiles: n === 0 ? ["p1", "p2"] : [],
-          risks: [],
-          loss: "none",
-          signals: [],
-          limitations: [],
-          unverified: n === 1,
-          sync_warning: n === 1,
-        },
-      ],
-    })),
-  };
-}
-function plan(request = selection): PlanDto {
-  return {
-    plan_id: "plan-1",
-    category_tokens: request.items.includes("dev")
-      ? [
-          {
-            account: "current-account",
-            category: "windows-microsoft-and-dev-tools",
-            token: "category-1",
-          },
-        ]
-      : [],
-    report: {
-      skipped: [],
-      mode: "dry-run",
-      account_mode: "current",
-      process_close_policy: "ask",
-      accounts: [
-        {
-          account: "current-account",
-          sections: categories.map((category, n) => ({
-            category,
-            status: request.items.includes(ids[n])
-              ? "dry-run"
-              : "not-requested",
-            items: request.items.includes(ids[n]) ? [item(ids[n])] : [],
-            warnings: [],
-            succeeded: 0,
-            failed: 0,
-            locked: 0,
-            skipped: 0,
-            would_apply: request.items.includes(ids[n]) ? 1 : 0,
-            already_absent: 0,
-          })),
-          limitations: [],
-          issues: [],
-          residual_hive: false,
-          residual_hku_key: null,
-          unload_attempts: 0,
-        },
-      ],
-    },
-  };
-}
-function completed(): ReportDto {
-  return {
-    ...preview.report,
-    mode: "apply",
-    accounts: preview.report.accounts.map((a) => ({
-      ...a,
-      sections: a.sections.map((c) => ({
-        ...c,
-        status: c.items.length ? "complete-local-scope" : "not-requested",
-        items: c.items.map((i) => ({
-          ...i,
-          status: "complete-local-scope",
-          actions: i.actions.map((action) => ({
-            ...action,
-            outcome: "applied",
-            verification: "target-absent",
-          })),
-        })),
-      })),
-    })),
-  };
-}
+let events: (event: WipeEvent) => void;
+const back = vi.fn();
+const setBusy = vi.fn();
+
 beforeEach(() => {
   vi.resetAllMocks();
-  preview = plan();
-  vi.mocked(api.buildPlan).mockImplementation(async () => preview);
-  vi.mocked(api.dryRun).mockImplementation(async () => preview);
-  vi.mocked(api.scan).mockResolvedValue(inventory());
+  preview = demoPlan(selection);
+  vi.mocked(api.buildPlan).mockImplementation(async () =>
+    structuredClone(preview),
+  );
+  vi.mocked(api.dryRun).mockImplementation(async () =>
+    structuredClone(preview),
+  );
+  vi.mocked(api.scan).mockResolvedValue(demoInventory());
   vi.mocked(api.closeReviewed).mockResolvedValue(preview.report);
-  vi.mocked(api.cancel).mockResolvedValue();
-  vi.mocked(api.exportReport).mockResolvedValue("reports/test.json");
   vi.mocked(api.execute).mockImplementation(async (_, onEvent) => {
     events = onEvent;
     return { run_id: preview.plan_id };
   });
+  vi.mocked(api.cancel).mockResolvedValue();
+  vi.mocked(api.exportReport).mockResolvedValue("reports/fixture.json");
 });
-function mount(strict = false) {
-  const element = (
+afterEach(() => vi.useRealTimers());
+
+async function mount(strict = false) {
+  const flow = (
     <WipeFlow
-      inventory={inventory()}
+      inventory={demoInventory()}
       selection={selection}
       setBusy={setBusy}
       back={back}
     />
   );
-  render(strict ? <StrictMode>{element}</StrictMode> : element);
-  return screen.findByRole("button", { name: w.execute });
+  render(strict ? <StrictMode>{flow}</StrictMode> : flow);
+  return screen.findByRole("button", { name: /Hold to/ });
 }
-async function approvals(user: ReturnType<typeof userEvent.setup>) {
-  for (const box of screen.getAllByRole("checkbox"))
-    if (!(box as HTMLInputElement).checked) await user.click(box);
+async function hold(button = screen.getByRole("button", { name: /Hold to/ })) {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+  fireEvent.keyDown(button, { key: " " });
+  await act(async () => {
+    vi.advanceTimersByTime(HOLD_DURATION);
+  });
+  fireEvent.keyUp(button, { key: " " });
+  vi.useRealTimers();
 }
-function finish(report = completed()) {
+function finish(report: ReportDto = demoResult(preview)) {
   act(() => events({ kind: "finished", run_id: preview.plan_id, report }));
 }
-it("renders native dry-run paths, sizes, losses, unverified scope and sync without mutations", async () => {
+
+it("previews metadata once in StrictMode, with no deletion or checkbox gates", async () => {
   await mount(true);
   expect(api.buildPlan).toHaveBeenCalledTimes(1);
   expect(api.buildPlan).toHaveBeenCalledWith(selection);
-  expect(api.dryRun).toHaveBeenCalledWith("plan-1");
-  expect(screen.getByText("chat/local-store")).toBeVisible();
-  expect(screen.getAllByText(/128 bytes/)).toHaveLength(3);
-  expect(screen.getByText("Offline chat drafts")).toBeVisible();
-  expect(screen.getByText(w.unverified)).toBeVisible();
-  expect(screen.getByText(h.syncHelp)).toBeVisible();
+  expect(api.dryRun).toHaveBeenCalledWith(preview.plan_id);
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/Also at risk: local app settings, offline drafts/),
+  ).toBeVisible();
   expect(api.execute).not.toHaveBeenCalled();
   expect(api.closeReviewed).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByText(/Review 8 selected items/));
+  expect(screen.getByText("Discord/session-store")).toBeVisible();
 });
-it("requires every item risk and a separate Windows confirmation before execute", async () => {
-  const user = userEvent.setup(),
-    button = await mount();
-  expect(button).toBeDisabled();
-  await user.click(
-    screen.getByRole("checkbox", { name: /drafts or offline messages/ }),
-  );
-  await user.click(screen.getByRole("checkbox", { name: w.windowsConfirm }));
-  expect(button).toBeDisabled();
+
+it("sends every plan-bound risk, confirmation and category token only after the full hold", async () => {
+  const button = await mount();
+  fireEvent.click(button);
   expect(api.execute).not.toHaveBeenCalled();
-  await user.click(
-    screen.getByRole("checkbox", { name: /settings or profiles/ }),
-  );
-  await user.click(screen.getByRole("checkbox", { name: w.windowsConfirm }));
-  expect(button).toBeDisabled();
-  await user.click(screen.getByRole("checkbox", { name: w.windowsConfirm }));
-  await user.click(button);
+  await hold(button);
   expect(api.execute).toHaveBeenCalledTimes(1);
   expect(api.execute).toHaveBeenCalledWith(
     {
-      plan_id: "plan-1",
-      confirmed_risks: [
-        {
+      plan_id: preview.plan_id,
+      confirmed_risks: preview.report.accounts[0].sections.flatMap((section) =>
+        section.items.map((item) => ({
           account: "current-account",
-          instance: "chat",
-          flags: ["drafts-or-offline-messages", "settings-or-profiles"],
-          confirmations: ["loss-chat"],
-        },
-      ],
-      category_tokens: ["category-1"],
+          instance: item.instance,
+          flags: item.risks,
+          confirmations: item.confirmations,
+        })),
+      ),
+      category_tokens: ["preview-category-token"],
       force_close_accounts: [],
     },
     expect.any(Function),
   );
-  expect(
-    screen.queryByRole("button", { name: w.execute }),
-  ).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Letting go" })).toBeVisible();
+  finish();
+  expect(screen.getByRole("heading", { name: "Done" })).toBeVisible();
+  expect(screen.getByText("Verified locally")).toBeVisible();
 });
-it("blocks Ask, requests only graceful closure and requires fresh review before resuming", async () => {
+
+it("requests graceful closure after a deliberate hold, then requires a new hold on a fresh plan", async () => {
   preview.report.accounts[0].sections[0].items[0].processes = [
-    "process-42-100",
+    "Discord-preview-process",
   ];
-  const user = userEvent.setup(),
-    button = await mount();
-  await approvals(user);
-  expect(button).toBeDisabled();
-  expect(screen.getByText("process-42-100")).toBeVisible();
+  await mount();
   vi.mocked(api.closeReviewed).mockImplementation(async () => {
-    preview = plan();
-    preview.plan_id = "plan-2";
+    preview = demoPlan(selection);
+    preview.plan_id = "fresh-plan";
     return preview.report;
   });
-  await user.click(screen.getByRole("button", { name: w.close }));
-  await screen.findByText(w.none);
-  expect(api.execute).not.toHaveBeenCalled();
+  await hold();
   expect(api.closeReviewed).toHaveBeenCalledTimes(1);
-  expect(api.buildPlan).toHaveBeenLastCalledWith({
-    ...selection,
-    inventory_id: "inventory-fresh",
+  expect(api.execute).not.toHaveBeenCalled();
+  const button = await screen.findByRole("button", {
+    name: /Hold to log out locally/,
   });
-  expect(screen.getByRole("button", { name: w.execute })).toBeDisabled();
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
+  await hold(button);
   expect(api.execute).toHaveBeenCalledWith(
-    expect.objectContaining({ plan_id: "plan-2" }),
+    expect.objectContaining({
+      plan_id: "fresh-plan",
+      force_close_accounts: [],
+    }),
     expect.any(Function),
   );
 });
-it("can recheck manually closed processes or skip only dependent items", async () => {
-  preview.report.accounts[0].sections[1].items[0].processes = ["process-99"];
+
+it("can recheck manually closed programs without requesting closure", async () => {
+  preview.report.accounts[0].sections[0].items[0].processes = [
+    "Discord-preview-process",
+  ];
+  await mount();
+  preview = demoPlan(selection);
+  await userEvent.click(
+    screen.getByRole("button", { name: "I closed them — check again" }),
+  );
+  await screen.findByRole("button", {
+    name: /Hold to log out locally/,
+  });
+  expect(api.closeReviewed).not.toHaveBeenCalled();
+  expect(api.execute).not.toHaveBeenCalled();
+});
+
+it("does not force close in Ask mode and can skip only affected items", async () => {
+  preview.report.accounts[0].sections[1].items[0].processes = [
+    "Chrome-preview-process",
+  ];
+  await mount();
   vi.mocked(api.buildPlan).mockImplementation(async (request) => {
-    if (request.inventory_id === "inventory-fresh") preview = plan(request);
+    preview = demoPlan(request);
     return preview;
   });
-  const user = userEvent.setup();
-  await mount();
-  await user.click(screen.getByRole("button", { name: w.skip }));
-  await screen.findByText(w.none);
-  expect(api.buildPlan).toHaveBeenLastCalledWith({
-    inventory_id: "inventory-fresh",
-    items: ["chat", "dev"],
-    profiles: [{ item: "chat", profiles: ["p1"] }],
-    skipped: ["browser"],
+  await userEvent.click(
+    screen.getByRole("button", { name: "Skip open programs" }),
+  );
+  await screen.findByRole("button", {
+    name: /Hold to log out locally/,
   });
-  expect(screen.getByText(w.skipped)).toBeVisible();
+  expect(api.buildPlan).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      skipped: ["Chrome"],
+      items: selection.items.filter((id) => id !== "Chrome"),
+      profiles: selection.profiles.filter(
+        (profile) => profile.item !== "Chrome",
+      ),
+    }),
+  );
+  expect(api.execute).not.toHaveBeenCalled();
   expect(api.closeReviewed).not.toHaveBeenCalled();
 });
-it("shows force-close work-loss warning and gates account acknowledgments", async () => {
+
+it("shows the force-close loss warning and sends only reviewed account acknowledgments", async () => {
   preview.report.process_close_policy = "hard-kill-after2s";
-  preview.report.accounts[0].sections[1].items[0].processes = ["process-5"];
-  const user = userEvent.setup(),
-    button = await mount();
-  expect(screen.getByText(s.forceWarning)).toBeVisible();
-  await user.click(
-    screen.getByRole("checkbox", { name: /drafts or offline messages/ }),
-  );
-  await user.click(
-    screen.getByRole("checkbox", { name: /settings or profiles/ }),
-  );
-  await user.click(screen.getByRole("checkbox", { name: w.windowsConfirm }));
-  expect(button).toBeDisabled();
-  await user.click(screen.getByRole("checkbox", { name: w.forceConfirm }));
-  await user.click(button);
+  preview.report.accounts[0].sections[0].items[0].processes = [
+    "Discord-preview-process",
+  ];
+  await mount();
+  expect(
+    screen.getByText(/Force closing can destroy unsaved work/),
+  ).toBeVisible();
+  expect(api.execute).not.toHaveBeenCalled();
+  await hold();
   expect(api.execute).toHaveBeenCalledWith(
     expect.objectContaining({ force_close_accounts: ["current-account"] }),
     expect.any(Function),
   );
 });
-it("streams category progress, filters foreign events and cancels without starting another wipe", async () => {
-  const user = userEvent.setup();
+
+it("filters foreign events, exposes category progress and stops only the active run", async () => {
   await mount();
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
+  await hold();
   act(() => {
     events({
       kind: "progress",
@@ -342,216 +222,169 @@ it("streams category progress, filters foreign events and cancels without starti
     });
     events({
       kind: "progress",
-      run_id: "plan-1",
+      run_id: preview.plan_id,
       account: "current-account",
       category: "application",
       stage: "verification",
-      instance: "chat",
+      instance: null,
       action: null,
     });
   });
-  expect(screen.getByText(/Applications: Verifying/)).toBeVisible();
-  expect(screen.queryByText(/Browsers: Cleaning/)).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: w.cancel }));
-  expect(api.cancel).toHaveBeenCalledWith("plan-1");
-  expect(screen.getByRole("button", { name: w.cancel })).toBeDisabled();
+  expect(screen.getByText("Verifying")).toBeVisible();
+  expect(screen.queryByText("Cleaning")).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Stop remaining work" }),
+  );
+  expect(api.cancel).toHaveBeenCalledWith(preview.plan_id);
+  expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
   expect(api.execute).toHaveBeenCalledTimes(1);
-  const result = completed();
-  result.accounts[0].sections[0].status = "cancelled";
-  finish(result);
-  expect(screen.getByText("Cancelled")).toBeVisible();
-  expect(back).not.toHaveBeenCalled();
 });
-it("separates all three reports and exports only through the native command", async () => {
-  const user = userEvent.setup();
-  const report = completed();
-  report.accounts[0].sections[0].succeeded = 1;
-  report.accounts[0].sections[0].already_absent = 1;
-  report.accounts[0].sections[0].items[0].actions[0].outcome = "already-absent";
-  report.accounts[0].sections[1] = {
-    ...report.accounts[0].sections[1],
-    items: [],
-    status: "not-requested",
-  };
-  render(
-    <Reports
-      report={report}
-      name={(_, i) => i.instance}
-      retry={vi.fn()}
-      working={false}
-    />,
-  );
-  expect(screen.getByText("chat/local-store")).toBeVisible();
-  expect(
-    screen.getByText(/Removed \/ changed: 0 · Already absent: 1/),
-  ).toBeVisible();
-  expect(screen.queryByText("dev/local-store")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("tab", { name: categoryNames.browser }));
-  expect(screen.getByText("Not requested")).toBeVisible();
-  expect(screen.queryByText("chat/local-store")).not.toBeInTheDocument();
-  await user.click(
-    screen.getByRole("tab", {
-      name: categoryNames["windows-microsoft-and-dev-tools"],
-    }),
-  );
-  expect(screen.getByText("dev/local-store")).toBeVisible();
-  expect(screen.getByText(h.windowsWarning)).toBeVisible();
-  expect(screen.getByText(w.remainsHelp)).toBeVisible();
-  await user.click(screen.getByRole("button", { name: w.json }));
-  expect(api.exportReport).toHaveBeenCalledWith("json");
-  await screen.findByText(/reports\/test.json/);
-  await user.click(screen.getByRole("button", { name: w.text }));
-  expect(api.exportReport).toHaveBeenCalledWith("text");
-});
-it("retries only failed or locked items with original profile subsets and fresh confirmations", async () => {
-  const user = userEvent.setup();
+
+it("retries one failed item with a fresh plan and its original profile subset", async () => {
   await mount();
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
-  const result = completed();
-  result.accounts[0].sections[0].items[0].actions[0].outcome = "failed";
-  result.accounts[0].sections[2].items[0].locked = true;
-  finish(result);
+  await hold();
+  finish(demoResult(preview, true));
+  expect(
+    screen.getByRole("heading", { name: "Done, 2 items need attention" }),
+  ).toBeVisible();
   vi.mocked(api.buildPlan).mockImplementation(async (request) => {
-    preview = plan(request);
+    preview = demoPlan(request);
     preview.plan_id = "retry-plan";
     return preview;
   });
-  await user.click(screen.getByRole("button", { name: w.retry }));
-  await screen.findByRole("button", { name: w.execute });
-  expect(api.scan).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole("button", { name: "Retry Chrome" }));
+  await screen.findByRole("button", { name: /Hold to log out locally/ });
   expect(api.buildPlan).toHaveBeenLastCalledWith({
-    inventory_id: "inventory-fresh",
-    items: ["chat", "dev"],
-    profiles: [{ item: "chat", profiles: ["p1"] }],
+    inventory_id: "preview-inventory",
+    items: ["Chrome"],
+    profiles: [{ item: "Chrome", profiles: ["Chrome-default", "Chrome-work"] }],
   });
-  expect(screen.getByRole("button", { name: w.execute })).toBeDisabled();
   expect(api.execute).toHaveBeenCalledTimes(1);
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
-  expect(api.execute).toHaveBeenLastCalledWith(
-    expect.objectContaining({ plan_id: "retry-plan" }),
-    expect.any(Function),
-  );
+  await hold();
+  expect(api.execute).toHaveBeenCalledTimes(2);
 });
-it("refuses retries when accounts or profile scopes cannot be matched safely", async () => {
-  const user = userEvent.setup();
+
+it("refuses a retry if the account or profile cannot be matched safely", async () => {
   await mount();
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
-  const result = completed();
-  result.accounts[0].sections[0].items[0].locked = true;
-  finish(result);
-  const fresh = inventory();
-  fresh.groups[0].items[0].profiles = ["p2"];
-  vi.mocked(api.scan).mockResolvedValue(fresh);
-  await user.click(screen.getByRole("button", { name: w.retry }));
-  await screen.findByText(w.unavailable);
+  await hold();
+  finish(demoResult(preview, true));
+  const inventory = demoInventory();
+  inventory.groups[1].items[0].profiles = ["Chrome-work"];
+  vi.mocked(api.scan).mockResolvedValue(inventory);
+  await userEvent.click(screen.getByRole("button", { name: "Retry Chrome" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(w.unavailable);
+  expect(api.execute).toHaveBeenCalledTimes(1);
   expect(api.buildPlan).toHaveBeenCalledTimes(1);
-  expect(api.execute).toHaveBeenCalledTimes(1);
 });
-it("retains received results after stream failure and hides export of an older native report", async () => {
-  const user = userEvent.setup();
+
+it("retains acknowledged item results on stream failure, without exporting an older report", async () => {
   await mount();
-  await approvals(user);
-  await user.click(screen.getByRole("button", { name: w.execute }));
+  await hold();
   act(() => {
     events({
       kind: "item",
-      run_id: "plan-1",
+      run_id: preview.plan_id,
       account: "current-account",
       category: "application",
-      item: completed().accounts[0].sections[0].items[0],
+      item: demoResult(preview).accounts[0].sections[0].items[0],
     });
-    events({ kind: "failed", run_id: "plan-1", error: "cancelled" });
+    events({
+      kind: "failed",
+      run_id: preview.plan_id,
+      error: "worker-unavailable",
+    });
   });
-  expect(screen.getByText("chat/local-store").closest("li")).toHaveTextContent(
-    "Removed / changed",
-  );
   expect(screen.getByRole("alert")).toHaveTextContent(w.noResults);
   expect(
-    screen.queryByRole("button", { name: w.json }),
-  ).not.toBeInTheDocument();
-  expect(api.exportReport).not.toHaveBeenCalled();
-});
-it("renders separate per-account results and residual hive coverage", async () => {
-  const result = completed();
-  result.account_mode = "all-accounts";
-  result.accounts.push({
-    ...result.accounts[0],
-    account: "account-2",
-    residual_hive: true,
-  });
-  render(
-    <Reports
-      report={result}
-      name={(_, i) => i.instance}
-      retry={vi.fn()}
-      working={false}
-    />,
-  );
+    screen.getAllByText(
+      "No result was received. The local effects are unknown.",
+    ),
+  ).toHaveLength(7);
   expect(
-    within(
-      screen.getByRole("region", { name: "Windows account: account-2" }),
-    ).getByText(w.residualHive),
+    screen.getByText("Selected session data verified absent."),
   ).toBeVisible();
-  expect(screen.getAllByText("chat/local-store")).toHaveLength(2);
+  expect(
+    screen.queryByRole("button", { name: "Save JSON report" }),
+  ).not.toBeInTheDocument();
 });
-it("sanitizes unexpected API errors and never executes a failed dry run", async () => {
-  vi.mocked(api.dryRun).mockRejectedValue({ secret: "must-not-be-rendered" });
+
+it("sanitizes failed planning errors and never submits deletion", async () => {
+  vi.mocked(api.dryRun).mockRejectedValue({ secret: "private-payload" });
   render(
     <WipeFlow
-      inventory={inventory()}
+      inventory={demoInventory()}
       selection={selection}
       setBusy={setBusy}
       back={back}
     />,
   );
   expect(await screen.findByRole("alert")).toHaveTextContent(unknownError);
-  expect(screen.queryByText(/must-not-be-rendered/)).not.toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent("private-payload");
   expect(api.execute).not.toHaveBeenCalled();
 });
 
-it("keeps skipped-only reports separate and records native export eligibility", async () => {
-  const user = userEvent.setup();
-  const result = plan({ ...selection, items: [], profiles: [] }).report;
-  result.mode = "apply";
+it("never claims clean coverage for a residual hive, unknown verification or skipped item", async () => {
+  const result = demoResult(preview);
+  result.accounts[0].residual_hive = true;
+  result.accounts[0].sections[0].items[0].actions[0].verification = "unknown";
   result.skipped = [
     {
-      account: "current-account",
+      account: "account-2",
       category: "browser",
-      instance: "browser",
+      instance: "other-browser",
+      name: "Other browser",
       provider: "browser",
-      name: "Skipped browser",
     },
   ];
   render(
     <Reports
       report={result}
-      name={(_, i) => i.instance}
+      name={(_, item) => item.instance}
       retry={vi.fn()}
       working={false}
+      coverage={["coverage-unresolved"]}
     />,
   );
-  expect(screen.queryByText("Skipped browser")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("tab", { name: categoryNames.browser }));
-  expect(screen.getByText("Skipped browser")).toBeVisible();
-  expect(screen.getByText("Not requested")).toBeVisible();
-  expect(screen.getByText(/Items skipped by choice/)).toBeVisible();
-  await user.click(screen.getByRole("button", { name: w.json }));
-  expect(api.exportReport).toHaveBeenCalledWith("json");
+  expect(
+    screen.queryByRole("heading", { name: "Done" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/temporary account hive remains mounted/),
+  ).toBeVisible();
+  expect(screen.getByText("Other browser")).toBeVisible();
+  expect(screen.getByText("Coverage incomplete")).toBeVisible();
+  await userEvent.click(screen.getByText("Report & coverage"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save JSON report" }),
+  );
+  await waitFor(() => expect(api.exportReport).toHaveBeenCalledWith("json"));
 });
-it("rechecks manually closed processes without issuing a close command", async () => {
-  const user = userEvent.setup();
-  preview.report.accounts[0].sections[0].items[0].processes = ["process-1"];
-  await mount();
-  vi.mocked(api.buildPlan).mockImplementation(async () => {
-    preview = plan();
-    return preview;
+
+it("finishes a skipped-only plan without representing it as successful cleanup", async () => {
+  preview = demoPlan({
+    ...selection,
+    items: [],
+    profiles: [],
+    skipped: selection.items,
   });
-  await user.click(screen.getByRole("button", { name: w.refresh }));
-  await screen.findByText(w.none);
-  expect(api.closeReviewed).not.toHaveBeenCalled();
-  expect(api.execute).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: w.execute })).toBeDisabled();
+  await mount();
+  await hold();
+  const report = structuredClone(preview.report);
+  report.mode = "apply";
+  finish(report);
+  expect(
+    screen.getByRole("heading", { name: "Done, check coverage" }),
+  ).toBeVisible();
+  expect(
+    screen.getAllByText("Skipped by choice. No cleanup requested."),
+  ).toHaveLength(8);
+  expect(api.execute).toHaveBeenCalledWith(
+    {
+      plan_id: preview.plan_id,
+      confirmed_risks: [],
+      category_tokens: [],
+      force_close_accounts: [],
+    },
+    expect.any(Function),
+  );
 });

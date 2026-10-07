@@ -1,5 +1,8 @@
 # Desktop shell and settings
 
+The historical presentation below is superseded by [the UI redesign](28-ui-redesign.md).
+Its native settings and permission boundaries remain in effect.
+
 Phase 30 adds the EveryOut React shell. Home is a placeholder for phase 31;
 this phase never scans, plans, closes programs or clears session data. Settings
 and About are reachable through keyboard-accessible navigation. The first-run

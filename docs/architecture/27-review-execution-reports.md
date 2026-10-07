@@ -1,5 +1,9 @@
 # Review, execution and local reports
 
+The historical checkbox confirmations and report tabs below are superseded by
+[the UI redesign](28-ui-redesign.md). Native approval payloads, graceful closure,
+fresh review and scoped retry boundaries remain in effect.
+
 Phase 32 completes the desktop flow from the stored Phase 31 selection. Home's
 high-confidence defaults remain selected; loss and Windows-category confirmations
 are additional review gates. Medium/low confidence discoveries retain their existing

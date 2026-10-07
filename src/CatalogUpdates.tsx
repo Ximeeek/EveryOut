@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { activateCatalogUpdate, checkCatalogUpdates } from "./api";
+import { activateCatalogUpdate, checkCatalogUpdates } from "./client";
 import type { CatalogUpdateDto, Settings } from "./api";
 
 const errors: Record<string, string> = {

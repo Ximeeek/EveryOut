@@ -1,4 +1,5 @@
-import type { DetectedItem, ScanDto, SelectionRequest } from "./api";
+import type { Category, DetectedItem, ScanDto, SelectionRequest } from "./api";
+import { categories } from "./wipe";
 
 export type HomeState = {
   inventory: ScanDto | null;
@@ -14,6 +15,101 @@ export const scopes = (item: DetectedItem) =>
   item.profiles.length ? item.profiles : [item.id];
 export const isSelected = (state: HomeState, item: DetectedItem) =>
   (state.selected[item.id]?.length ?? 0) > 0;
+export function defaultSelection(inventory: ScanDto): HomeState {
+  const selected: HomeState["selected"] = {};
+  for (const group of inventory.groups) {
+    for (const item of group.items) {
+      if (
+        group.category &&
+        item.selectable &&
+        (group.confidence === "high" || item.origin === "known-provider")
+      )
+        selected[item.id] = scopes(item);
+    }
+  }
+  return { inventory, selected, error: null };
+}
+export function categoryItems(state: HomeState, category: Category) {
+  return (
+    state.inventory?.groups
+      .filter((group) => group.category === category)
+      .flatMap((group) => group.items)
+      .filter((item) => item.selectable) ?? []
+  );
+}
+export function rescanSelection(
+  previous: HomeState,
+  inventory: ScanDto,
+): HomeState {
+  const next = defaultSelection(inventory);
+  for (const group of inventory.groups) {
+    for (const item of group.items) {
+      if (item.selectable && Object.hasOwn(previous.selected, item.id)) {
+        next.selected[item.id] = scopes(item).filter((scope) =>
+          previous.selected[item.id].includes(scope),
+        );
+      } else if (
+        previous.inventory?.groups.some((group) =>
+          group.items.some((old) => old.id === item.id),
+        )
+      ) {
+        next.selected[item.id] = [];
+      }
+    }
+  }
+  return next;
+}
+
+export function detectedCounts(state: HomeState): Record<Category, number> {
+  return Object.fromEntries(
+    categories.map((category) => [
+      category,
+      state.inventory?.groups
+        .filter((group) => group.category === category)
+        .reduce((sum, group) => sum + group.items.length, 0) ?? 0,
+    ]),
+  ) as Record<Category, number>;
+}
+
+export function toggleCategory(
+  state: HomeState,
+  category: Category,
+): HomeState {
+  const items = categoryItems(state, category);
+  const checked =
+    items.length > 0 &&
+    items.every((item) =>
+      scopes(item).every((scope) => state.selected[item.id]?.includes(scope)),
+    );
+  const selected = { ...state.selected };
+  for (const item of items) selected[item.id] = checked ? [] : scopes(item);
+  return { ...state, selected };
+}
+
+export type CategoryDelta = {
+  previous: number;
+  current: number;
+  change: number;
+  direction: "up" | "down" | "same";
+};
+export function categoryDeltas(previous: HomeState, next: HomeState) {
+  const before = detectedCounts(previous);
+  const after = detectedCounts(next);
+  return Object.fromEntries(
+    categories.map((category) => {
+      const change = after[category] - before[category];
+      return [
+        category,
+        {
+          previous: before[category],
+          current: after[category],
+          change,
+          direction: change > 0 ? "up" : change < 0 ? "down" : "same",
+        },
+      ];
+    }),
+  ) as Record<Category, CategoryDelta>;
+}
 export function selectionRequest(state: HomeState): SelectionRequest | null {
   if (!state.inventory) return null;
   const items = state.inventory.groups
