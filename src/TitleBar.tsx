@@ -3,7 +3,13 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import DotIcon from "./DotIcon";
 
-export default function TitleBar({ children }: { children: ReactNode }) {
+export default function TitleBar({
+  children,
+  onBrandClick,
+}: {
+  children: ReactNode;
+  onBrandClick?: () => void;
+}) {
   const [maximized, setMaximized] = useState(false);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -44,10 +50,14 @@ export default function TitleBar({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="app-header" data-tauri-drag-region>
-        <div className="brand" aria-label="EveryOut">
-          <DotIcon name="logout" size={36} />
+        <button
+          className="brand"
+          type="button"
+          aria-label="EveryOut — main menu"
+          onClick={onBrandClick}
+        >
           <span>EveryOut</span>
-        </div>
+        </button>
         <div className="title-actions">
           {children}
           <div className="window-controls">

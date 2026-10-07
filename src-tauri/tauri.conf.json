@@ -14,9 +14,9 @@
       {
         "title": "EveryOut",
         "width": 900,
-        "height": 640,
+        "height": 760,
         "minWidth": 640,
-        "minHeight": 480,
+        "minHeight": 700,
         "resizable": true,
         "decorations": false,
         "shadow": true

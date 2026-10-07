@@ -38,6 +38,8 @@
 body {
   margin: 0;
   min-width: 320px;
+  height: 100dvh;
+  overflow: hidden;
 }
 button,
 input,
@@ -107,9 +109,10 @@ ul {
 }
 .app-shell {
   width: 100%;
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .app-header {
   display: flex;
@@ -126,6 +129,19 @@ ul {
   font-size: 17px;
   font-weight: 620;
   letter-spacing: -0.045em;
+}
+button.brand {
+  min-height: 36px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+}
+button.brand:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
 }
 .text-button {
   display: inline-flex;
@@ -148,6 +164,8 @@ main {
   margin: 0 auto;
   padding: 4px 24px 16px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .hero {
   text-align: center;
@@ -184,7 +202,9 @@ main {
   font-size: 11px;
   margin-top: 14px;
 }
-.hero-counter > span {
+.hero-counter-value {
+  min-width: 2.5em;
+  text-align: center;
   font-family: Doto, monospace;
   font-weight: 800;
   font-variation-settings: "ROND" 100;
@@ -721,7 +741,7 @@ fieldset p {
   .hero-counter {
     margin-top: 10px;
   }
-  .hero-counter > span {
+  .hero-counter-value {
     font-size: 28px;
   }
   .category-summary {
@@ -845,7 +865,7 @@ fieldset p {
   flex-shrink: 0;
 }
 .brand {
-  pointer-events: none;
+  flex: 0 0 auto;
 }
 .title-actions,
 .window-controls {
@@ -865,13 +885,16 @@ fieldset p {
   display: grid;
   place-items: center;
   background: transparent;
+  color: var(--muted);
+  transition: color 140ms ease;
+}
+.window-controls button:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
 }
 .window-controls button:focus-visible {
   outline-offset: -3px;
-}
-.window-controls .window-close:hover {
-  background: var(--error-bg);
-  color: var(--error);
 }
 .window-error {
   text-align: center;
@@ -955,7 +978,12 @@ fieldset p {
   text-align: left;
 }
 .category-cell:hover:not(:disabled) {
-  background: var(--surface-raised);
+  background: transparent;
+  border-color: transparent;
+}
+.category-cell:hover:not(:disabled) .category-name,
+.category-cell:hover:not(:disabled) .category-detail {
+  color: var(--text);
 }
 .category-cell[aria-checked="false"] {
   color: var(--muted);

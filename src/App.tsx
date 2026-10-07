@@ -377,15 +377,17 @@ export default function App() {
       <a className="skip-link" href="#content">
         {s.skip}
       </a>
-      <TitleBar>
+      <TitleBar onBrandClick={() => setPage("home")}>
         <button
           className="text-button"
           type="button"
+          aria-label={page === "advanced" ? "Back to overview" : "Settings"}
+          title={page === "advanced" ? "Back to overview" : "Settings"}
           disabled={busy || scanning || page === "review"}
           onClick={() => setPage(page === "advanced" ? "home" : "advanced")}
         >
           <DotIcon name={page === "advanced" ? "back" : "settings"} size={20} />
-          {page === "advanced" ? "Back to overview" : "Customize & settings"}
+          {page === "advanced" && "Back to overview"}
         </button>
       </TitleBar>
       <main id="content" tabIndex={-1}>
@@ -545,9 +547,11 @@ export default function App() {
               animated={scanning}
               animateTitle
             >
-              {ready && (
+              {home.inventory && (
                 <p className="hero-counter">
-                  <span>{String(total).padStart(2, "0")}</span>
+                  <span className="hero-counter-value">
+                    {total === 0 ? "No" : String(total).padStart(2, "0")}
+                  </span>
                   {total === 1 ? "item selected" : "items selected"} on this
                   device
                 </p>
