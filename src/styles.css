@@ -1126,7 +1126,12 @@ main {
 .page-home {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+}
+.page-home > .dashboard {
+  margin-block: auto;
+}
+.page-home > .notice {
+  flex-shrink: 0;
 }
 .dashboard {
   width: 100%;
@@ -1327,11 +1332,10 @@ main::-webkit-scrollbar {
   height: 0;
 }
 main.overview-content {
-  overflow: hidden;
+  overflow-y: auto;
 }
 .overview-content .page-home {
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
 }
 @media (max-height: 850px) {
   .dashboard {
