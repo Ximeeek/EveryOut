@@ -396,7 +396,7 @@ export default function App() {
       </a>
       <TitleBar onBrandClick={() => navigate("home", "fresh")}>
         <button
-          className="text-button"
+          className="text-button navigation-button"
           type="button"
           aria-label={page === "advanced" ? "Back to overview" : "Settings"}
           title={page === "advanced" ? "Back to overview" : "Settings"}
@@ -405,9 +405,8 @@ export default function App() {
         >
           <DotIcon
             name={page === "advanced" ? "back" : "settings"}
-            size={page === "advanced" ? 20 : 28}
+            size={28}
           />
-          {page === "advanced" && "Back to overview"}
         </button>
       </TitleBar>
       <main
