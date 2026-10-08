@@ -40,7 +40,8 @@ export default function HoldButton({
     setProgress(0.01);
     timer.current = setInterval(() => {
       const elapsed = performance.now() - started;
-      setProgress(Math.min(elapsed / HOLD_DURATION, 1));
+      const fraction = Math.min(elapsed / HOLD_DURATION, 1);
+      setProgress(fraction * fraction * (3 - 2 * fraction));
       if (elapsed >= HOLD_DURATION) {
         completed.current = true;
         cancel();
@@ -51,11 +52,11 @@ export default function HoldButton({
   return (
     <div className="hold-control">
       <button
-        className="primary hold-button"
+        className={`primary hold-button${progress > 0 ? " is-holding" : ""}`}
         type="button"
         disabled={disabled}
         aria-describedby="hold-help"
-        style={{ "--hold-progress": `${progress * 100}%` } as CSSProperties}
+        style={{ "--hold-duration": `${HOLD_DURATION}ms` } as CSSProperties}
         onPointerDown={(event) => {
           if (event.button === 0) begin("pointer");
         }}
