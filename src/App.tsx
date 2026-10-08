@@ -210,6 +210,7 @@ export default function App() {
     next: Page,
     direction = next === "advanced" ? "right" : "left",
   ) {
+    setDeltas(undefined);
     setNavigation((current) => ({ direction, version: current.version + 1 }));
     setPage(next);
   }
@@ -287,6 +288,7 @@ export default function App() {
   }, [page, navigation.version]);
 
   function invalidate() {
+    setDeltas(undefined);
     updateHome(emptyHome);
     storeSelection(null);
   }
