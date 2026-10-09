@@ -1,5 +1,12 @@
 # Metadata-only detection and classification
 
+The 2026-10-07 [storage discovery extension](../research/04-universal-app-storage-discovery.md)
+adds a separate `ScanReport.storage` channel. It preserves unowned storage-layout and
+cache-name observations through a bounded nested AppData scan and presents them as
+unclassified, non-executable UI hints. The original identity scoring and suppression
+rules below still apply to `known` and `candidates`, not this storage-only channel.
+Folder labels are transient local hints and are excluded from development diagnostics.
+
 Phase 19 adds the workspace library `everyout-detection`. It is not connected to Tauri,
 commands or the UI, contains no real catalog entries, and does not supply cleaning plans.
 The spike remains excluded from the workspace and shipped dependency graph. All tests inject
@@ -117,6 +124,9 @@ UDF conflicts, explicit shared-identity classification, physical ancestor overla
 registry-name-only corroboration, sharing-denied payloads, and junction refusal without descendant
 enumeration. Engine tests cover every category/confidence/support/provenance combination; core tests
 cover conservative legacy provenance. Metadata snapshots prove quiescent fixture preservation.
+
+Scope evidence and execution decisions now use the shared
+[P0 decision trace](scope-evidence-decision-trace.md); confidence remains a discovery ranking.
 
 S8 calibration, metadata discovery exceptions, PWA/shared-UDF ownership validation, hostile race
 review and Windows/AV matrix gates remain open. Fixture tests establish only the stated synthetic

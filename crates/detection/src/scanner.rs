@@ -5,7 +5,10 @@ use crate::{
     heuristic::{excluded, score, Evidence},
     Detection, ScanReport, SignalObservation,
 };
-use everyout_core_model::{ArtifactKind, Category, Confidence, DetectionOrigin, Scope, Support};
+use everyout_core_model::{
+    ApplicationIdentity, ArtifactKind, AuthenticationScope, Category, Confidence, DetectionOrigin,
+    EvidenceState, LossAssessment, Scope, ScopeEvidence, StorageOwnership, Support,
+};
 use everyout_platform_windows::{
     inventory::{InstalledInventory, InventorySource},
     AllowedRoot, KnownFolder, PhysicalIdentity, RootResolver, SafePath, ShallowMetadata,
@@ -105,6 +108,9 @@ pub fn scan_with_aliases(
         coverage: inventory.coverage.clone(),
         ..Default::default()
     };
+    let (storage, coverage) = crate::storage::discover(resolver, inventory, cancelled);
+    report.storage = storage;
+    report.coverage.extend(coverage);
     let mut found = Vec::new();
     for reviewed in manifests {
         if found.len() >= MAX_DETECTIONS {
@@ -216,6 +222,15 @@ pub fn scan_with_aliases(
                 found[i].detection.category = Some(everyout_core_model::Category::Browser);
             } else {
                 found[i].detection.owner = None;
+                found[i].detection.decision.evidence.storage_ownership = EvidenceState::new(
+                    StorageOwnership::Unknown,
+                    "physical-identity",
+                    "browser-alias-ownership-uncorroborated",
+                );
+                found[i]
+                    .detection
+                    .decision
+                    .block("browser-alias-ownership-uncorroborated");
                 found[i].detection.category = None;
                 found[i].detection.selected = false;
                 found[i]
@@ -328,6 +343,47 @@ fn layouts(
         found.push(Found {
             provider_id: None,
             detection: Detection {
+                decision: ScopeEvidence {
+                    application_identity: EvidenceState::new(
+                        if installed {
+                            ApplicationIdentity::Exact
+                        } else {
+                            ApplicationIdentity::Weak
+                        },
+                        if installed {
+                            "package-identity"
+                        } else {
+                            "framework-inference"
+                        },
+                        "discovery-application-identity",
+                    ),
+                    storage_ownership: EvidenceState::new(
+                        if owned {
+                            StorageOwnership::Exclusive
+                        } else {
+                            StorageOwnership::Unknown
+                        },
+                        if owned {
+                            "package-identity"
+                        } else {
+                            "missing-evidence"
+                        },
+                        "discovery-storage-ownership",
+                    ),
+                    authentication_scope: EvidenceState::new(
+                        AuthenticationScope::FrameworkHint,
+                        "framework-inference",
+                        "no-authentication-or-cleaning-scope-proof",
+                    ),
+                    ..Default::default()
+                }
+                .decide(
+                    Support::Candidate,
+                    &["discovery-only-no-provider".into()],
+                    LossAssessment::Unknown,
+                    &[],
+                    &[],
+                ),
                 id: format!("{id}-layout-{index}"),
                 origin: DetectionOrigin::Heuristic,
                 confidence,
@@ -569,6 +625,7 @@ fn manifest(
         found.push(Found {
             provider_id: Some(manifest.id.clone()),
             detection: Detection {
+                decision: everyout_providers::evidence::assess(manifest, resolver),
                 id: format!("{}-instance-{index}", manifest.id),
                 origin: DetectionOrigin::KnownProvider,
                 confidence: manifest.confidence.level,
@@ -680,6 +737,14 @@ fn resolve_overlaps(found: &mut Vec<Found>) {
         detection.selected = false;
         detection.executable = false;
         detection.confidence = Confidence::Low;
+        detection.decision.evidence.storage_ownership = EvidenceState::new(
+            StorageOwnership::SharedConflict,
+            "physical-identity",
+            "physical-store-ownership-or-ancestor-overlap-conflict",
+        );
+        detection
+            .decision
+            .block("physical-store-ownership-or-ancestor-overlap-conflict");
         if !detection
             .limitations
             .iter()

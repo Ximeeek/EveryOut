@@ -1,19 +1,19 @@
 {
   "format_version": 1,
   "id": "spotify",
-  "revision": 1,
+  "revision": 2,
   "name": "Spotify",
   "category": "application",
   "support": "candidate",
   "compatibility": {
     "os": ["windows-10", "windows-11"],
     "channel": "stable",
-    "product_versions": "unvalidated"
+    "product_versions": "1.2.98.301 (pinned desktop executable only)"
   },
   "identity": {
     "installation_id": "spotify",
     "package_id": null,
-    "process_names": []
+    "process_names": ["Spotify.exe"]
   },
   "detection": {
     "require_exclusive_owner": true,
@@ -51,24 +51,20 @@
       "kind": "file",
       "observe": "exists-and-size",
       "ownership": "application",
-      "method": "remove-file",
+      "method": "clear-saved-login",
       "artifact_family": "desktop-session",
       "evidence": ["layout"],
-      "confidence": "unverified"
+      "confidence": "verified"
     }
   ],
   "cleaning_methods": [
     {
-      "id": "remove-file",
-      "kind": "delete-file-family",
-      "companions": [],
-      "blockers": [
-        "unvalidated-product-version",
-        "unknown-authentication-closure",
-        "unreviewed-preservation"
-      ],
+      "id": "clear-saved-login",
+      "kind": "exception-adapter",
+      "adapter_id": "spotify-saved-login-v1",
+      "blockers": [],
       "effects": [
-        "Remembered accounts and mixed preferences; offline download effects unknown"
+        "Remove saved desktop login fields; preserve other preferences, cache and downloaded files"
       ]
     }
   ],
@@ -78,24 +74,22 @@
   "true_logout": {
     "availability": "available",
     "surface": "local-app",
-    "mechanism": "manual-vendor-sign-out-no-reviewed-offline-cli",
+    "mechanism": "reviewed-local-saved-login-adapter",
     "evidence": ["layout"]
   },
   "risks": {
-    "flags": ["settings-or-profiles", "shared-store", "unknown"],
-    "affected_data": [
-      "Remembered accounts and mixed preferences; offline download effects unknown"
-    ],
-    "reason": "Roaming Spotify/prefs is an unverified candidate; vendor logout does not verify the path or removal effect. Store builds excluded.",
-    "permanent_data_loss": "unknown",
+    "flags": [],
+    "affected_data": ["Saved desktop login; sign in again to use your account"],
+    "reason": "Four autologin fields only. Other preferences, installation files and offline storage are outside the operation. Local logout observed on the pinned desktop build; remote sessions remain active.",
+    "permanent_data_loss": "none",
     "confirmations": ["review-spotify-permanent-loss"],
-    "evidence": ["layout", "layout"]
+    "evidence": ["layout", "live-build"]
   },
   "confidence": {
-    "level": "low",
-    "status": "unverified",
-    "rationale": "primary evidence does not establish exclusive ownership, full session coverage or shipping-version preservation",
-    "version_coverage": "unvalidated"
+    "level": "high",
+    "status": "verified",
+    "rationale": "Saved-login removal followed by desktop restart showed the login screen; unrelated prefs bytes preserved",
+    "version_coverage": "1.2.98.301 pinned executable"
   },
   "evidence": [
     {
@@ -104,18 +98,28 @@
       "source": "https://support.spotify.com/us/article/how-to-log-out/",
       "accessed": "2026-10-03",
       "status": "primary-source-lead-unverified-session-scope"
+    },
+    {
+      "id": "live-build",
+      "dossier": "docs/research/05-spotify-local-logout.md#live-review",
+      "source": "https://support.spotify.com/us/article/how-to-log-out/",
+      "accessed": "2026-10-08",
+      "status": "live-desktop-pinned-build-local-logout-observed"
     }
   ],
-  "sources": ["https://support.spotify.com/us/article/how-to-log-out/"],
-  "limitations": [
-    "Roaming Spotify/prefs is an unverified candidate; vendor logout does not verify the path or removal effect. Store builds excluded.",
-    "no-authentication-proof",
-    "no-remote-revocation",
-    "no-network-no-secret-content-reads",
-    "no-reviewed-process-image-identity",
-    "fixture-success-is-not-product-logout"
+  "sources": [
+    "https://support.spotify.com/us/article/how-to-log-out/",
+    "https://support.spotify.com/us/article/storage-information/",
+    "https://spicetify.app/docs/customization/config-file"
   ],
-  "open_spikes": ["desktop-session-closure", "catalog-verification-matrix"],
+  "limitations": [
+    "local-saved-login-only",
+    "no-remote-revocation",
+    "store-builds-excluded",
+    "only-reviewed-desktop-build",
+    "file-write-power-interruption-risk"
+  ],
+  "open_spikes": ["additional-desktop-builds", "store-build-logout"],
   "application": "desktop-client",
   "extensions": null
 }

@@ -6,7 +6,7 @@ use everyout_providers::{load_manifest, Root};
 use std::{fs, path::Path};
 
 #[test]
-fn every_desktop_candidate_stays_unselected_and_unknown_roots_are_not_probed() {
+fn unknown_roots_are_not_probed_and_discovery_never_authorizes_execution() {
     let catalog = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../catalog/apps");
     let mut checked = 0;
     for category in [
@@ -47,11 +47,13 @@ fn every_desktop_candidate_stays_unselected_and_unknown_roots_are_not_probed() {
                 &|| false,
             );
             assert_eq!(before, fixture.snapshot().unwrap());
-            assert!(
-                report.known.iter().all(|d| !d.selected && !d.executable),
-                "{}",
-                m.id
-            );
+            assert!(report.known.iter().all(|d| !d.executable), "{}", m.id);
+            // The reviewed Spotify manifest has high static confidence, but
+            // runtime build/format gates remain the executor's responsibility.
+            assert!(report
+                .known
+                .iter()
+                .all(|d| d.selected == (m.id == "spotify")));
             if matches!(m.roots[0], Root::Unresolved { .. }) {
                 assert!(report.known.is_empty());
                 assert!(report

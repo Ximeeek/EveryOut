@@ -49,7 +49,7 @@ impl CurrentProcesses {
         if self.names.is_empty() {
             return Ok(false);
         }
-        let inventory = process::enumerate_current_user().map_err(|e| e.kind)?;
+        let inventory = process::enumerate_current_user_matches(&self.names).map_err(|e| e.kind)?;
         if !inventory.unavailable.is_empty() {
             return Err(ErrorKind::AccessDenied);
         }
@@ -61,9 +61,19 @@ impl CurrentProcesses {
         if matches.is_empty() {
             return Ok(false);
         }
-        let paths = everyout_platform_windows::accounts::NativeProfiles
-            .current_installation_paths(&self.names)
+        let paths = if self.names == ["Spotify.exe"] {
+            let root = everyout_platform_windows::AllowedRoot::from_manifest(
+                &CurrentUserFolders,
+                everyout_platform_windows::KnownFolder::RoamingAppData,
+                "Spotify",
+            )
             .map_err(|e| e.kind)?;
+            vec![root.spotify_reviewed_executable().map_err(|e| e.kind)?]
+        } else {
+            everyout_platform_windows::accounts::NativeProfiles
+                .current_installation_paths(&self.names)
+                .map_err(|e| e.kind)?
+        };
         if paths.is_empty() || matches.iter().any(|p| !p.matches(&self.names, &paths)) {
             return Err(ErrorKind::OwnershipConflict);
         }
@@ -129,15 +139,40 @@ impl MetadataAccess for Router<'_> {
         if matches.next().is_some() {
             return Err(ErrorKind::OwnershipConflict);
         }
+        crate::diagnostics::record(
+            "metadata-observation",
+            serde_json::json!({
+                "exists": result.as_ref().ok().map(|m| m.exists),
+                "bytes": result.as_ref().ok().and_then(|m| m.size),
+                "error": result.as_ref().err(),
+            }),
+        );
         result
     }
 }
 impl LocalOperations for Router<'_> {
     fn apply(&self, plan: &ValidatedPlan, action: &ActionId) -> ActionOutcome {
+        crate::diagnostics::record(
+            "local-operation-start",
+            serde_json::json!({
+                "provider": plan.plan().provider_id.0,
+                "method": plan.plan().actions.iter().find(|a| &a.action_id == action).map(|a| a.method),
+            }),
+        );
         // Engine-held provider IDs select one capability; failed adapters cannot broaden scope.
         for provider in self.providers {
             let result = provider.apply(plan, action);
             if !result.issues.iter().any(|i| i.kind == ErrorKind::StalePlan) {
+                crate::diagnostics::record(
+                    "local-operation-result",
+                    serde_json::json!({
+                        "provider": plan.plan().provider_id.0,
+                        "outcome": result.status,
+                        "issues": result.issues.iter().map(|i| serde_json::json!({
+                            "kind": i.kind, "code": i.explanation_code, "os_code": i.os_code,
+                        })).collect::<Vec<_>>(),
+                    }),
+                );
                 return result;
             }
         }
@@ -217,7 +252,13 @@ pub fn serve(mut worker: crate::bridge::Worker) {
                     providers.push(provider);
                     categories.push(manifest.category);
                 }
-                Err(_) => {
+                Err(error) => {
+                    crate::diagnostics::record(
+                        "adapter-unavailable",
+                        serde_json::json!({
+                            "provider": manifest.id, "error": error,
+                        }),
+                    );
                     unavailable.push(format!("{}-execution-adapter-unavailable", manifest.id))
                 }
             }

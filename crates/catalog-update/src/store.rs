@@ -117,7 +117,7 @@ impl Store {
             }
             txn.commit().map_err(|_| Error::Storage)?;
         }
-        let state: State = {
+        let mut state: State = {
             let txn = db.begin_read().map_err(|_| Error::Storage)?;
             let table = txn.open_table(STATE).map_err(|_| Error::Storage)?;
             let record = table
@@ -129,8 +129,50 @@ impl Store {
             }
             strict_json(record.value()).map_err(|_| Error::Storage)?
         };
-        if state.lineage != "EveryOut/stable-v1" || state.floor < bundled.version {
+        if state.lineage != "EveryOut/stable-v1" {
             return Err(Error::Storage);
+        }
+        // A newer catalog compiled into an installed application is a trusted
+        // release upgrade. Preserve the accepted floor and revision tombstones;
+        // never reset or silently replace equal-version divergent content.
+        if bundled.version > state.floor {
+            if let Some(bytes) = &state.signed {
+                let previous = trust.verify(bytes).map_err(|_| Error::Storage)?;
+                if previous.version != state.floor || previous.digest != state.digest {
+                    return Err(Error::Storage);
+                }
+                state.accept(&previous).map_err(|_| Error::Storage)?;
+                if previous.entries.iter().any(|entry| {
+                    state.history.get(&entry.id).is_none_or(|old| {
+                        old.revision != entry.revision || old.digest != entry.sha256
+                    })
+                }) {
+                    return Err(Error::Storage);
+                }
+            }
+            state.accept(&bundled).map_err(|_| Error::Storage)?;
+            let mut next = state.clone();
+            next.floor = bundled.version;
+            next.digest = bundled.digest.clone();
+            next.signed = None;
+            for entry in &bundled.entries {
+                next.history.insert(
+                    entry.id.clone(),
+                    Revision {
+                        revision: entry.revision,
+                        digest: entry.sha256.clone(),
+                    },
+                );
+            }
+            let encoded = serde_json::to_vec(&next).map_err(|_| Error::Storage)?;
+            let mut txn = db.begin_write().map_err(|_| Error::Storage)?;
+            txn.set_durability(Durability::Immediate);
+            txn.open_table(STATE)
+                .map_err(|_| Error::Storage)?
+                .insert("accepted", encoded.as_slice())
+                .map_err(|_| Error::Storage)?;
+            txn.commit().map_err(|_| Error::Storage)?;
+            state = next;
         }
         let active = match &state.signed {
             Some(bytes) => trust.verify(bytes).map_err(|_| Error::Storage)?,
@@ -267,11 +309,12 @@ mod tests {
         let mut seed = [0; 32];
         rand_core::OsRng.fill_bytes(&mut seed);
         let key = SigningKey::from_bytes(&seed);
-        let snapshot = bundled(
+        let mut snapshot = bundled(
             entries([include_str!("../../providers/tests/fixtures/provider.json").to_owned()])
                 .unwrap(),
         )
         .unwrap();
+        snapshot.version = 1; // Explicit initial version for the upgrade fixtures.
         let trust = Trust::new(Some(key.verifying_key().to_bytes()), &snapshot).unwrap();
         (snapshot, trust, key)
     }
@@ -283,6 +326,32 @@ mod tests {
             payload,
         })
         .unwrap()
+    }
+    #[test]
+    fn application_catalog_upgrade_preserves_floor_and_provider_history() {
+        let (base, trust, key) = setup();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("catalog");
+        drop(Store::open(&path, base.clone(), trust.clone()).unwrap());
+        let mut manifest: serde_json::Value =
+            serde_json::from_str(&base.entries[0].manifest).unwrap();
+        manifest["revision"] = serde_json::json!(2);
+        let upgraded = bundled(entries([manifest.to_string()]).unwrap()).unwrap();
+        assert_eq!(upgraded.version, 2);
+        let mut store = Store::open(&path, upgraded.clone(), trust.clone()).unwrap();
+        assert_eq!(store.snapshot().unwrap().digest, upgraded.digest);
+        assert!(matches!(
+            store.check(&Fake(signed(&key, base.entries.clone(), 3))),
+            Err(Error::Revision)
+        ));
+        drop(store);
+        assert!(Store::open(&path, base, trust.clone()).is_err());
+        let reloaded = Store::open(&path, upgraded.clone(), trust.clone()).unwrap();
+        assert_eq!(reloaded.snapshot().unwrap().version, 2);
+        drop(reloaded);
+        let mut divergent = upgraded;
+        divergent.digest = "different".into();
+        assert!(Store::open(&path, divergent, trust).is_err());
     }
     struct Fake(Vec<u8>);
     impl transport::Source for Fake {

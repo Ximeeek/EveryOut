@@ -100,6 +100,9 @@ impl LocalOperations for Operations {
     }
 }
 struct LabProvider {
+    authentication_scope: AuthenticationScope,
+    method: MethodKind,
+    reviewed_presence: bool,
     instance: &'static str,
     files: Vec<&'static str>,
     category: Category,
@@ -119,10 +122,14 @@ struct LabProvider {
     counterfeit: Cell<bool>,
     reckless_preview: Cell<bool>,
     process_revision: Cell<u64>,
+    preview_error: Cell<Option<ErrorKind>>,
 }
 impl LabProvider {
     fn new(category: Category) -> Self {
         Self {
+            authentication_scope: AuthenticationScope::Validated,
+            method: MethodKind::DeleteFileFamily,
+            reviewed_presence: false,
             instance: "fixture-instance",
             files: FILES.to_vec(),
             category,
@@ -142,6 +149,7 @@ impl LabProvider {
             counterfeit: Cell::new(false),
             reckless_preview: Cell::new(false),
             process_revision: Cell::new(1),
+            preview_error: Cell::new(None),
         }
     }
 }
@@ -151,6 +159,19 @@ impl Provider for LabProvider {
         DetectionResult {
             snapshot_id: cx.snapshot_id.clone(),
             instances: vec![ProviderInstance {
+                decision: {
+                    let mut evidence = ScopeEvidence::reviewed_catalog(
+                        risk(self.flags.clone()).permanent_data_loss,
+                    );
+                    evidence.authentication_scope.state = self.authentication_scope;
+                    evidence.decide(
+                        self.support,
+                        &[],
+                        risk(self.flags.clone()).permanent_data_loss,
+                        &self.flags,
+                        &[],
+                    )
+                },
                 provider_id: ProviderId("test-only".into()),
                 instance_id: InstanceId(self.instance.into()),
                 owner: if self.resolved_owner {
@@ -195,8 +216,9 @@ impl Provider for LabProvider {
             expected_effects: vec!["remove-synthetic-cookie-family".into()],
         }
     }
-    fn plan(&self, _cx: &PlanContext<'_>, selected: &Selection) -> PlanResult {
+    fn plan(&self, cx: &PlanContext<'_>, selected: &Selection) -> PlanResult {
         PlanResult::Ready(Box::new(ProposedPlan {
+            scope_evidence: cx.inventory.instances[0].decision.evidence.clone(),
             plan_id: PlanId("fixture-plan".into()),
             provider_id: ProviderId("test-only".into()),
             manifest_revision: self.revision.get(),
@@ -211,7 +233,7 @@ impl Provider for LabProvider {
                     root_id: owner().root_id.clone(),
                     profile_id: None,
                     method_id: "delete-fixture-file".into(),
-                    method: MethodKind::DeleteFileFamily,
+                    method: self.method,
                     owner: owner(),
                     shared_owners: vec![],
                     artifact_families: vec!["synthetic-cookie-family".into()],
@@ -286,7 +308,13 @@ impl Provider for LabProvider {
     }
 }
 impl EngineProvider for LabProvider {
+    fn verifies_target_presence(&self, action: &PlannedAction) -> bool {
+        self.reviewed_presence || matches!(action.method, MethodKind::DeleteFileFamily)
+    }
     fn process_preview(&self, _plan: &ProposedPlan) -> Result<Vec<ProcessPreview>, ErrorKind> {
+        if let Some(kind) = self.preview_error.get() {
+            return Err(kind);
+        }
         if self.process_revision.get() == 1 {
             Ok(vec![])
         } else {
@@ -353,6 +381,81 @@ fn item(report: &RunReport) -> &ItemReport {
         .iter()
         .find_map(|s| s.items.first())
         .unwrap()
+}
+
+#[test]
+fn process_preview_failure_is_reviewable_but_cannot_mutate_or_close() {
+    let (fixture, ops) = setup();
+    let provider = LabProvider::new(Category::Browser);
+    provider
+        .preview_error
+        .set(Some(ErrorKind::OwnershipConflict));
+    let engine = Engine::new(owner().user_id, &ops);
+    let before = fixture.snapshot().unwrap();
+    let run = prepare(&engine, &provider, &mut |_| {});
+    assert!(engine.validate_preview(&run).is_ok());
+    assert!(item(run.preview())
+        .actions
+        .iter()
+        .all(|a| a.outcome.status == ActionStatus::Blocked));
+    provider.preview_error.set(None);
+    assert_eq!(engine.validate_preview(&run), Err(ErrorKind::StalePlan));
+    provider
+        .preview_error
+        .set(Some(ErrorKind::OwnershipConflict));
+    let result = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
+    assert_eq!(item(&result).aggregate, AggregateStatus::Blocked);
+    assert_eq!(ops.mutations.get(), 0);
+    assert_eq!(provider.close_calls.get(), 0);
+    before.assert_nothing_else_changed(&fixture.snapshot().unwrap(), &[]);
+}
+
+#[test]
+fn high_confidence_without_validated_auth_never_closes_or_mutates() {
+    for authentication_scope in [
+        AuthenticationScope::Unknown,
+        AuthenticationScope::Observed,
+        AuthenticationScope::FrameworkHint,
+    ] {
+        let (fixture, ops) = setup();
+        let mut provider = LabProvider::new(Category::Application);
+        provider.authentication_scope = authentication_scope;
+        assert_eq!(provider.confidence, Confidence::High);
+        let engine = Engine::new(owner().user_id, &ops);
+        let before = fixture.snapshot().unwrap();
+        let run = prepare(&engine, &provider, &mut |_| {});
+        assert!(item(run.preview())
+            .decision
+            .blocked_by
+            .contains(&"unknown-authentication-closure".into()));
+        let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
+        assert_eq!(item(&report).aggregate, AggregateStatus::Blocked);
+        assert_eq!(ops.mutations.get(), 0);
+        assert_eq!(provider.close_calls.get(), 0);
+        before.assert_nothing_else_changed(&fixture.snapshot().unwrap(), &[]);
+    }
+}
+
+#[test]
+fn unverified_rule_remains_reviewable_when_open_app_changes_its_data() {
+    let (fixture, ops) = setup();
+    let mut provider = LabProvider::new(Category::Application);
+    provider.support = Support::Candidate;
+    provider
+        .preview_error
+        .set(Some(ErrorKind::OwnershipConflict));
+    let engine = Engine::new(owner().user_id, &ops);
+    let run = prepare(&engine, &provider, &mut |_| {});
+    std::fs::write(
+        fixture.path().join(format!("LocalAppData/{BASE}/Cookies")),
+        b"synthetic volatile data changed by an open app",
+    )
+    .unwrap();
+    assert!(engine.validate_preview(&run).is_ok());
+    let result = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
+    assert_eq!(item(&result).aggregate, AggregateStatus::Blocked);
+    assert_eq!(ops.mutations.get(), 0);
+    assert_eq!(provider.close_calls.get(), 0);
 }
 
 #[test]
@@ -437,6 +540,37 @@ fn dry_run_has_no_filesystem_or_process_effects() {
     assert_eq!(ops.mutations.get(), 0);
     assert_eq!(provider.close_calls.get(), 0);
     assert_eq!(provider.identity_calls.get(), 0);
+}
+
+#[test]
+fn exception_absence_requires_a_trusted_presence_predicate() {
+    for reviewed_presence in [false, true] {
+        let (_fixture, ops) = setup();
+        let mut provider = LabProvider::new(Category::Application);
+        provider.method = MethodKind::ExceptionAdapter;
+        provider.reviewed_presence = reviewed_presence;
+        let engine = Engine::new(owner().user_id, &ops);
+        let run = prepare(&engine, &provider, &mut |_| {});
+        let report = engine.apply(run, Approval::default(), &|| false, &mut |_| {});
+        let result = item(&report);
+        assert_eq!(
+            result.aggregate,
+            if reviewed_presence {
+                AggregateStatus::CompleteLocalScope
+            } else {
+                AggregateStatus::Partial
+            }
+        );
+        assert!(result
+            .actions
+            .iter()
+            .all(|action| action.verification.status
+                == if reviewed_presence {
+                    VerificationStatus::TargetAbsent
+                } else {
+                    VerificationStatus::Unknown
+                }));
+    }
 }
 
 #[test]

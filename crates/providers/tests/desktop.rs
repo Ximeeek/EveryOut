@@ -78,14 +78,31 @@ fn catalog_requires_evidence_loss_assessments_and_bounded_scopes() {
     for (_, input) in CATALOG {
         let m = load_manifest(input).unwrap();
         assert_eq!(m.support, Support::Candidate);
-        assert_eq!(m.confidence.level, Confidence::Low);
-        assert_eq!(m.confidence.status.as_deref(), Some("unverified"));
+        let reviewed_login = m.id == "spotify";
+        assert_eq!(
+            m.confidence.level,
+            if reviewed_login {
+                Confidence::High
+            } else {
+                Confidence::Low
+            }
+        );
+        assert_eq!(
+            m.confidence.status.as_deref(),
+            Some(if reviewed_login {
+                "verified"
+            } else {
+                "unverified"
+            })
+        );
         assert!(!m.sources.as_ref().unwrap().is_empty());
-        assert!(m
-            .session_locations
-            .iter()
-            .all(|a| a.confidence.as_deref() == Some("unverified")
-                && a.evidence.as_ref().is_some_and(|e| !e.is_empty())));
+        assert!(m.session_locations.iter().all(|a| a.confidence.as_deref()
+            == Some(if reviewed_login {
+                "verified"
+            } else {
+                "unverified"
+            })
+            && a.evidence.as_ref().is_some_and(|e| !e.is_empty())));
         assert!(!m.risks.affected_data.is_empty());
         assert_eq!(
             m.risks.confirmations,
@@ -316,6 +333,11 @@ mod windows {
         for (_, input) in CATALOG {
             let m = load_manifest(input).unwrap();
             if matches!(m.roots[0], Root::Unresolved { .. }) {
+                continue;
+            }
+            if m.id == "spotify" {
+                // A synthetic promotion cannot replace the compiled executable pin.
+                assert!(load_manifest(&synthetic(input).to_string()).is_err());
                 continue;
             }
             let reviewed = synthetic(input);

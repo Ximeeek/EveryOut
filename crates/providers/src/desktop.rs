@@ -137,6 +137,13 @@ pub fn valid_scope(m: &Manifest) -> bool {
             match method {
                 CleaningMethod::DeleteFileFamily { companions, .. } => companions.is_empty(),
                 CleaningMethod::DeleteDirectoryFamily { exclusions, .. } => exclusions.is_empty(),
+                CleaningMethod::ExceptionAdapter { adapter_id, .. } => {
+                    m.id == "spotify"
+                        && adapter_id == "spotify-saved-login-v1"
+                        && m.support == Support::Candidate
+                        && m.session_locations.len() == 1
+                        && m.session_locations[0].method == method.id()
+                }
                 _ => false,
             }
         }

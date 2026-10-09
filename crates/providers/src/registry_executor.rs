@@ -41,6 +41,11 @@ impl<'a> RegistryExecutor<'a> {
             root_id: RootId(manifest.roots[0].id().into()),
         };
         let instance = ProviderInstance {
+            decision: crate::evidence::decision(
+                &manifest,
+                crate::evidence::catalog(&manifest),
+                &[],
+            ),
             provider_id: ProviderId(manifest.id.clone()),
             instance_id: InstanceId(format!("{}-registry", manifest.id)),
             owner: owner.clone(),
@@ -229,6 +234,7 @@ impl Provider for RegistryExecutor<'_> {
             };
         }
         PlanResult::Ready(Box::new(ProposedPlan {
+            scope_evidence: self.instance.decision.evidence.clone(),
             plan_id: PlanId(format!("{}-{}", self.manifest.id, selection.snapshot_id.0)),
             provider_id: self.instance.provider_id.clone(),
             manifest_revision: self.manifest.revision,

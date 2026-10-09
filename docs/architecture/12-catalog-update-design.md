@@ -229,18 +229,24 @@ version cannot lower a provider revision or change its canonical bytes without i
 revision. Removing a provider preserves its latest revision/digest. Reintroducing its older
 revision is rejected. Signing a rollback does not authorize it.
 
-The compiled catalog starts at `BUNDLED_VERSION = 1`. Rejected downloads, malformed manifests and
+The compiled catalog is `BUNDLED_VERSION = 2`. Rejected downloads, malformed manifests and
 failed staging keep the accepted catalog; the fallback is the bundled catalog only while it is
 the accepted initial snapshot. After accepting a newer version, damaged state blocks cleanup
 instead of silently returning to the older bundled rules. Complete deliberate state erasure or
 whole-machine rollback cannot be distinguished from a fresh installation. A process with write
 access can also deliberately restore the entire accepted database, including its floor/history;
 the database checksum is not authentication against that local attacker. No hardware-backed or
-administrator-proof rollback protection is claimed. Updating the bundled floor/catalog or key lineage in a later app
-release requires a reviewed migration; incompatible state currently blocks rather than guessing.
+administrator-proof rollback protection is claimed. A higher compiled catalog version migrates
+accepted state in one immediate-durability transaction, preserving provider revision tombstones
+and checking revision reuse/downgrade. A persisted signed snapshot must verify before migration.
+Equal-version divergence, missing state and invalid signatures still block. Key-lineage changes
+remain unsupported.
 
 The native worker serializes checking/acceptance with scan and execution. Acceptance is rejected
-while an inventory/review is held; Settings/check explicitly discards that review first. On
+while an inventory/review is held; Settings explicitly discards that review first. Checking
+preserves current and elevated inventories because the accepted rules have not changed, and
+refuses an already prepared review. A completed check permits acceptance from the catalog screen;
+acceptance then invalidates the retained inventory in both the native session and the UI. On
 acceptance the previous session and elevated connection are dropped and all borrowed providers
 are reconstructed from the new immutable snapshot before processing another request. This pins
 an inventory, plan, approval and run to one snapshot lifetime. Old opaque IDs cannot authorize

@@ -1,6 +1,7 @@
 import type {
   Category,
   DetectedItem,
+  DecisionTrace,
   ItemDto,
   PlanDto,
   ReportDto,
@@ -15,6 +16,27 @@ const names: Record<Category, string[]> = {
   "windows-microsoft-and-dev-tools": ["GitHub CLI", "Docker"],
 };
 
+// Visual fixtures are explicit mock domain results, never runtime authorization.
+export function demoDecision(): DecisionTrace {
+  const provenance = [
+    { source: "synthetic-fixture", reason_code: "fixture-only-review" },
+  ];
+  return {
+    evidence: {
+      application_identity: { state: "exact", provenance },
+      storage_ownership: { state: "exclusive", provenance },
+      authentication_scope: { state: "validated", provenance },
+      preservation: { state: "known-losses", provenance },
+      version_applicability: { state: "current", provenance },
+      authority: "reviewed-catalog",
+    },
+    support: "validated",
+    action_allowed: true,
+    blocked_by: [],
+    confirmations_required: [],
+  };
+}
+
 export function demoInventory(): ScanDto {
   return {
     inventory_id: "preview-inventory",
@@ -25,6 +47,7 @@ export function demoInventory(): ScanDto {
       category,
       confidence: "high",
       items: names[category].map((name): DetectedItem => ({
+        decision: demoDecision(),
         id: name,
         provider: name,
         name,
@@ -87,6 +110,7 @@ export function demoPlan(selection: SelectionRequest): PlanDto {
             const items = group.items
               .filter((item) => selection.items.includes(item.id))
               .map((item): ItemDto => ({
+                decision: item.decision,
                 instance: item.id,
                 provider: item.provider,
                 loss: item.loss,

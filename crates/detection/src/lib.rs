@@ -6,12 +6,16 @@ pub mod classification;
 pub mod heuristic;
 #[cfg(windows)]
 pub mod scanner;
+#[cfg(windows)]
+pub mod storage;
 
 use everyout_core_model::{Category, Confidence, DetectionOrigin};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Detection {
+    #[serde(default)]
+    pub decision: everyout_core_model::DecisionTrace,
     pub id: String,
     pub origin: DetectionOrigin,
     pub confidence: Confidence,
@@ -38,5 +42,18 @@ pub struct ScanReport {
     pub known: Vec<Detection>,
     /// Includes high heuristics until S8 passes, always initially unchecked.
     pub candidates: Vec<Detection>,
+    /// Storage discovery is independent of installation ownership scoring.
+    /// Labels are local folder hints, never authenticated application identities.
+    #[serde(default)]
+    pub storage: Vec<StorageDiscovery>,
     pub coverage: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageDiscovery {
+    pub id: String,
+    pub label: String,
+    pub signals: Vec<String>,
+    pub locations: usize,
+    pub limitations: Vec<String>,
 }

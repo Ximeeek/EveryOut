@@ -1381,3 +1381,22 @@ main.overview-content {
     transform: scaleX(1);
   }
 }
+.scope-decision dl {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  gap: 0.35rem 1rem;
+  margin: 0.8rem 0;
+}
+.scope-decision dt {
+  color: var(--muted);
+}
+.scope-decision dd {
+  margin: 0;
+}
+.scope-decision pre {
+  max-width: 100%;
+  max-height: 24rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

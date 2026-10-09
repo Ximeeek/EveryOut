@@ -68,11 +68,14 @@ Run each tool using its README's exact flags and safety constraints:
   `--i-understand-this-closes-processes`. Use a fresh baseline/dummy for each method. Force and
   two-second escalation require the explicit trial described there; never target real host apps.
 
-The wipe engine and production providers are not implemented. There is no general wipe command
-to run. Follow the individual [S1–S8 protocols](../spikes/README.md) and
+The wipe engine and bounded production providers are implemented; candidate operations remain
+blocked unless their exact scope has been reviewed. Follow the individual
+[S1–S8 protocols](../spikes/README.md) and
 [destructive test strategy](../architecture/11-test-strategy.md) only for their declared scope.
 Real-product layout trials may use unused synthetic profiles inside the guest; do not sign into
 real services, collect tokens, capture secret stores or infer logout from file absence.
+Separate controlled trials using disposable service accounts follow the
+[real application checklist](vm-checklist.md), not this synthetic harness.
 
 Include absent/idempotent targets, preserved canaries, Unicode/spaces, traversal/absolute paths,
 sibling-prefix escape, junction/symlink/hard-link aliases, root/ancestor/leaf substitution, locked

@@ -403,10 +403,7 @@ export default function App() {
           disabled={busy || scanning || page === "review"}
           onClick={() => navigate(page === "advanced" ? "home" : "advanced")}
         >
-          <DotIcon
-            name={page === "advanced" ? "back" : "settings"}
-            size={28}
-          />
+          <DotIcon name={page === "advanced" ? "back" : "settings"} size={28} />
         </button>
       </TitleBar>
       <main
@@ -451,10 +448,13 @@ export default function App() {
               inventory={home.inventory}
               selection={selection}
               setBusy={setBusy}
-              back={() => {
-                invalidate();
+              back={(requiresScan) => {
+                storeSelection(null);
                 navigate("home");
-                void rescan();
+                if (requiresScan) {
+                  invalidate();
+                  void rescan();
+                }
               }}
             />
           ) : page === "advanced" ? (

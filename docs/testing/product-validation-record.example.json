@@ -1,0 +1,23 @@
+{
+  "format_version": 1,
+  "application_id": "fixture-app",
+  "channel": "stable",
+  "product_identity": {
+    "executable_name": "Fixture.exe",
+    "product_name": "Synthetic Fixture",
+    "sha256": null,
+    "publisher": null,
+    "signature_identity": null
+  },
+  "tested_version": "fixture-only-v1",
+  "storage_layout": "synthetic bounded root",
+  "artifact_families": ["local-storage"],
+  "storage_ownership": "unknown",
+  "authentication_closure": "inconclusive",
+  "preservation": "unknown",
+  "known_losses": [],
+  "repetitions": 0,
+  "test_date": "2026-10-09",
+  "validation_method": "synthetic-safety",
+  "status": "incomplete"
+}

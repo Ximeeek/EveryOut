@@ -50,7 +50,7 @@ it("checks only on request, renders inert changelog and activates only on accept
     await screen.findByText("<script>untrusted text</script>"),
   ).toBeInTheDocument();
   expect(document.querySelector("script")).toBeNull();
-  expect(invalidate).toHaveBeenCalledTimes(1);
+  expect(invalidate).not.toHaveBeenCalled();
   expect(api.activateCatalogUpdate).not.toHaveBeenCalled();
   await user.click(
     screen.getByRole("button", { name: "Accept catalog update" }),
@@ -59,7 +59,7 @@ it("checks only on request, renders inert changelog and activates only on accept
     await screen.findByText("Catalog accepted. Scan again before any cleanup."),
   ).toBeInTheDocument();
   expect(api.activateCatalogUpdate).toHaveBeenCalledWith("verified-digest");
-  expect(invalidate).toHaveBeenCalledTimes(2);
+  expect(invalidate).toHaveBeenCalledTimes(1);
   expect(
     screen.getByText(/compatible helper application release/),
   ).toBeInTheDocument();

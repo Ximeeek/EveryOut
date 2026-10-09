@@ -28,6 +28,18 @@ pub struct AllowedRoot {
     chain: Rc<Vec<Handle>>,
 }
 impl AllowedRoot {
+    /// A pinned, live-reviewed desktop build. No manifest-supplied executable
+    /// name or digest is accepted by this fixed adapter.
+    pub fn spotify_reviewed_build(&self) -> Result<()> {
+        self.validate()?;
+        crate::spotify::reviewed_build(self.handle())
+    }
+    pub fn spotify_reviewed_executable(&self) -> Result<std::path::PathBuf> {
+        self.spotify_reviewed_build()?;
+        let path = native::directory_path(self.handle())?;
+        let path = path.strip_prefix("\\\\?\\").unwrap_or(&path);
+        Ok(std::path::PathBuf::from(path).join("Spotify.exe"))
+    }
     /// One bounded level, no descendant enumeration. Redirected entries are omitted
     /// and reported, rather than preventing discovery of unrelated safe children.
     pub fn discovery_children(&self) -> Result<(Vec<(String, bool)>, bool)> {
@@ -92,9 +104,19 @@ impl AllowedRoot {
         relative: &str,
     ) -> Result<Self> {
         let base = resolver.resolve(base)?;
+        base.discovery_descendant(relative)
+    }
+    /// A directory below an existing capability, retaining every ancestor and
+    /// rejecting reparses. This grants no authority outside the resolved root.
+    pub fn discovery_descendant(&self, relative: &str) -> Result<Self> {
+        self.validate()?;
+        let base = self.clone();
         let mut chain = Vec::new();
         // Retain the base capability through a parent field encoded in RootChain.
         let parts = components(relative)?;
+        if parts.len() > MAX_DEPTH {
+            return Err(PlatformError::new(ErrorKind::Unsupported));
+        }
         let mut parent = base.handle();
         for part in &parts {
             chain.push(child(parent, OsStr::new(part), Some(true), false)?);
@@ -267,6 +289,33 @@ pub struct ShallowMetadata {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalIdentity(Identity);
 impl SafePath {
+    /// Returns only whether the fixed saved-login fields exist; payload values
+    /// are confined to the adapter and never exposed to callers or diagnostics.
+    pub fn spotify_saved_login(&self) -> Result<bool> {
+        self.spotify_operation(false)
+    }
+    /// Preserve all bytes outside the four reviewed autologin fields.
+    pub fn clear_spotify_saved_login(&self) -> Result<Mutation> {
+        let changed = self.spotify_operation(true)?;
+        Ok(Mutation {
+            status: if changed {
+                ActionStatus::Applied
+            } else {
+                ActionStatus::AlreadyAbsent
+            },
+            objects: usize::from(changed),
+        })
+    }
+    fn spotify_operation(&self, apply: bool) -> Result<bool> {
+        if self.parts != ["prefs"] || self.directory {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        self.root.spotify_reviewed_build()?;
+        if self.open(false)?.is_none() {
+            return Ok(false);
+        }
+        crate::spotify::saved_login(self.root.handle(), self.identities[0], apply)
+    }
     pub fn probe_shallow(&self) -> Result<ShallowMetadata> {
         let Some(handles) = self.open(false)? else {
             return Ok(ShallowMetadata {

@@ -1,4 +1,5 @@
 import { scopes } from "./selection";
+import ScopeDecision from "./ScopeDecision";
 import type { HomeState } from "./selection";
 import { useRef, useEffect } from "react";
 import type { Category, Confidence, DetectedItem } from "./api";
@@ -109,6 +110,7 @@ export default function Home({
           {item.sync_warning && <span className="badge warning">{h.sync}</span>}
         </div>
         {item.sync_warning && <p className="muted">{h.syncHelp}</p>}
+        <ScopeDecision decision={item.decision} compact />
         {!item.selectable && <p className="muted">{h.unavailable}</p>}
         {item.profiles.length > 0 ? (
           <details>

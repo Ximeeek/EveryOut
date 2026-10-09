@@ -13,7 +13,7 @@ pub const MAX_BUNDLE: usize = 8 * 1024 * 1024;
 pub const MAX_MANIFEST: usize = 256 * 1024;
 pub const MAX_PROVIDERS: usize = 256;
 pub const DOMAIN: &[u8] = b"EveryOut/catalog/stable/v1\0";
-pub const BUNDLED_VERSION: u64 = 1;
+pub const BUNDLED_VERSION: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {

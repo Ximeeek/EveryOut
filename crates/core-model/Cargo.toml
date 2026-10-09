@@ -10,6 +10,7 @@ description = "Pure domain model and provider contract for EveryOut"
 ts-rs.workspace = true
 serde.workspace = true
 schemars.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

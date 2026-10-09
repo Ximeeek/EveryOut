@@ -59,6 +59,7 @@ fn description() -> ProviderDescription {
 }
 fn proposed() -> ProposedPlan {
     ProposedPlan {
+        scope_evidence: ScopeEvidence::reviewed_catalog(LossAssessment::Known),
         plan_id: PlanId("plan-1".into()),
         provider_id: ProviderId("fixture".into()),
         manifest_revision: 1,
@@ -133,6 +134,7 @@ fn domain_serialization_retains_partial_results_and_scope() {
     round_trip(&result());
     round_trip(&owner());
     let instance = ProviderInstance {
+        decision: proposed().decision_trace(),
         provider_id: ProviderId("fixture".into()),
         instance_id: InstanceId("instance-1".into()),
         owner: owner(),

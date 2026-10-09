@@ -43,6 +43,9 @@ impl<'a> CurrentSession<'a> {
         self.inventory_id.clear();
         self.blocked_providers.clear();
     }
+    pub fn has_review(&self) -> bool {
+        self.held.is_some()
+    }
     pub fn block_provider(&mut self, id: String) {
         self.blocked_providers.insert(id);
     }
@@ -83,6 +86,7 @@ impl<'a> CurrentSession<'a> {
                     Some(category),
                     instance.confidence,
                     DetectedItem {
+                        decision: instance.decision.clone(),
                         id: instance.instance_id.0.clone(),
                         account: "current-account".into(),
                         provider: Some(instance.provider_id.0.clone()),
@@ -99,12 +103,7 @@ impl<'a> CurrentSession<'a> {
                         risks: description.risks.flags.clone(),
                         loss: description.risks.permanent_data_loss,
                         signals: vec!["known-provider".into()],
-                        unverified: description.descriptor.support != Support::Validated
-                            || description
-                                .descriptor
-                                .limitations
-                                .iter()
-                                .any(|l| l.contains("unverified")),
+                        unverified: false, // Assigned centrally by ScanDto::push.
                         sync_warning: category == Category::Browser,
                     },
                 );
@@ -191,7 +190,9 @@ impl<'a> CurrentSession<'a> {
         let id = opaque("plan");
         let mut runs = Vec::new();
         let mut tokens = Vec::new();
-        for (category, inventory) in self.inventories.drain(..) {
+        // A read-only preview must not consume the discovery snapshot. Rebuilding
+        // replaces the held review; execution still revalidates the bound targets.
+        for (category, inventory) in self.inventories.iter().cloned() {
             let ids: Vec<_> = inventory
                 .descriptions()
                 .filter(|(i, _)| selected.contains(&i.instance_id.0))
@@ -218,7 +219,6 @@ impl<'a> CurrentSession<'a> {
             }
             runs.push(run);
         }
-        self.inventory_id.clear();
         let reports: Vec<_> = runs.iter().map(|r| r.preview().clone()).collect();
         let mut report = ReportDto::current(&reports, policy, ExecutionMode::DryRun);
         report.skipped = skipped;
@@ -254,6 +254,8 @@ impl<'a> CurrentSession<'a> {
             return Err(CommandError::InvalidSelection);
         }
         let held = self.held.take().ok_or(CommandError::StalePlan)?;
+        self.inventories.clear();
+        self.inventory_id.clear();
         let mut reports = Vec::new();
         for run in held.runs {
             let mut approval = Approval {
@@ -296,6 +298,8 @@ impl<'a> CurrentSession<'a> {
             .ok_or(CommandError::StalePlan)?;
         validate_approval(&held.dto, &request)?;
         let held = self.held.take().ok_or(CommandError::StalePlan)?;
+        self.inventories.clear();
+        self.inventory_id.clear();
         let mut reports = Vec::new();
         // Both closures emit to the same sink sequentially through this local cell.
         let sink = std::cell::RefCell::new(events);
@@ -351,7 +355,7 @@ impl<'a> CurrentSession<'a> {
                         run_id: request.plan_id.clone(),
                         account: "current-account".into(),
                         category,
-                        item: ItemDto::from(item),
+                        item: Box::new(ItemDto::from(item)),
                     })
                 },
             );

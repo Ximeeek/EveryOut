@@ -29,6 +29,17 @@ pub trait EngineProvider: Provider {
     }
     /// A reviewed logical path (root/profile-relative), never account or credential content.
     fn target_label(&self, action: &PlannedAction) -> String;
+    /// Whether observe() verifies this action's logical target presence. Fixed
+    /// adapters may supply a reviewed predicate without deleting the whole file.
+    /// This capability is trusted Rust code, never a serialized manifest switch.
+    fn verifies_target_presence(&self, action: &PlannedAction) -> bool {
+        matches!(
+            action.method,
+            MethodKind::DeleteFileFamily
+                | MethodKind::DeleteDirectoryFamily
+                | MethodKind::DeleteRegistryTarget
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,6 +87,8 @@ pub struct ActionReport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemReport {
+    #[serde(default)]
+    pub decision: DecisionTrace,
     pub instance: InstanceId,
     pub plan: Option<ProposedPlan>,
     pub aggregate: AggregateStatus,
@@ -86,6 +99,25 @@ pub struct ItemReport {
     pub authentication: Uncertainty,
     pub remote_revocation: Uncertainty,
     pub silent_sso: Uncertainty,
+}
+impl ItemReport {
+    fn include_runtime_blockers(&mut self) {
+        for issue in self
+            .issues
+            .iter()
+            .chain(self.actions.iter().flat_map(|action| {
+                action
+                    .outcome
+                    .issues
+                    .iter()
+                    .chain(&action.verification.issues)
+            }))
+        {
+            if issue.blocked {
+                self.decision.block(&issue.explanation_code);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,6 +170,11 @@ impl RunReport {
                 if let Some(plan) = &item.plan {
                     let _ = writeln!(
                         text,
+                        "    decision: {}",
+                        serde_json::to_string(&item.decision).unwrap_or_default()
+                    );
+                    let _ = writeln!(
+                        text,
                         "    selected profiles: {:?}; risk flags: {:?}",
                         plan.selection.profiles, plan.risks.flags
                     );
@@ -180,12 +217,14 @@ impl RunReport {
     }
 }
 
+#[derive(Clone)]
 struct Entry<'a> {
     provider: &'a dyn EngineProvider,
     inventory: DetectionResult,
     instance: ProviderInstance,
     description: ProviderDescription,
 }
+#[derive(Clone)]
 pub struct Inventory<'a> {
     entries: Vec<Entry<'a>>,
     current_user: UserId,
@@ -220,6 +259,7 @@ struct PreparedItem<'a> {
     blocked: Vec<ProviderIssue>,
     observations: Vec<Result<MetadataObservation, ErrorKind>>,
     processes: Vec<ProcessPreview>,
+    process_error: Option<ErrorKind>,
     paths: Vec<String>,
 }
 /// Immutable engine-held preview. Cannot be deserialized or expanded by a caller.
@@ -445,6 +485,7 @@ impl<'a> Engine<'a> {
             ) {
                 PlanResult::Ready(plan) => {
                     if plan.selection != selection
+                        || plan.scope_evidence != entry.instance.decision.evidence
                         || plan.provider_id != entry.instance.provider_id
                         || plan.manifest_revision != entry.description.descriptor.revision
                         || plan.support != entry.description.descriptor.support
@@ -513,14 +554,22 @@ impl<'a> Engine<'a> {
                 blocked,
                 observations,
                 processes: vec![],
+                process_error: None,
                 paths,
             };
             if let Some(plan) = &item.plan {
-                match item.entry.provider.process_preview(plan) {
-                    Ok(processes) => item.processes = processes,
-                    Err(kind) => {
-                        item.blocked
-                            .push(issue(&item, None, kind, "process-preview-unavailable"))
+                if review_plan(plan, &all_confirmations(plan)).is_ok() {
+                    match item.entry.provider.process_preview(plan) {
+                        Ok(processes) => item.processes = processes,
+                        Err(kind) => {
+                            item.process_error = Some(kind);
+                            item.blocked.push(issue(
+                                &item,
+                                None,
+                                kind,
+                                "process-preview-unavailable",
+                            ))
+                        }
                     }
                 }
             }
@@ -604,9 +653,21 @@ impl<'a> Engine<'a> {
                 PlanResult::Ready(fresh) if *fresh == *plan => {}
                 _ => return Err(ErrorKind::StalePlan),
             }
-            if item.entry.provider.describe(&item.entry.instance) != item.entry.description
-                || item.entry.provider.process_preview(plan)? != item.processes
-            {
+            if item.entry.provider.describe(&item.entry.instance) != item.entry.description {
+                return Err(ErrorKind::StalePlan);
+            }
+            // Unexecutable catalog rules cannot authorize cleanup or closing.
+            // Changes to an open application's files must not hide its blocker.
+            if review_plan(plan, &all_confirmations(plan)).is_err() {
+                continue;
+            }
+            // A retained failure is a reviewable blocker, not a failure of the
+            // entire review. Apply still refuses items carrying this blocker.
+            let expected = match item.process_error {
+                Some(kind) => Err(kind),
+                None => Ok(item.processes.clone()),
+            };
+            if item.entry.provider.process_preview(plan) != expected {
                 return Err(ErrorKind::StalePlan);
             }
             for (action, before) in plan.actions.iter().zip(&item.observations) {
@@ -900,6 +961,7 @@ impl<'a> Engine<'a> {
             }
             cancelled_run |= cancelled();
             report.aggregate = aggregate_item(&report, cancelled_run);
+            report.include_runtime_blockers();
             result(&report);
             reports.push(report);
         }
@@ -1096,6 +1158,10 @@ fn preview_item(item: &PreparedItem<'_>) -> ItemReport {
         }
     }
     let mut report = ItemReport {
+        decision: reported_plan
+            .as_ref()
+            .map(ProposedPlan::decision_trace)
+            .unwrap_or_else(|| item.entry.instance.decision.clone()),
         instance: item.entry.instance.instance_id.clone(),
         plan: reported_plan,
         aggregate: AggregateStatus::DryRun,
@@ -1149,9 +1215,15 @@ fn preview_item(item: &PreparedItem<'_>) -> ItemReport {
     } else {
         report.aggregate = AggregateStatus::Blocked;
     }
+    for issue in &report.issues {
+        if issue.blocked {
+            report.decision.block(&issue.explanation_code);
+        }
+    }
     report
 }
 fn block_report(report: &mut ItemReport, item: &PreparedItem<'_>, kind: ErrorKind, code: &str) {
+    report.decision.block(code);
     report.issues.push(issue(item, None, kind, code));
     for action in &mut report.actions {
         action.outcome = failed(
@@ -1172,14 +1244,7 @@ fn verification(
     let observed = metadata.observe(&action.owner, &action.artifact_id);
     let status = match &observed {
         Ok(_) if liveness.is_some() => VerificationStatus::Unknown,
-        Ok(_)
-            if !matches!(
-                action.method,
-                MethodKind::DeleteFileFamily
-                    | MethodKind::DeleteDirectoryFamily
-                    | MethodKind::DeleteRegistryTarget
-            ) =>
-        {
+        Ok(_) if !item.entry.provider.verifies_target_presence(action) => {
             VerificationStatus::Unknown
         }
         Ok(m) if !m.exists => VerificationStatus::TargetAbsent,

@@ -46,6 +46,7 @@ pub struct CatalogUpdateDto {
 
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct DetectedItem {
+    pub decision: DecisionTrace,
     pub id: String,
     pub account: String,
     pub provider: Option<String>,
@@ -67,6 +68,12 @@ pub struct DetectionGroup {
     pub confidence: Confidence,
     pub items: Vec<DetectedItem>,
 }
+impl DetectedItem {
+    pub fn set_decision(&mut self, decision: DecisionTrace) {
+        self.unverified = decision.unverified();
+        self.decision = decision;
+    }
+}
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct ScanDto {
     pub inventory_id: String,
@@ -85,7 +92,19 @@ pub struct AccountScanDto {
     pub limitations: Vec<String>,
 }
 impl ScanDto {
-    pub fn push(&mut self, category: Option<Category>, confidence: Confidence, item: DetectedItem) {
+    pub fn push(
+        &mut self,
+        category: Option<Category>,
+        confidence: Confidence,
+        mut item: DetectedItem,
+    ) {
+        if item.provider.is_none() {
+            item.decision.block("discovery-only-no-provider");
+        }
+        if !item.selectable {
+            item.decision.block("scope-not-selectable");
+        }
+        item.set_decision(item.decision.clone());
         if let Some(group) = self
             .groups
             .iter_mut()
@@ -159,6 +178,7 @@ pub struct ActionDto {
 }
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct ItemDto {
+    pub decision: DecisionTrace,
     pub instance: String,
     pub provider: Option<String>,
     pub loss: LossAssessment,
@@ -182,6 +202,7 @@ impl From<&ItemReport> for ItemDto {
     fn from(item: &ItemReport) -> Self {
         let plan = item.plan.as_ref();
         Self {
+            decision: item.decision.clone(),
             instance: item.instance.0.clone(),
             provider: plan.map(|p| p.provider_id.0.clone()),
             loss: plan
@@ -237,7 +258,20 @@ impl From<&ItemReport> for ItemDto {
                 .unwrap_or_default(),
             processes: item.processes.iter().map(|p| p.identity.clone()).collect(),
             limitations: plan
-                .map(|p| p.limitations.iter().chain(&p.blockers).cloned().collect())
+                .map(|p| {
+                    let mut reasons: std::collections::BTreeSet<_> = p
+                        .limitations
+                        .iter()
+                        .chain(&p.blockers)
+                        .chain(p.actions.iter().flat_map(|action| &action.blockers))
+                        .cloned()
+                        .collect();
+                    if p.risks.permanent_data_loss == LossAssessment::Unknown {
+                        reasons.insert("unknown-permanent-loss".into());
+                    }
+                    reasons.extend(item.decision.blocked_by.iter().cloned());
+                    reasons.into_iter().collect()
+                })
                 .unwrap_or_default(),
             issues: item
                 .issues
@@ -395,7 +429,7 @@ pub enum WipeEvent {
         run_id: String,
         account: String,
         category: Category,
-        item: ItemDto,
+        item: Box<ItemDto>,
     },
     Finished {
         run_id: String,

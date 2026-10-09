@@ -28,6 +28,8 @@ import {
   reportItems,
   retryable,
   needsAttention,
+  previewBlocked,
+  blockingReason,
   targetsFor,
 } from "./wipe";
 import type { Target } from "./wipe";
@@ -50,7 +52,7 @@ export default function WipeFlow({
   inventory: ScanDto;
   selection: SelectionRequest;
   setBusy: (busy: boolean) => void;
-  back: () => void;
+  back: (requiresScan: boolean) => void;
 }) {
   const [plan, setPlan] = useState<PlanDto | null>(null);
   const [report, setReport] = useState<ReportDto | null>(null);
@@ -68,6 +70,7 @@ export default function WipeFlow({
   const operation = useRef(false);
   const starting = useRef<Promise<PlanDto> | null>(null);
   const mounted = useRef(true);
+  const requiresScan = useRef(inventory.mode !== "current");
   useEffect(() => {
     mounted.current = true;
     setBusy(true);
@@ -78,6 +81,8 @@ export default function WipeFlow({
         if (active) setPlan(p);
       })
       .catch((e) => {
+        if (e === "stale-plan" || e === "worker-unavailable")
+          requiresScan.current = true;
         if (active) setError(errorText(e));
       })
       .finally(() => {
@@ -92,7 +97,12 @@ export default function WipeFlow({
     };
   }, [selection, setBusy]);
   const entries = plan ? reportItems(plan.report) : [];
-  const blockers = entries.filter((e) => e.item.processes.length > 0);
+  const blockedEntries = entries.filter((e) => previewBlocked(e.item));
+  const allBlocked =
+    entries.length > 0 && blockedEntries.length === entries.length;
+  const blockers = entries.filter(
+    (e) => !previewBlocked(e.item) && e.item.processes.length > 0,
+  );
   const force = plan?.report.process_close_policy === "hard-kill-after2s";
   const key = (account: string, item: ItemDto, flag: string) =>
     JSON.stringify([account, item.instance, flag]);
@@ -101,6 +111,9 @@ export default function WipeFlow({
       e.item.risks.length > 0 ||
       e.item.confirmations.length > 0 ||
       e.item.loss !== "none",
+  );
+  const hasDataLoss = riskEntries.some(
+    (entry) => entry.item.loss !== "none" || entry.item.risks.length > 0,
   );
   function request(): ExecuteRequest {
     if (!plan) throw new Error("missing-plan");
@@ -134,6 +147,7 @@ export default function WipeFlow({
     setPlan(null);
 
     try {
+      requiresScan.current = true;
       if (approval) await closeReviewed(approval);
       const fresh = await scan();
       const chosen = freshSelection(fresh, next, omitted);
@@ -178,12 +192,14 @@ export default function WipeFlow({
       !plan ||
       operation.current ||
       running ||
+      allBlocked ||
       (!force && blockers.length > 0)
     )
       return;
     const approval = request(),
       id = plan.plan_id;
     operation.current = true;
+    requiresScan.current = true;
     setWorking(true);
     setBusy(true);
     setRunning(true);
@@ -357,11 +373,15 @@ export default function WipeFlow({
           <Hero
             meta="NOTHING HAS BEEN REMOVED"
             title="Couldn’t prepare cleanup"
-            description="Return to the overview to run a fresh scan."
+            description="Return to the overview to adjust your selection."
             icon="attention"
           />
-          <button className="primary" type="button" onClick={back}>
-            Scan again
+          <button
+            className="primary"
+            type="button"
+            onClick={() => back(requiresScan.current)}
+          >
+            Back to overview
           </button>
         </>
       )}
@@ -370,64 +390,95 @@ export default function WipeFlow({
           <Hero
             meta="REVIEW · NOTHING REMOVED YET"
             title={
-              !force && blockers.length
-                ? "Save your work first"
-                : "Ready to let go?"
+              allBlocked
+                ? "Automatic cleanup unavailable"
+                : !force && blockers.length
+                  ? "Save your work first"
+                  : "Ready to let go?"
             }
             description={
-              !force && blockers.length
-                ? "Selected programs are open. Save your work before requesting a gentle close."
-                : "This permanently removes the selected local session data. There is no undo."
+              allBlocked
+                ? "Nothing will be removed. Review the limitations below and use the app’s own logout option."
+                : !force && blockers.length
+                  ? "Selected programs are open. Save your work before requesting a gentle close."
+                  : hasDataLoss
+                    ? "This permanently removes the selected local session data. There is no undo."
+                    : "You may need to sign in again. Review the listed local changes."
             }
           />
           <CategorySummary counts={counts} />
-          <div className="confirmation-notice">
-            <span className="status-pill warning">Permanent deletion</span>
-            <p>
-              {riskEntries.length
-                ? `Also at risk: ${[...new Set(riskEntries.flatMap((e) => (e.item.affected_data.length ? e.item.affected_data : e.item.risks.map((risk) => riskNames[risk]))))].join(", ") || "local-only data"}.`
-                : "Local-only drafts, documents or settings may be lost with session data."}
-            </p>
-            {plan.category_tokens.length > 0 && (
+          {!allBlocked && (
+            <div className="confirmation-notice">
+              <span className="status-pill warning">
+                {hasDataLoss ? "Permanent deletion" : "Local sign-out"}
+              </span>
               <p>
-                Windows stays signed in. Windows sign-in can restore browser or
-                Office sessions.
+                {riskEntries.length
+                  ? `${hasDataLoss ? "Also at risk" : "Effect"}: ${[...new Set(riskEntries.flatMap((e) => (e.item.affected_data.length ? e.item.affected_data : e.item.risks.map((risk) => riskNames[risk]))))].join(", ") || "local session data"}.`
+                  : "Local-only drafts, documents or settings may be lost with session data."}
               </p>
-            )}
-            {force && <p>{s.forceWarning}</p>}
-            {blockers.length > 0 && (
-              <p>
-                Programs to {force ? "force close" : "close gently"}:{" "}
-                {[
-                  ...new Set(
-                    blockers.map((entry) => name(entry.account, entry.item)),
-                  ),
-                ].join(", ")}
-                .
+              {plan.category_tokens.length > 0 && (
+                <p>
+                  Windows stays signed in. Windows sign-in can restore browser
+                  or Office sessions.
+                </p>
+              )}
+              {force && <p>{s.forceWarning}</p>}
+              {blockers.length > 0 && (
+                <p>
+                  Programs to {force ? "force close" : "close gently"}:{" "}
+                  {[
+                    ...new Set(
+                      blockers.map((entry) => name(entry.account, entry.item)),
+                    ),
+                  ].join(", ")}
+                  .
+                </p>
+              )}
+              <p className="muted">
+                Holding confirms{" "}
+                {hasDataLoss
+                  ? "the listed data loss"
+                  : "the listed local changes"}
+                {plan.category_tokens.length
+                  ? ", Windows sign-in limitations"
+                  : ""}
+                {force ? " and force closing the listed programs" : ""}.
               </p>
-            )}
-            <p className="muted">
-              Holding confirms the listed data loss
-              {plan.category_tokens.length
-                ? ", Windows sign-in limitations"
-                : ""}
-              {force ? " and force closing the listed programs" : ""}.
-            </p>
-          </div>
-          <HoldButton
-            key={plan.plan_id}
-            label={
-              !force && blockers.length
-                ? "Hold to close programs"
-                : entries.length
-                  ? "Hold to log out locally"
-                  : "Hold to finish report"
-            }
-            onConfirm={() => {
-              if (!force && blockers.length) void refresh(targets, true);
-              else void start();
-            }}
-          />
+            </div>
+          )}
+          {blockedEntries.length > 0 && (
+            <div className="notice warning" role="status">
+              {blockedEntries.map((e) => (
+                <p key={key(e.account, e.item, "blocked")}>
+                  <strong>{name(e.account, e.item)}</strong>:{" "}
+                  {blockingReason(e.item)}
+                  {e.item.provider === "spotify" &&
+                    e.item.limitations.includes(
+                      "unknown-authentication-closure",
+                    ) &&
+                    " In Spotify, click your profile picture, then choose Log out."}
+                </p>
+              ))}
+              <p>These items will not be cleaned or closed.</p>
+            </div>
+          )}
+          {!allBlocked && (
+            <HoldButton
+              key={plan.plan_id}
+              label={
+                !force && blockers.length
+                  ? "Hold to close programs"
+                  : entries.length
+                    ? "Hold to log out locally"
+                    : "Hold to finish report"
+              }
+              onConfirm={() => {
+                if (!force && blockers.length) void refresh(targets, true);
+                else void start();
+              }}
+            />
+          )}
           <details className="review-details">
             <summary>
               Review {entries.length} selected{" "}
@@ -485,7 +536,7 @@ export default function WipeFlow({
           <button
             className="text-button back-button"
             type="button"
-            onClick={back}
+            onClick={() => back(requiresScan.current)}
           >
             Back to overview
           </button>
@@ -525,7 +576,7 @@ export default function WipeFlow({
           retry={retry}
           working={working}
           canExport={complete}
-          back={back}
+          back={() => back(requiresScan.current)}
           coverage={inventory.coverage}
         />
       )}

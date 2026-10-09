@@ -197,6 +197,15 @@ fn open(pid: u32, rights: u32) -> Result<Handle> {
 pub fn enumerate_current_user() -> Result<ProcessInventory> {
     enumerate(None, &[])
 }
+/// Narrow candidates before opening ownership handles. Access denial for an
+/// unrelated protected program must not block the selected application's scope.
+/// Matching names still require owner, session and exact image-path validation.
+pub fn enumerate_current_user_matches(names: &[String]) -> Result<ProcessInventory> {
+    if names.is_empty() {
+        return Err(PlatformError::new(ErrorKind::ScopeViolation));
+    }
+    enumerate(None, names)
+}
 /// Helper-only metadata enumeration for one owner across sessions. Revalidation
 /// pins SID, session, image and creation time. S6 desktop access is UNVERIFIED.
 pub fn enumerate_account(profile: &crate::accounts::AccountProfile) -> Result<ProcessInventory> {
@@ -252,7 +261,7 @@ fn enumerate(owner: Option<&str>, names: &[String]) -> Result<ProcessInventory> 
                 if owner.is_none() && target_session != current_session {
                     return Ok(None);
                 }
-                let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?;
+                let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE)?;
                 if !same_owner(handle.0, owner)? {
                     return Ok(None);
                 }
@@ -413,6 +422,11 @@ fn close_one(
 ) -> Result<ProcessCloseStatus> {
     if cancelled() {
         return Err(PlatformError::new(ErrorKind::Cancelled));
+    }
+    // Closing the main process can exit several retained helpers. Observe the
+    // original kernel object before reopening a PID that may already be gone.
+    if exited(process.handle.0, 0)? {
+        return Ok(ProcessCloseStatus::ClosedGracefully);
     }
     let handle = open(
         process.pid,

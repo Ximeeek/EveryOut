@@ -6,6 +6,7 @@ import App from "./App";
 import * as api from "./client";
 import type { ModeFailure, Settings } from "./api";
 import { demoInventory, demoPlan } from "./demoFixtures";
+import { defaultSelection, selectionRequest } from "./selection";
 import {
   strings as s,
   commandErrors,
@@ -67,6 +68,41 @@ async function openSettings() {
   return user;
 }
 
+it("returns from a blocked preview and reviews again without rescanning or losing selection", async () => {
+  const user = userEvent.setup();
+  const chosen = selectionRequest(defaultSelection(demoInventory()))!;
+  const blocked = demoPlan(chosen);
+  blocked.report.accounts.forEach((account) =>
+    account.sections.forEach((section) => {
+      section.items.forEach((item) => {
+        item.limitations = [
+          "unvalidated-product-version",
+          "unknown-authentication-closure",
+        ];
+        item.actions.forEach((action) => {
+          action.outcome = "blocked";
+        });
+      });
+    }),
+  );
+  vi.mocked(api.dryRun).mockResolvedValue(blocked);
+  render(<App />);
+  const primary = await screen.findByRole("button", {
+    name: /Log out locally/,
+  });
+  await user.click(primary);
+  await screen.findByText("Automatic cleanup unavailable");
+  await user.click(screen.getByRole("button", { name: "Back to overview" }));
+  await user.click(
+    await screen.findByRole("button", { name: /Log out locally/ }),
+  );
+  await screen.findByText("Automatic cleanup unavailable");
+  expect(api.scan).toHaveBeenCalledTimes(1);
+  expect(api.buildPlan).toHaveBeenCalledTimes(2);
+  expect(api.buildPlan).toHaveBeenNthCalledWith(2, chosen);
+  expect(api.execute).not.toHaveBeenCalled();
+});
+
 it("automatically scans current-account metadata on first launch with one primary action", async () => {
   render(
     <StrictMode>
@@ -108,6 +144,36 @@ it("reaches confirmation in one click and never executes on the initial action",
   expect(api.execute).not.toHaveBeenCalled();
   expect(document.querySelectorAll(".primary")).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Settings" })).toBeDisabled();
+});
+
+it("preserves the scanned selection through an unconfigured catalog check", async () => {
+  vi.mocked(api.checkCatalogUpdates).mockResolvedValue({
+    installed_version: "1",
+    proposed_version: null,
+    digest: null,
+    changelog: null,
+    error: "catalog-unconfigured",
+    helper_compatible: true,
+  });
+  const user = userEvent.setup();
+  render(<App />);
+  await screen.findByRole("button", { name: /Log out locally/ });
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  await user.click(
+    screen.getByText("Provider catalog", { selector: "summary" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Check for catalog updates" }),
+  );
+  await screen.findByText(/not configured/);
+  await user.click(screen.getByRole("button", { name: "Back to overview" }));
+  await user.click(screen.getByRole("button", { name: /Log out locally/ }));
+  await screen.findByRole("button", { name: /Hold to log out locally/ });
+  expect(api.scan).toHaveBeenCalledTimes(1);
+  expect(api.buildPlan).toHaveBeenCalledTimes(1);
+  expect(api.buildPlan).toHaveBeenCalledWith(
+    selectionRequest(defaultSelection(demoInventory())),
+  );
 });
 
 it("keeps a remembered all-accounts mode inactive until an explicit action", async () => {

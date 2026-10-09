@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ScopeDecision from "./ScopeDecision";
 import type { ItemDto, ReportDto } from "./api";
 import { exportReport } from "./client";
 import {
@@ -7,6 +8,8 @@ import {
   errorText,
   needsAttention,
   attentionReason,
+  blockingReason,
+  previewBlocked,
 } from "./wipe";
 import Hero from "./Hero";
 import DotIcon from "./DotIcon";
@@ -32,6 +35,16 @@ export function ItemEffects({
           : aggregateNames[item.status]}
         {item.locked ? ` · ${w.locked}` : ""}
       </p>
+      {preview && previewBlocked(item) && <p>{blockingReason(item)}</p>}
+      <ScopeDecision decision={item.decision} />
+      {(previewBlocked(item) || item.status === "blocked") &&
+        item.provider === "spotify" &&
+        item.limitations.includes("unknown-authentication-closure") && (
+          <p>
+            In Spotify, click your profile picture, then choose Log out.
+            EveryOut has no verified automatic logout method for Spotify yet.
+          </p>
+        )}
       <p>
         {w.counts}: {item.actions.length}
       </p>
@@ -115,13 +128,24 @@ export default function Reports({
     report.skipped.length > 0 ||
     (!entries.length && !report.skipped.length);
   const clean = !attention.length && !hasGaps && canExport;
-  const title = attention.length
-    ? `Done, ${attention.length} ${attention.length === 1 ? "item needs" : "items need"} attention`
-    : clean
-      ? "Done"
-      : canExport
-        ? "Done, check coverage"
-        : "Cleanup interrupted";
+  const nothingRemoved =
+    canExport &&
+    entries.length > 0 &&
+    entries.every(
+      ({ item }) =>
+        !item.issues.includes("unacknowledged") &&
+        item.status === "blocked" &&
+        item.actions.every((a) => a.outcome === "blocked"),
+    );
+  const title = nothingRemoved
+    ? "Nothing was removed"
+    : attention.length
+      ? `Done, ${attention.length} ${attention.length === 1 ? "item needs" : "items need"} attention`
+      : clean
+        ? "Done"
+        : canExport
+          ? "Done, check coverage"
+          : "Cleanup interrupted";
   async function save(format: "json" | "text") {
     if (exporting) return;
     setExporting(true);
@@ -140,14 +164,20 @@ export default function Reports({
         meta="RESULT · SUPPORTED LOCAL SCOPE"
         title={title}
         description={
-          clean
-            ? "Selected local session data was removed and verified absent."
-            : "Review the results below. Unverified or skipped data may remain."
+          nothingRemoved
+            ? "Cleanup was blocked. Review the limitations for each selected app."
+            : clean
+              ? "Selected local session data was removed and verified absent."
+              : "Review the results below. Unverified or skipped data may remain."
         }
         icon={clean ? "check" : "attention"}
       >
         <span className={`status-pill ${clean ? "success" : "warning"}`}>
-          {clean ? "Verified locally" : "Needs attention"}
+          {nothingRemoved
+            ? "Blocked"
+            : clean
+              ? "Verified locally"
+              : "Needs attention"}
         </span>
       </Hero>
       <p className="scope-note">

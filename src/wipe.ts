@@ -1,4 +1,5 @@
 import { commandErrors, unknownError } from "./strings";
+import { decisionReason } from "./scopeDecisionText";
 import type {
   Category,
   DetectedItem,
@@ -26,6 +27,35 @@ export const retryable = (item: ItemDto) =>
   item.locked ||
   item.status === "failed" ||
   item.actions.some((a) => a.locked || a.outcome === "failed");
+export const previewBlocked = (item: ItemDto) =>
+  !item.decision.action_allowed ||
+  item.status === "blocked" ||
+  (item.actions.length > 0 &&
+    item.actions.every((a) => a.outcome === "blocked"));
+
+export function blockingReason(item: ItemDto) {
+  if (!item.decision.action_allowed && item.decision.blocked_by.length > 0)
+    return [...new Set(item.decision.blocked_by.map(decisionReason))].join(" ");
+  if (item.limitations.includes("spotify-build-not-reviewed"))
+    return "This Spotify installation has not been reviewed yet. The automatic logout method supports a verified desktop build; scan again after installing a supported build.";
+  if (item.limitations.includes("spotify-login-format-not-reviewed"))
+    return "Spotify's saved login file is locked or uses an unsupported format. Close Spotify and scan again; no preferences were changed.";
+  if (
+    item.limitations.some((reason) =>
+      [
+        "unvalidated-product-version",
+        "unknown-authentication-closure",
+        "unreviewed-preservation",
+        "unknown-permanent-loss",
+        "automatic-cleanup-unverified",
+      ].includes(reason),
+    )
+  )
+    return "Automatic logout is not verified for this app. Removing the listed files may leave you signed in or remove unrelated data. Closing the app does not resolve this limitation.";
+  if (item.issues.includes("process-preview-unavailable"))
+    return "Open programs could not be safely identified. No program will be closed and no data will be removed for this item.";
+  return "Cleanup was blocked. The data could not be safely removed.";
+}
 export const needsAttention = (item: ItemDto) =>
   item.status !== "complete-local-scope" ||
   item.locked ||
@@ -57,7 +87,7 @@ export function attentionReason(item: ItemDto) {
     item.status === "blocked" ||
     item.actions.some((a) => a.outcome === "blocked")
   )
-    return "Cleanup was blocked. The data could not be safely removed.";
+    return blockingReason(item);
   if (item.actions.some((a) => a.outcome === "skipped"))
     return "Some selected data was skipped.";
   return "The complete local scope could not be verified. Some data may remain.";

@@ -6,6 +6,7 @@ pub mod bridge;
 #[cfg(test)]
 mod catalog_tests;
 mod commands;
+mod diagnostics;
 pub mod dto;
 mod native;
 pub mod reports;

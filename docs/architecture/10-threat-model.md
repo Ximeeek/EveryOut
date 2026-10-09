@@ -15,9 +15,11 @@ ownership, dataset provenance, process-closing loss and uncertain AV/EDR behavio
 
 Assets are the user's unrelated files and protected browser data; selected local session state;
 Windows sign-in identity; other users' profiles; engine-held plans and approvals; catalog integrity;
-helper authority; and accurate, sanitized reports. Session contents are never an input to EveryOut.
-Principle #1 prohibits reading, copying, decrypting or transmitting secrets, including encrypted
-payloads. No hooking, injection, foreign-process memory reads or drivers are allowed
+helper authority; and accurate, sanitized reports. General discovery accepts metadata only.
+The fixed Spotify exception in [ADR 0006](../adr/0006-fixed-saved-login-adapters.md) temporarily
+reads bounded saved-login configuration in private, zeroized memory. No general credential
+inventory, decryption, cookie/token row inspection, secret persistence or transmission is allowed.
+No hooking, injection, foreign-process memory reads or drivers are allowed
 ([overview](00-overview.md), [V1 exclusions](08-not-doing.md)).
 
 Trust boundaries are: React to Rust commands; untrusted observations to engine-owned plans;

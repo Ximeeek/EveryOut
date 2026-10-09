@@ -69,6 +69,9 @@ fn fixture(folders: &FixtureFolders, risks: bool) -> String {
     let mut m: Value =
         serde_json::from_str(include_str!("../../catalog/browsers/chrome.json")).unwrap();
     m["support"] = json!("validated");
+    for artifact in m["session_locations"].as_array_mut().unwrap() {
+        artifact["confidence"] = "verified".into();
+    }
     m["compatibility"]["product_versions"] = json!("synthetic-only-v1");
     m["confidence"]["version_coverage"] = json!("synthetic-only-v1");
     m["confidence"]["status"] = json!("verified");
@@ -107,6 +110,241 @@ fn select(scan: ScanDto) -> SelectionRequest {
             .filter(|i| i.selectable)
             .map(|i| i.id.clone())
             .collect(),
+    }
+}
+
+#[test]
+fn storage_discovery_reaches_ui_but_cannot_be_submitted_as_a_cleanup_target() {
+    let config = everyout_test_support::FixtureTree::empty().unwrap();
+    let (bridge, worker) = Bridge::channel(SettingsStore::new(config.path().into()), None).unwrap();
+    let thread = std::thread::spawn(move || {
+        let folders = FixtureFolders::create().unwrap();
+        let json = fixture(&folders, false);
+        fs::create_dir_all(folders.path().join("NicheApp/Nested/Cache")).unwrap();
+        let gate = Gate;
+        let provider = ManifestExecutor::load(
+            &json,
+            &folders,
+            UserId("current-account".into()),
+            InstallationId("chrome".into()),
+            &gate,
+        )
+        .unwrap();
+        worker.serve(
+            CurrentSession::new(&provider, vec![(Category::Browser, &provider)]),
+            || {
+                everyout_detection::scanner::scan(
+                    &folders,
+                    &everyout_platform_windows::inventory::InstalledInventory::default(),
+                    &[],
+                    &|| false,
+                )
+            },
+            vec![],
+        );
+    });
+    let scan = bridge.scan().unwrap();
+    let item = scan
+        .groups
+        .iter()
+        .flat_map(|g| &g.items)
+        .find(|item| item.name == "NicheApp")
+        .unwrap();
+    assert!(!item.selectable && !item.default_selected && item.provider.is_none());
+    assert!(item.signals.contains(&"cache-directory-name".into()));
+    let request = SelectionRequest {
+        inventory_id: scan.inventory_id.clone(),
+        items: vec![item.id.clone()],
+        skipped: None,
+        profiles: vec![],
+    };
+    assert_eq!(
+        bridge.build_plan(request).unwrap_err(),
+        CommandError::InvalidSelection
+    );
+    drop(bridge);
+    thread.join().unwrap();
+}
+
+#[test]
+fn previews_can_be_rebuilt_without_a_scan_and_old_approvals_become_stale() {
+    let folders = FixtureFolders::create().unwrap();
+    let json = fixture(&folders, false);
+    let gate = Gate;
+    let provider = ManifestExecutor::load(
+        &json,
+        &folders,
+        UserId("current-account".into()),
+        InstallationId("chrome".into()),
+        &gate,
+    )
+    .unwrap();
+    let mut session = CurrentSession::new(&provider, vec![(Category::Browser, &provider)]);
+    let selection = select(session.scan().unwrap());
+    let before = folders.snapshot().unwrap();
+    let first = session
+        .build_plan(selection.clone(), ProcessClosePolicy::Ask)
+        .unwrap();
+    let second = session
+        .build_plan(selection.clone(), ProcessClosePolicy::Ask)
+        .unwrap();
+    assert_ne!(first.plan_id, second.plan_id);
+    assert_eq!(
+        session.dry_run(&first.plan_id).unwrap_err(),
+        CommandError::StalePlan
+    );
+    assert!(session.dry_run(&second.plan_id).is_ok());
+    assert_eq!(folders.snapshot().unwrap(), before);
+    session
+        .execute(approve(&second), &|| false, &mut |_| {})
+        .unwrap();
+    assert_eq!(
+        session
+            .build_plan(selection, ProcessClosePolicy::Ask)
+            .unwrap_err(),
+        CommandError::StalePlan
+    );
+}
+
+#[test]
+fn desktop_candidates_expose_real_blockers_and_allow_read_only_replanning() {
+    for json in [
+        include_str!("../../catalog/apps/communication/spotify.json"),
+        include_str!("../../catalog/apps/communication/discord.json"),
+        include_str!("../../catalog/apps/gaming/ea-app.json"),
+        include_str!("../../catalog/apps/gaming/epic-games-launcher.json"),
+        include_str!("../../catalog/apps/gaming/riot-client.json"),
+    ] {
+        let folders = FixtureFolders::create().unwrap();
+        let manifest: Value = serde_json::from_str(json).unwrap();
+        let root = folders
+            .path()
+            .join(manifest["roots"][0]["relative"].as_str().unwrap());
+        fs::create_dir_all(&root).unwrap();
+        for artifact in manifest["session_locations"].as_array().unwrap() {
+            let path = root.join(artifact["relative"].as_str().unwrap());
+            if artifact["kind"] == "directory" {
+                fs::create_dir_all(path).unwrap();
+            } else {
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, b"synthetic candidate data").unwrap();
+            }
+        }
+        let gate = Gate;
+        let provider = ManifestExecutor::load(
+            json,
+            &folders,
+            UserId("current-account".into()),
+            InstallationId(manifest["id"].as_str().unwrap().into()),
+            &gate,
+        )
+        .unwrap();
+        let mut session = CurrentSession::new(&provider, vec![(Category::Application, &provider)]);
+        let selection = select(session.scan().unwrap());
+        let before = folders.snapshot().unwrap();
+        let plan = session
+            .build_plan(selection.clone(), ProcessClosePolicy::Ask)
+            .unwrap();
+        let item = &plan.report.accounts[0].sections[0].items[0];
+        assert!(item
+            .actions
+            .iter()
+            .all(|action| action.outcome == ActionStatus::Blocked));
+        for method in manifest["cleaning_methods"].as_array().unwrap() {
+            for blocker in method["blockers"].as_array().unwrap() {
+                assert!(item
+                    .limitations
+                    .iter()
+                    .any(|reason| reason == blocker.as_str().unwrap()));
+            }
+        }
+        assert!(item
+            .limitations
+            .contains(&"automatic-cleanup-unverified".into()));
+        assert!(session
+            .build_plan(selection, ProcessClosePolicy::Ask)
+            .is_ok());
+        assert_eq!(folders.snapshot().unwrap(), before);
+    }
+}
+
+#[test]
+fn current_and_account_discovery_share_evidence_and_unverified_status() {
+    use everyout_detection::scanner::{scan, ReviewedManifest};
+    use everyout_platform_windows::inventory::InstalledInventory;
+    for input in [
+        include_str!("../../catalog/apps/communication/discord.json"),
+        include_str!("../../catalog/apps/communication/spotify.json"),
+    ] {
+        let folders = FixtureFolders::create().unwrap();
+        let manifest = everyout_providers::load_manifest(input).unwrap();
+        let root = folders.path().join(manifest.roots[0].relative());
+        fs::create_dir_all(&root).unwrap();
+        if manifest.id == "spotify" {
+            fs::write(root.join("prefs"), b"synthetic preferences").unwrap();
+            fs::write(root.join("Spotify.exe"), b"unreviewed synthetic executable").unwrap();
+        } else {
+            fs::create_dir_all(root.join("Local Storage")).unwrap();
+        }
+        let gate = Gate;
+        let provider = ManifestExecutor::load(
+            input,
+            &folders,
+            UserId("current-account".into()),
+            InstallationId(manifest.id.clone()),
+            &gate,
+        )
+        .unwrap();
+        let mut session = CurrentSession::new(&provider, vec![(Category::Application, &provider)]);
+        let current = session.scan().unwrap();
+        let current_item = current.groups.iter().flat_map(|g| &g.items).next().unwrap();
+        let account_scan = scan(
+            &folders,
+            &InstalledInventory::default(),
+            &[ReviewedManifest::load(input).unwrap()],
+            &|| false,
+        );
+        let detected = account_scan
+            .known
+            .iter()
+            .find(|d| d.id.starts_with(&manifest.id))
+            .unwrap();
+        assert_eq!(current_item.decision, detected.decision);
+        let mut account_dto = current.clone();
+        account_dto.mode = AccountMode::AllAccounts;
+        account_dto.groups.clear();
+        let mut account_item = current_item.clone();
+        account_item.decision = detected.decision.clone();
+        account_item.unverified = false;
+        account_dto.push(detected.category, detected.confidence, account_item);
+        assert_eq!(
+            current_item.unverified,
+            account_dto.groups[0].items[0].unverified
+        );
+        assert!(current_item.unverified);
+        assert!(!current_item.decision.action_allowed);
+        if manifest.id == "discord" {
+            for code in [
+                "unvalidated-product-version",
+                "unknown-authentication-closure",
+                "unreviewed-preservation",
+            ] {
+                assert!(current_item.decision.blocked_by.contains(&code.into()));
+            }
+            assert_eq!(
+                current_item.decision.evidence.authentication_scope.state,
+                AuthenticationScope::FrameworkHint
+            );
+        } else {
+            assert_eq!(
+                current_item.decision.evidence.version_applicability.state,
+                VersionApplicability::Stale
+            );
+            assert!(current_item
+                .decision
+                .blocked_by
+                .contains(&"spotify-build-not-reviewed".into()));
+        }
     }
 }
 
@@ -476,7 +714,17 @@ fn bridge_blocks_concurrent_wipes_cancel_stops_mutations_and_stores_last_report(
         worker.serve(session, everyout_detection::ScanReport::default, vec![]);
     });
     let scan = bridge.scan().unwrap();
+    // An unavailable update service must not consume a usable inventory.
+    assert_eq!(
+        bridge.check_catalog_updates().unwrap().error.as_deref(),
+        Some("catalog-unconfigured")
+    );
     let plan = bridge.build_plan(select(scan)).unwrap();
+    assert_eq!(
+        bridge.check_catalog_updates().unwrap_err(),
+        CommandError::Busy
+    );
+    assert!(bridge.dry_run(plan.plan_id.clone()).is_ok());
     let (entered, wait) = mpsc::channel();
     let (release, paused) = mpsc::channel();
     let (done, finished) = mpsc::channel();

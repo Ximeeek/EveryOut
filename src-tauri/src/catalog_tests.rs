@@ -41,7 +41,7 @@ fn acceptance_defers_review_rebuilds_session_and_refuses_stale_inventory_and_hel
     m["revision"] = serde_json::json!(2);
     let payload = serde_json::to_string(&catalog::envelope(
         catalog::entries([m.to_string()]).unwrap(),
-        2,
+        catalog::BUNDLED_VERSION + 1,
         "Changed provider".into(),
     ))
     .unwrap();
@@ -67,7 +67,10 @@ fn acceptance_defers_review_rebuilds_session_and_refuses_stale_inventory_and_hel
     ));
     bridge.set_settings(Settings::default()).unwrap();
     let accepted = bridge.activate_catalog_update(digest).unwrap();
-    assert_eq!(accepted.installed_version, "2");
+    assert_eq!(
+        accepted.installed_version,
+        (catalog::BUNDLED_VERSION + 1).to_string()
+    );
     assert!(!accepted.helper_compatible);
     assert!(accepted.error.is_none());
     assert!(matches!(

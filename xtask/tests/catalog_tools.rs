@@ -34,8 +34,9 @@ fn maintainer_tools_build_sign_verify_and_refuse_repository_keys() {
     )
     .unwrap();
     assert!(run(&["catalog-validate"]).status.success());
+    let version = (everyout_catalog_update::BUNDLED_VERSION + 1).to_string();
     assert!(
-        run(&["catalog-bundle", "2", text(&changelog), text(&payload)])
+        run(&["catalog-bundle", &version, text(&changelog), text(&payload)])
             .status
             .success()
     );
@@ -51,7 +52,8 @@ fn maintainer_tools_build_sign_verify_and_refuse_repository_keys() {
     );
     let output = run(&["catalog-verify", text(&bundle), text(&public)]);
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Verified catalog version 2"));
+    assert!(String::from_utf8_lossy(&output.stdout)
+        .contains(&format!("Verified catalog version {version}")));
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     let rejected = run(&[
         "catalog-sign",

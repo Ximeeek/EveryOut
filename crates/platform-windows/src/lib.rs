@@ -1,4 +1,4 @@
-//! Current-user metadata capabilities with a fixed profiles.ini configuration exception.
+//! Current-user metadata capabilities with fixed profiles.ini and reviewed Spotify exceptions.
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use everyout_core_model::{ActionStatus, ErrorKind};
@@ -16,6 +16,8 @@ pub mod process;
 mod registry;
 #[cfg(windows)]
 mod resolver;
+#[cfg(windows)]
+mod spotify;
 
 #[cfg(windows)]
 pub use filesystem::{AllowedRoot, Metadata, PhysicalIdentity, SafePath, ShallowMetadata};

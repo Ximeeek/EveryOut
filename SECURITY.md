@@ -16,8 +16,12 @@ data, credentials, tokens, or cookies.
 ## Scope and guarantees
 
 EveryOut is intended to operate locally on Windows to delete or invalidate app and browser
-sessions. Its central security requirement is that it does not read, copy, decrypt, or transmit
-secrets. The wipe operation is designed to make no network requests. These are design guarantees
+sessions. General inventory does not read secret payloads, and cleanup does not decrypt, export,
+persist or transmit credential values. A fixed, version-pinned Spotify exception temporarily
+reads the bounded `prefs` file into private, zeroized memory to remove saved-login fields and
+preserve unrelated bytes. These values never reach the UI, diagnostics or reports. No Windows
+Credential Manager enumeration is enabled. See [ADR 0006](docs/adr/0006-fixed-saved-login-adapters.md).
+The wipe operation is designed to make no network requests. These are design guarantees
 that implementations and contributions must preserve; the project is currently pre-alpha, so
 review the current code and release notes before relying on a build.
 

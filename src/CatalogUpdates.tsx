@@ -40,10 +40,6 @@ export default function CatalogUpdates({
     setBusy(true);
     setMessage(null);
     try {
-      if (!activate) {
-        // The native check also discards the previous inventory and review.
-        invalidate();
-      }
       const result =
         activate && status?.digest
           ? await activateCatalogUpdate(status.digest)
@@ -72,7 +68,8 @@ export default function CatalogUpdates({
       <h3 id="catalog-title">Provider catalog</h3>
       <p>
         Updates download rules only when you choose to check. Cleanup stays
-        offline. Checking clears your previous scan and review.
+        offline. Checking preserves your scan. Accepting an update clears it
+        because the cleanup rules may have changed.
       </p>
       <button type="button" disabled={busy} onClick={() => void run(false)}>
         Check for catalog updates

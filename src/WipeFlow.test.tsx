@@ -92,6 +92,88 @@ it("previews metadata once in StrictMode, with no deletion or checkbox gates", a
   expect(screen.getByText("Discord/session-store")).toBeVisible();
 });
 
+it("reviews supported saved-login changes without claiming unrelated permanent loss", async () => {
+  const spotify = preview.report.accounts[0].sections[0].items.find(
+    (item) => item.provider === "Spotify",
+  )!;
+  spotify.provider = "spotify";
+  spotify.loss = "none";
+  spotify.risks = [];
+  spotify.limitations = ["local-saved-login-only", "no-remote-revocation"];
+  spotify.confirmations = [
+    "review-candidate-provider-spotify",
+    "review-spotify-permanent-loss",
+  ];
+  spotify.affected_data = [
+    "Saved desktop login; sign in again to use your account",
+  ];
+  spotify.processes = [];
+  preview.report.accounts[0].sections.forEach((section, index) => {
+    section.items = index === 0 ? [spotify] : [];
+  });
+  await mount();
+  expect(screen.getByText("Local sign-out")).toBeVisible();
+  expect(screen.queryByText("Permanent deletion")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/EveryOut has no verified automatic logout/),
+  ).not.toBeInTheDocument();
+  await hold();
+  expect(api.execute).toHaveBeenCalledWith(
+    expect.objectContaining({
+      confirmed_risks: [
+        expect.objectContaining({
+          flags: [],
+          confirmations: spotify.confirmations,
+        }),
+      ],
+    }),
+    expect.any(Function),
+  );
+});
+
+it("explains an unsupported Spotify cleanup without offering execution or closing", async () => {
+  const spotify = preview.report.accounts[0].sections[0].items.find(
+    (item) => item.provider === "Spotify",
+  )!;
+  spotify.provider = "spotify";
+  spotify.limitations = [
+    "unknown-authentication-closure",
+    "unreviewed-preservation",
+  ];
+  spotify.actions.forEach((action) => {
+    action.outcome = "blocked";
+  });
+  spotify.processes = ["open-spotify"];
+  preview.report.accounts[0].sections.forEach((section, index) => {
+    section.items = index === 0 ? [spotify] : [];
+  });
+  render(
+    <WipeFlow
+      inventory={demoInventory()}
+      selection={selection}
+      setBusy={setBusy}
+      back={back}
+    />,
+  );
+  await screen.findByText("Automatic cleanup unavailable");
+  expect(
+    screen.getAllByText(/Closing the app does not resolve/)[0],
+  ).toBeVisible();
+  expect(
+    screen.getAllByText(/In Spotify, click your profile picture/)[0],
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /Hold to/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Save your work first")).not.toBeInTheDocument();
+  expect(api.execute).not.toHaveBeenCalled();
+  expect(api.closeReviewed).not.toHaveBeenCalled();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Back to overview" }),
+  );
+  expect(back).toHaveBeenCalledWith(false);
+});
+
 it("sends every plan-bound risk, confirmation and category token only after the full hold", async () => {
   const button = await mount();
   fireEvent.click(button);
@@ -118,6 +200,10 @@ it("sends every plan-bound risk, confirmation and category token only after the 
   finish();
   expect(screen.getByRole("heading", { name: "Done" })).toBeVisible();
   expect(screen.getByText("Verified locally")).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Back to overview" }),
+  );
+  expect(back).toHaveBeenCalledWith(true);
 });
 
 it("requests graceful closure after a deliberate hold, then requires a new hold on a fresh plan", async () => {

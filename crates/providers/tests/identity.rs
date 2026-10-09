@@ -45,6 +45,9 @@ fn six_browsers_warn_without_reading_or_mutating_identity_payloads() {
         for (present, refuse) in [(false, false), (true, false), (true, true)] {
             let mut m: Value = serde_json::from_str(catalog).unwrap();
             m["support"] = json!("validated");
+            for artifact in m["session_locations"].as_array_mut().unwrap() {
+                artifact["confidence"] = "verified".into();
+            }
             m["compatibility"]["product_versions"] = json!("synthetic-only-v1");
             m["confidence"]["version_coverage"] = json!("synthetic-only-v1");
             m["confidence"]["status"] = json!("verified");

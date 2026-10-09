@@ -1,7 +1,9 @@
 # EveryOut desktop application catalog
 
-Phase 25 research, accessed 2026-10-03. All 17 entries are **candidate / low / unverified** for
-local session removal. Verified vendor data paths are distinguished from unverified session
+Phase 25 research, accessed 2026-10-03, with a Spotify live-review addendum on 2026-10-08.
+All 17 entries remain **candidate**; Spotify has one pinned, reviewed saved-login operation.
+Other entries remain low confidence and unverified for local session removal.
+Verified vendor data paths are distinguished from unverified session
 coverage. No shipping-version Windows 10/11 logout or preservation matrix has been run.
 No reviewed offline, secret-free invocation of official logout was established for any entry;
 manual logout availability does not authorize automated invocation. Wipes never use the network.
@@ -36,7 +38,11 @@ Vendor confirms root only; Local Storage session role is an unverified framework
 
 ## spotify
 
-Roaming Spotify/prefs is an unverified candidate; vendor logout does not verify the path or removal effect. Store builds excluded.
+The pinned desktop build 1.2.98.301 has a reviewed saved-login adapter. It removes only four
+`autologin.*` fields from Roaming Spotify/prefs and preserves every other preference byte.
+Restarting the tested desktop showed the login screen. The complete prefs file is never deleted.
+Other builds, Store installations and remote session revocation remain outside this evidence.
+See [the live review](../research/05-spotify-local-logout.md#live-review).
 
 ## slack
 
@@ -118,7 +124,8 @@ these partial rules do not promise comprehensive erasure or logout.
 Low-confidence application candidates start unchecked even when resolved by a known provider.
 Explicit selection still cannot waive candidate support, unknown effects, process ownership,
 version or preservation blockers. Verification status of individual path claims is recorded in
-the notes; every session artifact remains unverified because scope/closure has not been tested.
+the notes. Except for the pinned Spotify saved-login fields, session artifacts remain unverified
+because scope/closure has not been tested.
 
 `crates/providers/tests/desktop.rs` validates all entries and adversarial scope/risk changes.
 Windows fixture tests cover actual declared candidate paths without mutation, explicit selection,

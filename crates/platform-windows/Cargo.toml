@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 everyout-core-model = { path = "../core-model" }
+sha2 = "0.10"
+zeroize = "1"
 everyout-test-support = { path = "../test-support", optional = true }
 
 [target.'cfg(windows)'.dependencies]

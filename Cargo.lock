@@ -970,9 +970,11 @@ dependencies = [
  "everyout-core-model",
  "everyout-platform-windows",
  "everyout-test-support",
+ "sha2",
  "tempfile",
  "windows",
  "windows-sys 0.61.2",
+ "zeroize",
 ]
 
 [[package]]

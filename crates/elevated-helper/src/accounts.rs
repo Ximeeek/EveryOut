@@ -35,6 +35,7 @@ fn blocked_section(
 ) -> RunReport {
     let instance = InstanceId(format!("{}-unavailable", manifest.id));
     let plan = ProposedPlan {
+        scope_evidence: everyout_providers::evidence::catalog(manifest),
         plan_id: PlanId(format!("{}-unavailable", manifest.id)),
         provider_id: ProviderId(manifest.id.clone()),
         manifest_revision: manifest.revision,
@@ -52,6 +53,7 @@ fn blocked_section(
         limitations: manifest.limitations.clone(),
     };
     let item = ItemReport {
+        decision: plan.decision_trace(),
         instance: instance.clone(),
         plan: Some(plan),
         aggregate: AggregateStatus::Blocked,
@@ -925,6 +927,9 @@ mod tests {
         ))
         .unwrap();
         value["support"] = "validated".into();
+        for artifact in value["session_locations"].as_array_mut().unwrap() {
+            artifact["confidence"] = "verified".into();
+        }
         value["compatibility"]["product_versions"] = "synthetic-only-v1".into();
         value["confidence"]["version_coverage"] = "synthetic-only-v1".into();
         value["confidence"]["status"] = "verified".into();

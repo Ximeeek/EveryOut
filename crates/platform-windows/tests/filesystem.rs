@@ -352,7 +352,7 @@ fn root_cannot_be_replaced_during_capability_lifetime() {
 }
 
 #[test]
-fn production_modules_allow_only_fixed_profile_config_and_no_network_api() {
+fn production_modules_allow_only_fixed_content_adapters_and_no_network_api() {
     let native = include_str!("../src/native.rs");
     let (before, reader_and_after) = native
         .split_once("pub(crate) fn firefox_profiles_ini(")
@@ -367,6 +367,15 @@ fn production_modules_allow_only_fixed_profile_config_and_no_network_api() {
     assert_eq!(before.matches("open_child(").count(), 2);
     assert!(before.contains("open_child(parent, name, directory, delete, false)"));
     assert!(!before.contains("false, true)"));
+    let spotify = include_str!("../src/spotify.rs")
+        .split("#[cfg(test)]")
+        .next()
+        .unwrap();
+    assert!(spotify.contains("OsStr::new(\"prefs\")"));
+    assert!(spotify.contains("OsStr::new(\"Spotify.exe\")"));
+    assert!(spotify.contains("BUILD_SHA256"));
+    assert!(spotify.contains("64 * 1024"));
+    assert!(spotify.contains("Zeroizing"));
     let without_reader = format!("{before}{after}");
     for source in [
         include_str!("../src/lib.rs"),
@@ -391,7 +400,8 @@ fn production_modules_allow_only_fixed_profile_config_and_no_network_api() {
         ] {
             assert!(
                 !source.contains(forbidden)
-                    && (forbidden == "ReadFile(" || !reader.contains(forbidden)),
+                    && (forbidden == "ReadFile("
+                        || (!reader.contains(forbidden) && !spotify.contains(forbidden))),
                 "production source contains {forbidden}"
             );
         }

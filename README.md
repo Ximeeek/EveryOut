@@ -16,9 +16,12 @@ unsupported or unresolved scopes remain blocked. EveryOut provides no backup or 
 
 ## Safety principle
 
-EveryOut never reads, copies, decrypts or transmits secrets. Wiping stays local and offline;
-metadata discovery does not authorize inspecting passwords, tokens, cookies or credential
-payloads. Optional catalog downloads are separate, user-requested network operations and
+EveryOut does not decrypt credentials, inspect cookie/token rows, or export or transmit session
+contents. General discovery is metadata-only. One compiled, version-pinned Spotify adapter reads
+the fixed `prefs` file into private, zeroized buffers to remove four saved-login fields while
+preserving other bytes; credential values are briefly present in memory and never returned to
+the UI or reports. See [ADR 0006](docs/adr/0006-fixed-saved-login-adapters.md).
+Wiping stays local and offline. Optional catalog downloads are separate, user-requested network operations and
 require a configured public verification key and HTTPS URL.
 
 The implementation uses reviewed file/registry and Windows operations with **no hooking,
@@ -40,6 +43,21 @@ not certification or a guarantee against anti-cheat, antivirus or EDR warnings.
 
 See the [catalog table](docs/catalog/CATALOG.md) for locations, methods, confidence, blockers
 and permanent-loss implications, and the [VM validation guide](docs/testing/vm-guide.md).
+
+## Development cleanup diagnostics
+
+Debug desktop builds write bounded JSON Lines diagnostics to
+`%APPDATA%/io.github.ximeeek.session-wipe/dev-logs/cleanup.jsonl` and the development terminal.
+The terminal prints the resolved location at startup. The file resets at 4 MiB.
+Release builds do not create or write these logs.
+
+Entries describe command errors, adapter failures, preview blockers, process counts, cleanup
+stages, local operation methods/outcomes and verification results. No session file contents,
+tokens, account identities or profile paths are recorded. A completed command is not a successful
+logout: check each item's action outcomes and verification, and its authentication limitations.
+Spotify desktop 1.2.98.301 has a reviewed saved-login adapter for the pinned executable;
+other builds and Store installations remain blocked. The complete `prefs` file is preserved.
+Browser development previews use simulated data and never remove local files.
 
 ## Install and verify
 
@@ -86,23 +104,23 @@ scope statement, not a claim that providers are implemented. The boundaries belo
 [Phase 8 overview](docs/architecture/00-overview.md), [provider contract](docs/architecture/01-provider-contract.md),
 [manifest preservation rules](docs/architecture/02-manifest-spec.md) and the cited research dossiers.
 
-| Exclusion or limitation                                    | Consequence and evidence                                                                                                                                                                                                                                  |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No server-side session invalidation                        | No remote token revocation, `revoke()` call, remote Sync reset or logout of other devices. Copied tokens and remote sessions may remain usable. The wipe stays offline; browser §§3–4, Windows §4 and provider contract                                   |
-| No Windows account sign-out                                | No Windows logout, sign-in identity removal, PRT clearing, WAM/broker-cache purge or device/work-account disconnect. Instructions for a separate user/organization action may be shown; Windows §§1–2                                                     |
-| No secret reading, copying, decryption or transmission     | No credential blobs, cookie/token rows, browser key extraction, payload inspection or database authentication queries. `CredEnumerateW` inventory is excluded even if blobs would be ignored; browser §§2, 7 and Windows §3                               |
-| No undo or backup of a wipe                                | Applied deletion is irreversible through EveryOut; no profile snapshots, secret-store copies or rollback after partial failure. Warn about local-only losses before approval; provider contract and browser §6                                            |
-| No protection against silent SSO re-login                  | Windows identity, retained browser identity or another authentication source can create fresh sessions. Results describe local effects at verification time; Windows §2 and browser §3                                                                    |
-| No clearing saved passwords, autofill, history or passkeys | These are not session scope. A mixed store that cannot be isolated without secret reads stays blocked, even with extra confirmation; browser §§1, 4–5 and manifest rules                                                                                  |
-| No universal application/browser coverage                  | Framework signatures do not prove auth paths; relocated profiles, vendor stores, partitions, DBSC keys and extension state can remain unresolved. Unsupported candidates are visible gaps, not executable rules; browser §§1, 4, 7 and applications §§1–3 |
-| No safe-loss guarantee for extensions or web storage       | Session-related storage may contain drafts, offline documents, vaults, wallet/recovery data and settings. Known supported losses need extra confirmation; unknown preservation conflicts block execution; browser §6 and applications §§1, 7              |
-| No forced cleanup of every Windows profile                 | All-accounts mode still skips inaccessible/special profiles and loaded other-user scopes, and cannot assume administrator HKCU means another user. No cross-session process killing; Windows §5 and [06](docs/architecture/06-permission-model.md)        |
-| No automatic privilege or protection bypass                | Current mode does not request UAC on errors. No ACL takeover, AV/EDR disablement or protected-process bypass; Windows §§5–6, applications §6 and [06](docs/architecture/06-permission-model.md)                                                           |
-| No hooking, injection, foreign-memory reads or drivers     | File/registry and reviewed OS operations remain the boundary. Anti-cheat compatibility is not certification or an immunity guarantee; Windows §6 and applications §6                                                                                      |
-| No automatic restart or authenticated verification         | Metadata absence is not remote logout, destroyed TPM keys or proof of failed refresh. No browser restart/network login probe in the wipe; browser §4 and [05](docs/architecture/05-wipe-sequence.md)                                                      |
-| No guarantee that hard kill preserves work                 | Graceful close can wait for user interaction; force close can destroy unsaved work in other programs. Two seconds is a chosen policy, not a Windows safety guarantee; applications §5                                                                     |
-| No machine-wide browser policy changes                     | The adopted profile-edit direction stays subject to secret-free validation; policy alternative is documented only. Existing policy or sync may recreate state; browser §§3, 7 and [07](docs/architecture/07-sync-and-identity.md)                         |
-| No global hotkey or shutdown-triggered wipe                | These are V2 roadmap items, not an alternate V1 authorization path; [09](docs/architecture/09-v2-extension-points.md)                                                                                                                                     |
+| Exclusion or limitation                                    | Consequence and evidence                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No server-side session invalidation                        | No remote token revocation, `revoke()` call, remote Sync reset or logout of other devices. Copied tokens and remote sessions may remain usable. The wipe stays offline; browser §§3–4, Windows §4 and provider contract                                    |
+| No Windows account sign-out                                | No Windows logout, sign-in identity removal, PRT clearing, WAM/broker-cache purge or device/work-account disconnect. Instructions for a separate user/organization action may be shown; Windows §§1–2                                                      |
+| No general secret inspection or transmission               | No credential inventory, cookie/token row inspection, browser key extraction or database authentication queries. The fixed Spotify exception is documented in [ADR 0006](docs/adr/0006-fixed-saved-login-adapters.md); values remain private and zeroized. |
+| No undo or backup of a wipe                                | Applied deletion is irreversible through EveryOut; no profile snapshots, secret-store copies or rollback after partial failure. Warn about local-only losses before approval; provider contract and browser §6                                             |
+| No protection against silent SSO re-login                  | Windows identity, retained browser identity or another authentication source can create fresh sessions. Results describe local effects at verification time; Windows §2 and browser §3                                                                     |
+| No clearing saved passwords, autofill, history or passkeys | These are not session scope. A mixed store that cannot be isolated without secret reads stays blocked, even with extra confirmation; browser §§1, 4–5 and manifest rules                                                                                   |
+| No universal application/browser coverage                  | Framework signatures do not prove auth paths; relocated profiles, vendor stores, partitions, DBSC keys and extension state can remain unresolved. Unsupported candidates are visible gaps, not executable rules; browser §§1, 4, 7 and applications §§1–3  |
+| No safe-loss guarantee for extensions or web storage       | Session-related storage may contain drafts, offline documents, vaults, wallet/recovery data and settings. Known supported losses need extra confirmation; unknown preservation conflicts block execution; browser §6 and applications §§1, 7               |
+| No forced cleanup of every Windows profile                 | All-accounts mode still skips inaccessible/special profiles and loaded other-user scopes, and cannot assume administrator HKCU means another user. No cross-session process killing; Windows §5 and [06](docs/architecture/06-permission-model.md)         |
+| No automatic privilege or protection bypass                | Current mode does not request UAC on errors. No ACL takeover, AV/EDR disablement or protected-process bypass; Windows §§5–6, applications §6 and [06](docs/architecture/06-permission-model.md)                                                            |
+| No hooking, injection, foreign-memory reads or drivers     | File/registry and reviewed OS operations remain the boundary. Anti-cheat compatibility is not certification or an immunity guarantee; Windows §6 and applications §6                                                                                       |
+| No automatic restart or authenticated verification         | Metadata absence is not remote logout, destroyed TPM keys or proof of failed refresh. No browser restart/network login probe in the wipe; browser §4 and [05](docs/architecture/05-wipe-sequence.md)                                                       |
+| No guarantee that hard kill preserves work                 | Graceful close can wait for user interaction; force close can destroy unsaved work in other programs. Two seconds is a chosen policy, not a Windows safety guarantee; applications §5                                                                      |
+| No machine-wide browser policy changes                     | The adopted profile-edit direction stays subject to secret-free validation; policy alternative is documented only. Existing policy or sync may recreate state; browser §§3, 7 and [07](docs/architecture/07-sync-and-identity.md)                          |
+| No global hotkey or shutdown-triggered wipe                | These are V2 roadmap items, not an alternate V1 authorization path; [09](docs/architecture/09-v2-extension-points.md)                                                                                                                                      |
 
 App cleanup, browser cleanup and Windows/Microsoft + developer-tools cleanup are independent
 report scopes. None implies another, and the special category does not authorize deletion of

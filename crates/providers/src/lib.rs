@@ -3,6 +3,7 @@
 
 pub mod application;
 pub mod desktop;
+pub mod evidence;
 #[cfg(windows)]
 pub mod executor;
 mod firefox;

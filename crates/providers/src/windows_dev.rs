@@ -126,6 +126,7 @@ pub fn research_plan(m: &Manifest, selection: Selection) -> Result<ProposedPlan,
     limitations.push(refusal_reason(&m.id).unwrap().into());
     limitations.push(everyout_engine::WINDOWS_DEV_SSO_WARNING.into());
     Ok(ProposedPlan {
+        scope_evidence: crate::evidence::catalog(m),
         plan_id: PlanId(format!("{}-research-only", m.id)),
         provider_id: ProviderId(m.id.clone()),
         manifest_revision: m.revision,

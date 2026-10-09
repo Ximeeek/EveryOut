@@ -11,6 +11,19 @@ unchecked defaults and unsupported shipping providers remain blocked.
 
 ## Metadata-only preview and consent
 
+Current-account previews retain the read-only inventory. Returning to Home preserves
+selection without starting another scan; a new review replaces the held plan and its
+approval IDs. Closing processes or starting execution consumes the inventory, while
+settings/catalog changes and explicit rescans invalidate it. Returning after an internal
+rescan or an all-accounts review still refreshes Home because those inventories differ.
+Execution and dry-run metadata revalidation remain mandatory.
+
+The IPC item limitations include plan and action blockers, deduplicated, as well as
+unknown-loss and unverified-provider codes when applicable. The UI can therefore
+distinguish an unavailable automatic cleanup rule from an operational deletion failure.
+Unverified desktop catalog entries remain blocked until their scope and effects are
+established; finding a file or acknowledging loss does not validate the rule.
+
 Review builds a native plan and calls `dry_run`. It renders the three independent
 categories, per-account/provider targets, logical relative paths, action counts and
 available metadata sizes. No file content, credential names, account SID or absolute

@@ -4,6 +4,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod evidence;
+mod product_validation;
+pub use evidence::*;
+pub use product_validation::*;
+
 macro_rules! id {
     ($($name:ident),+ $(,)?) => {$(
         #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
@@ -206,6 +211,8 @@ pub struct ProviderDescriptor {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProviderInstance {
+    #[serde(default)]
+    pub decision: DecisionTrace,
     pub provider_id: ProviderId,
     pub instance_id: InstanceId,
     pub owner: OwnerIdentity,
@@ -283,6 +290,8 @@ pub struct PlannedAction {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 pub struct ProposedPlan {
+    #[serde(default)]
+    pub scope_evidence: ScopeEvidence,
     pub plan_id: PlanId,
     pub provider_id: ProviderId,
     pub manifest_revision: u64,
@@ -302,7 +311,7 @@ impl ValidatedPlan {
     /// Checks the pure review gates; the future engine must also bind ownership and
     /// metadata revalidation to this plan before every operation.
     pub fn review(plan: ProposedPlan, accepted: &[ConfirmationId]) -> Result<Self, ErrorKind> {
-        if plan.support != Support::Validated
+        if !plan.decision_trace().action_allowed
             || !plan.blockers.is_empty()
             || plan.risks.permanent_data_loss == LossAssessment::Unknown
             || plan

@@ -55,6 +55,7 @@ pub fn excluded(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     [
         "everyout",
+        "io.github.ximeeek.session-wipe",
         "microsoft",
         "packages",
         "temp",

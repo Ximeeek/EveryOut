@@ -239,6 +239,24 @@ fn open_child(
     delete: bool,
     profile_config: bool,
 ) -> Result<Handle> {
+    open_checked_child(
+        parent,
+        name,
+        directory,
+        delete,
+        if profile_config { FILE_READ_DATA } else { 0 },
+    )
+}
+
+// Only fixed, compiled adapters may request content rights. Generic metadata
+// callers continue through child(), which passes zero content access.
+pub(crate) fn open_checked_child(
+    parent: &Handle,
+    name: &OsStr,
+    directory: Option<bool>,
+    delete: bool,
+    content_access: u32,
+) -> Result<Handle> {
     parent.info()?;
     let mut name = wide(name);
     let length = (name.len() - 1) * 2;
@@ -258,7 +276,7 @@ fn open_child(
         ..Default::default()
     };
     let options = FILE_OPEN_REPARSE_POINT
-        | if directory == Some(true) || profile_config {
+        | if directory == Some(true) || content_access != 0 {
             FILE_SYNCHRONOUS_IO_NONALERT
         } else {
             0
@@ -269,7 +287,7 @@ fn open_child(
             None => 0,
         };
     let access = FILE_READ_ATTRIBUTES
-        | if directory == Some(true) || profile_config {
+        | if directory == Some(true) || content_access != 0 {
             SYNCHRONIZE
         } else {
             0
@@ -280,7 +298,7 @@ fn open_child(
             0
         }
         | if delete { DELETE } else { 0 }
-        | if profile_config { FILE_READ_DATA } else { 0 };
+        | content_access;
     let mut handle = ptr::null_mut();
     let mut io = IO_STATUS_BLOCK::default();
     // SAFETY: parent is alive, the name is a single validated component, the Unicode

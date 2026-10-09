@@ -208,10 +208,8 @@ mod windows {
         dummy.0.kill().unwrap();
         dummy.0.wait().unwrap();
         let report = close_processes(&[&p], ProcessClosePolicy::HardKillAfter2s, false);
-        assert!(matches!(
-            report.results[0].status,
-            ProcessCloseStatus::ClosedGracefully | ProcessCloseStatus::Failed
-        ));
+        status(&report, ProcessCloseStatus::ClosedGracefully);
+        assert!(report.remaining.is_empty());
         assert!(report.results[0].force_after.is_none());
         assert!(sibling.0.try_wait().unwrap().is_none());
     }

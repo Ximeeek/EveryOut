@@ -20,6 +20,35 @@ use std::{
 };
 
 pub type EventSink = Box<dyn FnMut(WipeEvent) + Send>;
+fn append_storage_discovery(
+    dto: &mut ScanDto,
+    account: &str,
+    discoveries: Vec<everyout_detection::StorageDiscovery>,
+) {
+    for storage in discoveries {
+        dto.push(
+            None,
+            Confidence::Low,
+            DetectedItem {
+                decision: DecisionTrace::default(),
+                id: opaque("storage"),
+                account: account.into(),
+                provider: None,
+                name: storage.label,
+                origin: DetectionOrigin::Heuristic,
+                default_selected: false,
+                selectable: false,
+                limitations: storage.limitations,
+                profiles: vec![],
+                risks: vec![RiskFlag::Unknown],
+                loss: LossAssessment::Unknown,
+                signals: storage.signals,
+                unverified: false,
+                sync_warning: false,
+            },
+        );
+    }
+}
 enum Request {
     Scan,
     Plan(SelectionRequest),
@@ -71,6 +100,7 @@ impl Bridge {
         directory: std::path::PathBuf,
         pin: Option<[u8; 32]>,
     ) -> Result<Self, CommandError> {
+        crate::diagnostics::initialize(&directory);
         let (bridge, worker) = Self::channel(SettingsStore::new(directory), pin)?;
         std::thread::Builder::new()
             .name("everyout-native".into())
@@ -375,6 +405,18 @@ impl Worker {
         let mut elevated: Option<Elevated> = None;
         let mut review_open = false;
         while let Ok(envelope) = self.receiver.recv() {
+            let command = match &envelope.request {
+                Request::Scan => "scan",
+                Request::Plan(_) => "build-plan",
+                Request::DryRun(_) => "dry-run",
+                Request::Execute(..) => "execute",
+                Request::Close(_) => "close-reviewed",
+                Request::Enable => "enable-all-accounts",
+                Request::Settings(_) => "settings",
+                Request::CheckCatalog => "check-catalog",
+                Request::ActivateCatalog(_) => "activate-catalog",
+            };
+            crate::diagnostics::record("command-start", serde_json::json!({"command": command}));
             let mut reload = false;
             let executing = matches!(&envelope.request, Request::Execute(..) | Request::Close(..));
             let mut acknowledged = false;
@@ -407,11 +449,10 @@ impl Worker {
                 }
                 match envelope.request {
                     Request::CheckCatalog => {
-                        current.invalidate();
-                        if let Some(helper) = elevated.as_mut() {
-                            helper.held = None;
-                            helper.inventory.clear();
-                            helper.selections.clear();
+                        if current.has_review()
+                            || elevated.as_ref().is_some_and(|h| h.held.is_some())
+                        {
+                            return Err(CommandError::Busy);
                         }
                         review_open = false;
                         if let Some(Ok(store)) = self.catalog.as_mut() {
@@ -470,6 +511,16 @@ impl Worker {
                         } else {
                             let mut dto = current.scan()?;
                             let found = discovery();
+                            crate::diagnostics::record(
+                                "storage-discovery",
+                                serde_json::json!({
+                                    "applications": found.storage.len(),
+                                    "locations": found.storage.iter().map(|s| s.locations).sum::<usize>(),
+                                    "signals": found.storage.iter().flat_map(|s| s.signals.clone()).collect::<HashSet<_>>(),
+                                    "coverage": found.coverage,
+                                }),
+                            );
+                            append_storage_discovery(&mut dto, "current-account", found.storage);
                             dto.coverage.extend(found.coverage);
                             dto.coverage.extend(unavailable.clone());
                             let present: HashSet<_> = dto
@@ -491,6 +542,7 @@ impl Worker {
                                     {
                                         item.default_selected = false;
                                         item.selectable = false;
+                                        item.set_decision(detected.decision.clone());
                                         item.limitations.extend(detected.limitations.clone());
                                     }
                                 }
@@ -509,6 +561,7 @@ impl Worker {
                                     detected.category,
                                     detected.confidence,
                                     DetectedItem {
+                                        decision: detected.decision.clone(),
                                         id: format!("discovery-{}", detected.id),
                                         account: "current-account".into(),
                                         provider: None,
@@ -523,7 +576,7 @@ impl Worker {
                                         risks: vec![RiskFlag::Unknown],
                                         loss: LossAssessment::Unknown,
                                         signals: detected.signals,
-                                        unverified: true,
+                                        unverified: false,
                                         sync_warning: detected.category == Some(Category::Browser),
                                     },
                                 );
@@ -586,6 +639,12 @@ impl Worker {
                         Ok(Reply::Report(report))
                     }
                     Request::Execute(request, mut sink) => {
+                        let mut original_sink = sink;
+                        sink = Box::new(move |event| {
+                            crate::diagnostics::wipe_event(&event);
+                            // Each event is observed before IPC delivery, including failures.
+                            original_sink(event);
+                        });
                         let plan = if settings.account_mode == AccountMode::AllAccounts {
                             elevated
                                 .as_ref()
@@ -639,6 +698,19 @@ impl Worker {
                     }
                 }
             })();
+            match &result {
+                Ok(Reply::Plan(plan)) => {
+                    crate::diagnostics::report("cleanup-preview", &plan.report)
+                }
+                Ok(Reply::Report(report)) => crate::diagnostics::report("close-result", report),
+                _ => {}
+            }
+            crate::diagnostics::record(
+                "command-result",
+                serde_json::json!({
+                    "command": command, "error": result.as_ref().err(),
+                }),
+            );
             if executing && result.is_err() {
                 if let Ok(mut active) = self.shared.active.lock() {
                     *active = None;
@@ -696,6 +768,7 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                 .push("account-scan-residual-hive-requires-recovery".into());
         }
         let mut seen = HashSet::new();
+        append_storage_discovery(&mut dto, &account.account, account.scan.storage);
         for detected in account
             .scan
             .known
@@ -723,6 +796,7 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                     detected.category,
                     detected.confidence,
                     DetectedItem {
+                        decision: detected.decision.clone(),
                         id,
                         account: account.account.clone(),
                         provider: Some(m.id.clone()),
@@ -738,7 +812,7 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                         risks: m.risks.flags.clone(),
                         loss: m.risks.permanent_data_loss,
                         signals: detected.signals,
-                        unverified: m.confidence.status.as_deref() != Some("verified"),
+                        unverified: false,
                         sync_warning: m.category == Category::Browser,
                     },
                 );
@@ -747,6 +821,7 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                     detected.category,
                     detected.confidence,
                     DetectedItem {
+                        decision: detected.decision.clone(),
                         id: opaque("discovery"),
                         account: account.account.clone(),
                         provider: None,
@@ -761,7 +836,7 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                         risks: vec![RiskFlag::Unknown],
                         loss: LossAssessment::Unknown,
                         signals: detected.signals,
-                        unverified: true,
+                        unverified: false,
                         sync_warning: detected.category == Some(Category::Browser),
                     },
                 );
@@ -1022,7 +1097,7 @@ fn execute_elevated(
                     run_id: request.plan_id.clone(),
                     account: account.account.clone(),
                     category: section.category,
-                    item: item.clone(),
+                    item: Box::new(item.clone()),
                 });
             }
         }

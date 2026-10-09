@@ -14,6 +14,9 @@ const CATALOG: [&str; 7] = [
 fn synthetic(input: &str) -> Value {
     let mut m: Value = serde_json::from_str(input).unwrap();
     m["support"] = json!("validated");
+    for artifact in m["session_locations"].as_array_mut().unwrap() {
+        artifact["confidence"] = "verified".into();
+    }
     m["compatibility"]["product_versions"] = json!("synthetic-only-v1");
     m["confidence"]["version_coverage"] = json!("synthetic-only-v1");
     m["confidence"]["status"] = json!("verified");
@@ -41,6 +44,9 @@ fn every_entry_has_sources_risks_and_unverified_coverage() {
             .all(|a| a.confidence.as_deref() == Some("unverified")));
         let mut promoted: Value = serde_json::from_str(input).unwrap();
         promoted["support"] = json!("validated");
+        for artifact in promoted["session_locations"].as_array_mut().unwrap() {
+            artifact["confidence"] = "verified".into();
+        }
         assert!(load_manifest(&promoted.to_string()).is_err());
         for target in [
             "../outside",

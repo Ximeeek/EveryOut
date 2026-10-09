@@ -1,25 +1,30 @@
 use crate::dto::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use ts_rs::{Config, TypeVisitor, TS};
 pub fn typescript() -> String {
     struct Types {
         cfg: Config,
         declarations: BTreeMap<String, String>,
+        visited: HashSet<String>,
     }
     impl TypeVisitor for Types {
         fn visit<T: TS + 'static + ?Sized>(&mut self) {
             let name = T::name(&self.cfg);
-            if T::output_path().is_none() || self.declarations.contains_key(&name) {
+            if T::output_path().is_none() || !self.visited.insert(name.clone()) {
                 return;
             }
+            // Each concrete generic instantiation has its own dependencies but
+            // shares one declaration (for example EvidenceState<T>).
+            let declaration_name = name.split('<').next().unwrap_or(&name).to_owned();
             self.declarations
-                .insert(name, format!("export {}", T::decl(&self.cfg)));
+                .insert(declaration_name, format!("export {}", T::decl(&self.cfg)));
             T::visit_dependencies(self);
         }
     }
     let mut types = Types {
         cfg: Config::default(),
         declarations: BTreeMap::new(),
+        visited: HashSet::new(),
     };
     types.visit::<ExportFormat>();
     types.visit::<CatalogUpdateDto>();

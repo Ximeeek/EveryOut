@@ -65,6 +65,9 @@ impl ProcessGate for Gate {
 fn synthetic(catalog: &str) -> Value {
     let mut m: Value = serde_json::from_str(catalog).unwrap();
     m["support"] = json!("validated");
+    for artifact in m["session_locations"].as_array_mut().unwrap() {
+        artifact["confidence"] = "verified".into();
+    }
     m["compatibility"]["product_versions"] = json!("synthetic-only-v1");
     m["confidence"]["version_coverage"] = json!("synthetic-only-v1");
     m["confidence"]["status"] = json!("verified");

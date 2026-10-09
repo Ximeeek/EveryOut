@@ -54,7 +54,7 @@ impl WindowsProcessGate {
             Some(account) => {
                 everyout_platform_windows::process::enumerate_account_matches(account, &self.names)
             }
-            None => everyout_platform_windows::process::enumerate_current_user(),
+            None => everyout_platform_windows::process::enumerate_current_user_matches(&self.names),
         }
         .map_err(|e| e.kind)?;
         if !inventory.unavailable.is_empty() {
@@ -264,6 +264,7 @@ impl<'a> ManifestExecutor<'a> {
             root_id: RootId(format!("{}-{}", m.id, m.roots[0].id())),
         };
         let mut instance = ProviderInstance {
+            decision: crate::evidence::assess(m, self.resolver),
             provider_id: ProviderId(m.id.clone()),
             instance_id: InstanceId(format!("{}-installation", m.id)),
             owner,
@@ -325,9 +326,28 @@ impl<'a> ManifestExecutor<'a> {
                         &[][..],
                         !exclusions.is_empty(),
                     ),
+                    CleaningMethod::ExceptionAdapter { adapter_id, .. }
+                        if m.id == "spotify" && adapter_id == "spotify-saved-login-v1" =>
+                    {
+                        (MethodKind::ExceptionAdapter, &[][..], false)
+                    }
                     _ => (MethodKind::ExceptionAdapter, &[][..], true),
                 };
                 let mut blockers = method.blockers().to_vec();
+                if kind == MethodKind::ExceptionAdapter && !unsupported {
+                    if root.spotify_reviewed_build().is_err() {
+                        blockers.push("spotify-build-not-reviewed".into());
+                        instance.confidence = Confidence::Low;
+                    } else if root
+                        .path("prefs")
+                        .map_err(|e| e.kind)?
+                        .spotify_saved_login()
+                        .is_err()
+                    {
+                        blockers.push("spotify-login-format-not-reviewed".into());
+                        instance.confidence = Confidence::Low;
+                    }
+                }
                 if unsupported {
                     blockers.push("unsupported-declarative-method".into());
                 }
@@ -566,7 +586,11 @@ impl<'a> ManifestExecutor<'a> {
             },
             path: Rc::new(path),
             kind,
-            label: relative.to_owned(),
+            label: if method == MethodKind::ExceptionAdapter && self.manifest.id == "spotify" {
+                "prefs (saved login fields only)".into()
+            } else {
+                relative.to_owned()
+            },
         });
         Ok(())
     }
@@ -647,6 +671,14 @@ impl<'a> ManifestExecutor<'a> {
         self.processes.revalidate()?;
         let binding = self.binding.borrow();
         let binding = binding.as_ref().ok_or(ErrorKind::StalePlan)?;
+        if self.manifest.id == "spotify"
+            && binding
+                .targets
+                .iter()
+                .any(|t| t.action.method == MethodKind::ExceptionAdapter)
+        {
+            binding.root.spotify_reviewed_build().map_err(|e| e.kind)?;
+        }
         if let Some(profiles) = &self.manifest.profiles {
             if self.discover_profiles(&binding.root, profiles)? != binding.profile_names {
                 return Err(ErrorKind::StalePlan);
@@ -772,7 +804,13 @@ impl MetadataAccess for ManifestExecutor<'_> {
         Ok(MetadataObservation {
             artifact_id: artifact.clone(),
             kind: target.kind,
-            exists: m.exists,
+            exists: if target.action.method == MethodKind::ExceptionAdapter
+                && self.manifest.id == "spotify"
+            {
+                target.path.spotify_saved_login().map_err(|e| e.kind)?
+            } else {
+                m.exists
+            },
             size: m.size,
         })
     }
@@ -792,7 +830,13 @@ impl LocalOperations for ManifestExecutor<'_> {
             if !plan.plan().actions.contains(&target.action) {
                 return Err(ErrorKind::ScopeViolation);
             }
-            let result = if target.kind == ArtifactKind::Directory {
+            let result = if target.action.method == MethodKind::ExceptionAdapter
+                && self.manifest.id == "spotify"
+            {
+                target.path.clear_spotify_saved_login()
+            } else if target.action.method == MethodKind::ExceptionAdapter {
+                return Err(ErrorKind::Unsupported);
+            } else if target.kind == ArtifactKind::Directory {
                 target.path.delete_tree(false)
             } else {
                 target.path.delete_file(false)
@@ -907,7 +951,7 @@ impl Provider for ManifestExecutor<'_> {
         {
             return blocked(ErrorKind::ScopeViolation);
         }
-        let actions = b
+        let actions: Vec<_> = b
             .targets
             .iter()
             .filter(|t| {
@@ -918,7 +962,36 @@ impl Provider for ManifestExecutor<'_> {
             })
             .map(|t| t.action.clone())
             .collect();
+        let mut confirmations = Vec::new();
+        if self.manifest.support == Support::Candidate
+            && b.instance.decision.evidence.authority == OperationAuthority::SpotifySavedLogin
+            && b.instance.decision.action_allowed
+            && !actions.is_empty()
+            && self.manifest.risks.permanent_data_loss != LossAssessment::Unknown
+            && !self.manifest.risks.flags.contains(&RiskFlag::Unknown)
+            && actions.iter().all(|action| action.blockers.is_empty())
+            && self
+                .manifest
+                .session_locations
+                .iter()
+                .filter(|artifact| {
+                    artifact.scope != Scope::Profile
+                        || selection.profiles.iter().any(|id| {
+                            b.instance
+                                .profiles
+                                .iter()
+                                .any(|profile| profile.profile_id == *id)
+                        })
+                })
+                .all(|artifact| artifact.confidence.as_deref() == Some("verified"))
+        {
+            confirmations.push(ConfirmationId(format!(
+                "review-candidate-provider-{}",
+                self.manifest.id
+            )));
+        }
         PlanResult::Ready(Box::new(ProposedPlan {
+            scope_evidence: b.instance.decision.evidence.clone(),
             plan_id: PlanId(format!("{}-{}", self.manifest.id, selection.snapshot_id.0)),
             provider_id: b.instance.provider_id.clone(),
             manifest_revision: self.manifest.revision,
@@ -931,7 +1004,7 @@ impl Provider for ManifestExecutor<'_> {
             } else {
                 vec![]
             },
-            confirmations: vec![],
+            confirmations,
             limitations: self.limitations(Some(&selection.profiles)),
         }))
     }
@@ -1071,6 +1144,28 @@ impl Provider for ManifestExecutor<'_> {
     }
 }
 impl EngineProvider for ManifestExecutor<'_> {
+    fn verifies_target_presence(&self, action: &PlannedAction) -> bool {
+        match action.method {
+            MethodKind::DeleteFileFamily
+            | MethodKind::DeleteDirectoryFamily
+            | MethodKind::DeleteRegistryTarget => true,
+            MethodKind::ExceptionAdapter => {
+                self.manifest.id == "spotify"
+                    && self.manifest.cleaning_methods.iter().any(|method| {
+                        matches!(method,
+                    CleaningMethod::ExceptionAdapter { id, adapter_id, .. }
+                    if id == &action.method_id && adapter_id == "spotify-saved-login-v1")
+                    })
+                    && self.binding.borrow().as_ref().is_some_and(|binding| {
+                        binding
+                            .targets
+                            .iter()
+                            .any(|target| &target.action == action)
+                    })
+            }
+            _ => false,
+        }
+    }
     fn identity_sync(&self, plan: &ValidatedPlan) -> Result<Option<IdentitySync>, ErrorKind> {
         if !self.matches_plan(plan.plan()) {
             return Err(ErrorKind::StalePlan);
