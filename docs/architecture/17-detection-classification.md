@@ -1,5 +1,11 @@
 # Metadata-only detection and classification
 
+The current [P1 Win32 identity resolver](win32-application-identity.md) supersedes the historical
+Phase 19 registry-value/shortcut-target exclusions below with an explicit nonsensitive allowlist,
+bounded target resolution and independent physical/runtime evidence. The numerical heuristic
+thresholds below still rank older layout candidates; they do not classify Win32 identity or grant
+operation authority. Generic Win32 application rows are discovery-only, including portable images.
+
 The 2026-10-07 [storage discovery extension](../research/04-universal-app-storage-discovery.md)
 adds a separate `ScanReport.storage` channel. It preserves unowned storage-layout and
 cache-name observations through a bounded nested AppData scan and presents them as

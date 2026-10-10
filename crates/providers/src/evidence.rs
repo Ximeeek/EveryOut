@@ -132,6 +132,55 @@ pub fn assess(
             }
         }
     }
+    if !reviewed_spotify {
+        if let Some(snapshot) = resolver.win32_identity() {
+            if let Some(app) = snapshot.matching_product(&m.identity.process_names, &m.name) {
+                evidence.application_identity = app.identity();
+                let mut ownerships = Vec::new();
+                for candidate in &m.roots {
+                    let (base, relative) = match candidate {
+                        crate::Root::LocalAppData { relative, .. } => {
+                            (KnownFolder::LocalAppData, relative)
+                        }
+                        crate::Root::RoamingAppData { relative, .. } => {
+                            (KnownFolder::RoamingAppData, relative)
+                        }
+                        _ => continue,
+                    };
+                    ownerships.push(
+                        resolver
+                            .resolve(base)
+                            .and_then(|root| root.path(relative))
+                            .ok()
+                            .and_then(|path| snapshot.storage_for(app, &path)),
+                    );
+                }
+                if ownerships.iter().any(Option::is_some) {
+                    evidence.storage_ownership = ownerships
+                        .iter()
+                        .flatten()
+                        .find(|o| o.state == StorageOwnership::SharedConflict)
+                        .cloned()
+                        .or_else(|| {
+                            ownerships
+                                .iter()
+                                .all(|o| {
+                                    o.as_ref()
+                                        .is_some_and(|e| e.state == StorageOwnership::Corroborated)
+                                })
+                                .then(|| ownerships[0].as_ref().expect("corroborated root").clone())
+                        })
+                        .unwrap_or_else(|| {
+                            EvidenceState::new(
+                                StorageOwnership::Unknown,
+                                "win32-correlation",
+                                "win32-storage-root-proof-incomplete",
+                            )
+                        });
+                }
+            }
+        }
+    }
     decision(m, evidence, &blockers)
 }
 

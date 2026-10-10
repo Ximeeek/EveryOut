@@ -1,4 +1,4 @@
-//! Current-user metadata capabilities with fixed profiles.ini and reviewed Spotify exceptions.
+//! Current-user metadata capabilities, a fixed Win32 metadata allowlist and reviewed adapters.
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use everyout_core_model::{ActionStatus, ErrorKind};
@@ -18,6 +18,8 @@ mod registry;
 mod resolver;
 #[cfg(windows)]
 mod spotify;
+#[cfg(windows)]
+pub mod win32_identity;
 
 #[cfg(windows)]
 pub use filesystem::{AllowedRoot, Metadata, PhysicalIdentity, SafePath, ShallowMetadata};
@@ -26,7 +28,7 @@ pub use registry::{RegistryRoot, RegistryTarget};
 #[cfg(all(windows, feature = "test-fixtures"))]
 pub use resolver::FixtureFolders;
 #[cfg(windows)]
-pub use resolver::{CurrentUserFolders, RootResolver};
+pub use resolver::{CurrentUserFolders, IdentityFolders, RootResolver};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnownFolder {

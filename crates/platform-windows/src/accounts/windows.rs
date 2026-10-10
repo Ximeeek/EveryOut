@@ -347,34 +347,7 @@ impl NativeProfiles {
         self.paths_under(HKEY_CURRENT_USER, names)
     }
     fn paths_under(&self, user: HKEY, names: &[String]) -> Result<Vec<PathBuf>> {
-        let mut paths = Vec::new();
-        for name in names {
-            if crate::components(name)?.len() != 1 {
-                return Err(PlatformError::new(ErrorKind::ScopeViolation));
-            }
-            let location =
-                format!("Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{name}");
-            for parent in [user, HKEY_LOCAL_MACHINE] {
-                let key = match open(parent, &location) {
-                    Ok(key) => key,
-                    Err(e) if native::absent(&e) => continue,
-                    Err(e) => return Err(e),
-                };
-                if let Some(path) = path_value(&key, "")? {
-                    if !local_path(&path)
-                        || !PathBuf::from(&path)
-                            .file_name()
-                            .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(name))
-                    {
-                        return Err(PlatformError::new(ErrorKind::OwnershipConflict));
-                    }
-                    paths.push(PathBuf::from(path));
-                }
-            }
-        }
-        paths.sort();
-        paths.dedup();
-        Ok(paths)
+        crate::win32_identity::app_paths_under(user, names)
     }
 }
 impl ProfileSource for NativeProfiles {

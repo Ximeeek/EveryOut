@@ -21,6 +21,7 @@ pub struct WindowsProcessGate {
     account: Option<everyout_platform_windows::accounts::AccountProfile>,
     names: Vec<String>,
     paths: Vec<std::path::PathBuf>,
+    executables: Vec<everyout_platform_windows::win32_identity::ExecutableBinding>,
     retained: RefCell<Option<everyout_platform_windows::process::ProcessInventory>>,
 }
 impl WindowsProcessGate {
@@ -32,6 +33,13 @@ impl WindowsProcessGate {
             return Err(ErrorKind::OwnershipConflict);
         }
         Ok(Self {
+            executables: paths
+                .iter()
+                .map(|p| {
+                    everyout_platform_windows::win32_identity::ExecutableBinding::capture(p)
+                        .map_err(|e| e.kind)
+                })
+                .collect::<Result<_, _>>()?,
             account: None,
             names,
             paths,
@@ -50,6 +58,9 @@ impl WindowsProcessGate {
         Ok(gate)
     }
     fn inventory(&self) -> Result<everyout_platform_windows::process::ProcessInventory, ErrorKind> {
+        for executable in &self.executables {
+            executable.revalidate().map_err(|e| e.kind)?;
+        }
         let mut inventory = match &self.account {
             Some(account) => {
                 everyout_platform_windows::process::enumerate_account_matches(account, &self.names)
@@ -60,9 +71,25 @@ impl WindowsProcessGate {
         if !inventory.unavailable.is_empty() {
             return Err(ErrorKind::AccessDenied);
         }
-        inventory
-            .processes
-            .retain(|p| p.matches(&self.names, &self.paths));
+        let mut matching = Vec::new();
+        for process in inventory.processes {
+            if !process.matches(&self.names, &self.paths) {
+                continue;
+            }
+            let image = everyout_platform_windows::win32_identity::ExecutableBinding::capture(
+                process.image_path(),
+            )
+            .map_err(|e| e.kind)?;
+            if !self
+                .executables
+                .iter()
+                .any(|e| e.physical == image.physical)
+            {
+                return Err(ErrorKind::OwnershipConflict);
+            }
+            matching.push(process);
+        }
+        inventory.processes = matching;
         Ok(inventory)
     }
 }

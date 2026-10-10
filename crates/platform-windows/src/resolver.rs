@@ -12,6 +12,22 @@ use windows_sys::Win32::{
 /// implementations resolve the current unelevated user's OS known folders.
 pub trait RootResolver {
     fn resolve(&self, folder: KnownFolder) -> Result<AllowedRoot>;
+    /// Optional independently collected metadata; fixtures never query the host.
+    fn win32_identity(&self) -> Option<std::rc::Rc<crate::win32_identity::Win32Snapshot>> {
+        None
+    }
+}
+pub struct IdentityFolders<'a> {
+    pub folders: &'a dyn RootResolver,
+    pub identity: &'a std::cell::RefCell<std::rc::Rc<crate::win32_identity::Win32Snapshot>>,
+}
+impl RootResolver for IdentityFolders<'_> {
+    fn resolve(&self, folder: KnownFolder) -> Result<AllowedRoot> {
+        self.folders.resolve(folder)
+    }
+    fn win32_identity(&self) -> Option<std::rc::Rc<crate::win32_identity::Win32Snapshot>> {
+        Some(self.identity.borrow().clone())
+    }
 }
 pub struct CurrentUserFolders;
 impl RootResolver for CurrentUserFolders {

@@ -509,8 +509,8 @@ impl Worker {
                                 elevated.as_mut().ok_or(CommandError::HelperUnavailable)?;
                             scan_elevated(helper).map(Reply::Scan)
                         } else {
-                            let mut dto = current.scan()?;
                             let found = discovery();
+                            let mut dto = current.scan()?;
                             crate::diagnostics::record(
                                 "storage-discovery",
                                 serde_json::json!({
@@ -566,7 +566,8 @@ impl Worker {
                                         account: "current-account".into(),
                                         provider: None,
                                         name: detected
-                                            .owner
+                                            .application_label
+                                            .or(detected.owner)
                                             .unwrap_or_else(|| "Unresolved application".into()),
                                         origin: detected.origin,
                                         default_selected: false,
@@ -826,7 +827,8 @@ fn scan_elevated(helper: &mut Elevated) -> Result<ScanDto, CommandError> {
                         account: account.account.clone(),
                         provider: None,
                         name: detected
-                            .owner
+                            .application_label
+                            .or(detected.owner)
                             .unwrap_or_else(|| "Unresolved application".into()),
                         origin: detected.origin,
                         default_selected: false,

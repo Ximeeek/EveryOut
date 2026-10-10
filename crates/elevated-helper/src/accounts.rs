@@ -205,7 +205,7 @@ impl NativeAccounts {
         let summaries: Vec<_> = self.profiles.iter().map(|(id,p)| {
             let scanned = with_hive(&*self.hives,p,run,|hive| {
                 let resolver = AccountFolders { source: &*self.source, profile: p, hive };
-                let inventory = everyout_platform_windows::inventory::InstalledInventory { registrations: vec![], coverage: vec!["other-account-installation-registration-inventory-unavailable".into()] };
+                let inventory = everyout_platform_windows::inventory::InstalledInventory { win32: Default::default(), registrations: vec![], coverage: vec!["other-account-installation-registration-inventory-unavailable".into()] };
                 Ok(everyout_detection::scanner::scan(&resolver,&inventory,&manifests,&*self.cancelled))
             });
             let scan = scanned.operation.unwrap_or_else(|e| everyout_detection::ScanReport { coverage: vec![format!("account-scan-{:?}",e.kind)], ..Default::default() });

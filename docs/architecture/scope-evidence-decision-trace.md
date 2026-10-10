@@ -67,7 +67,8 @@ executable/product identity, version, channel, layout and artifact families. Mis
 produce Unknown; mismatches produce Stale and `product-version-revalidation-required`, which
 blocks review. There is no unreviewed compatible-version wildcard or UI record upload endpoint.
 
-P0 prepares this model and decision mechanism. It does not collect generic PE/Uninstall/shortcut
-metadata, automatically import maintainer records, or create executable scopes from them.
-Runtime collection and broader identity corroboration belong to P1. Teach Mode, filesystem
-watchers, ETW and generic destructive scopes remain outside this change.
+P0 prepares this model and decision mechanism. The subsequent
+[P1 Win32 identity resolver](win32-application-identity.md) supplies PE/Uninstall/shortcut and
+physical/runtime correlation, preserving the P0 authentication and authority gates. It does not
+automatically import maintainer records or create executable scopes from them. Teach Mode,
+filesystem watchers, ETW and generic destructive scopes remain outside these changes.

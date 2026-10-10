@@ -177,6 +177,7 @@ fn registered_package_highs_and_mediums_stay_in_unselected_candidate_group() {
     let mut medium = package("SyntheticMedium_fixture", Some(true), Some(false));
     medium.exclusive_container = false;
     let inventory = InstalledInventory {
+        win32: Default::default(),
         registrations: vec![
             package("SyntheticHigh_fixture", Some(true), Some(false)),
             medium,
@@ -285,6 +286,7 @@ fn registry_key_presence_corroborates_manifests_without_value_or_target_reads() 
         }));
     let manifests = [reviewed(value)];
     let inventory = InstalledInventory {
+        win32: Default::default(),
         registrations: vec![Registration {
             name: "registry-host".into(),
             source: InventorySource::Uninstall,
@@ -343,6 +345,7 @@ fn false_positive_corpus_is_suppressed_even_with_coincidental_storage_names() {
         }
     }
     let inventory = InstalledInventory {
+        win32: Default::default(),
         registrations: vec![Registration {
             name: "coincidental storage".into(),
             source: InventorySource::Uninstall,
@@ -535,5 +538,5 @@ fn cancellation_and_missing_metadata_are_incomplete_coverage() {
     assert!(report
         .coverage
         .iter()
-        .any(|c| c == "registry-install-mapping-and-profile-configuration-blocked"));
+        .any(|c| c == "profile-configuration-and-authentication-discovery-blocked"));
 }

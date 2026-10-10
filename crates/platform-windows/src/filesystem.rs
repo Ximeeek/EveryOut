@@ -288,7 +288,69 @@ pub struct ShallowMetadata {
 /// Opaque volume/file identity for physical equality and ancestor overlap checks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhysicalIdentity(Identity);
+impl PhysicalIdentity {
+    pub(crate) fn from_native(identity: Identity) -> Self {
+        Self(identity)
+    }
+}
 impl SafePath {
+    pub(crate) fn retain_executable_image(&self) -> Result<Handle> {
+        self.retain_metadata_file(".exe")
+    }
+    pub(crate) fn retain_shortcut_metadata(&self) -> Result<Handle> {
+        let file = self.retain_metadata_file(".lnk")?;
+        if file.info()?.size > 1024 * 1024 {
+            return Err(PlatformError::new(ErrorKind::Unsupported));
+        }
+        Ok(file)
+    }
+    fn retain_metadata_file(&self, extension: &str) -> Result<Handle> {
+        if !self
+            .parts
+            .last()
+            .is_some_and(|n| n.to_ascii_lowercase().ends_with(extension))
+        {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        let handles = self
+            .open(false)?
+            .ok_or(PlatformError::new(ErrorKind::StalePlan))?;
+        let parent = if handles.len() > 1 {
+            &handles[handles.len() - 2]
+        } else {
+            self.root.handle()
+        };
+        let file = native::open_checked_child(
+            parent,
+            OsStr::new(self.parts.last().expect("file component")),
+            Some(false),
+            false,
+            FILE_READ_DATA,
+        )?;
+        if file.info()?.directory {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        if self.identities.last().copied().flatten() != Some(file.info()?.identity) {
+            return Err(PlatformError::new(ErrorKind::StalePlan));
+        }
+        Ok(file)
+    }
+    /// Read-only discovery below an already physically bound directory candidate.
+    pub fn metadata_descendant(&self, relative: &str) -> Result<SafePath> {
+        if !self.directory || !self.probe_shallow()?.exists {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        components(relative)?;
+        self.root
+            .path(&format!("{}/{}", self.parts.join("/"), relative))
+    }
+    /// Checked local path for metadata APIs only. This never grants mutation rights.
+    pub fn canonical_metadata_path(&self) -> Result<std::path::PathBuf> {
+        let handles = self
+            .open(false)?
+            .ok_or(PlatformError::new(ErrorKind::StalePlan))?;
+        native::metadata_path(handles.last().expect("nonempty path"))
+    }
     /// Returns only whether the fixed saved-login fields exist; payload values
     /// are confined to the adapter and never exposed to callers or diagnostics.
     pub fn spotify_saved_login(&self) -> Result<bool> {

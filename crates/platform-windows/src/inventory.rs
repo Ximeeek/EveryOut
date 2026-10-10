@@ -1,14 +1,10 @@
-//! Current-user inventory. Registry access enumerates key names only; shortcuts
-//! are observed as directory entries, never loaded or resolved. No live tests.
+//! Current-user inventory with a fixed nonsensitive Win32 metadata allowlist.
 use crate::{native, AllowedRoot};
-use std::{
-    collections::BTreeMap, ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf, ptr,
-};
+use std::{collections::BTreeMap, path::PathBuf, ptr};
 use windows::{core::HSTRING, Management::Deployment::PackageManager};
 use windows_sys::Win32::{
     Foundation::{ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS},
-    System::{Com::CoTaskMemFree, Registry::*},
-    UI::Shell::{FOLDERID_CommonPrograms, FOLDERID_Programs, SHGetKnownFolderPath},
+    System::Registry::*,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +30,7 @@ pub struct Registration {
 }
 #[derive(Debug, Default, Clone)]
 pub struct InstalledInventory {
+    pub win32: std::rc::Rc<crate::win32_identity::Win32Snapshot>,
     pub registrations: Vec<Registration>,
     /// Stable codes only: failures are incomplete coverage, never an empty-machine claim.
     pub coverage: Vec<String>,
@@ -54,10 +51,14 @@ impl InstalledInventory {
         inventory.registry();
         inventory.start_menu();
         inventory.packages();
+        std::rc::Rc::get_mut(&mut inventory.win32)
+            .expect("collecting snapshot")
+            .finish();
+        inventory.coverage.extend(inventory.win32.coverage.clone());
         inventory.coverage.extend(
             [
-                "registry-display-name-install-location-publisher-values-blocked",
-                "shortcut-targets-arguments-and-nested-program-groups-blocked",
+                "registry-command-and-arbitrary-values-blocked",
+                "shortcut-arguments-and-working-directory-blocked",
                 "browser-profile-configuration-and-custom-install-mappings-blocked",
             ]
             .map(str::to_owned),
@@ -121,6 +122,23 @@ impl InstalledInventory {
                         let Ok(name) = String::from_utf16(&name[..len as usize]) else {
                             break;
                         };
+                        let identity_source = if kind == InventorySource::AppPaths {
+                            crate::win32_identity::IdentitySource::AppPaths
+                        } else {
+                            crate::win32_identity::IdentitySource::Uninstall
+                        };
+                        match crate::win32_identity::registry_metadata(
+                            hive,
+                            identity_source,
+                            &name,
+                            view,
+                        ) {
+                            Ok(record) => std::rc::Rc::get_mut(&mut self.win32)
+                                .expect("collecting snapshot")
+                                .registrations
+                                .push(record),
+                            Err(_) => self.coverage.push(format!("{label}-metadata-unavailable")),
+                        }
                         let item = found
                             .entry((hive_label.into(), source.into(), name.to_lowercase()))
                             .or_insert(Registration {
@@ -144,61 +162,23 @@ impl InstalledInventory {
         self.registrations.extend(found.into_values());
     }
     fn start_menu(&mut self) {
-        for (id, source) in [
-            (&FOLDERID_Programs, "user-programs"),
-            (&FOLDERID_CommonPrograms, "common-programs"),
-        ] {
-            let mut value = ptr::null_mut();
-            // SAFETY: fixed known-folder ID, current user, no creation or alternate token.
-            let status = unsafe { SHGetKnownFolderPath(id, 0, ptr::null_mut(), &mut value) };
-            if status < 0 || value.is_null() {
-                if !value.is_null() {
-                    unsafe {
-                        CoTaskMemFree(value.cast());
-                    }
-                }
-                self.coverage.push(format!("{source}-unavailable"));
-                continue;
-            }
-            let mut length = 0;
-            // SAFETY: successful API returns a terminated COM allocation.
-            while unsafe { *value.add(length) } != 0 {
-                length += 1;
-            }
-            let path = PathBuf::from(OsString::from_wide(unsafe {
-                std::slice::from_raw_parts(value, length)
-            }));
-            // SAFETY: release this API's allocation exactly once.
-            unsafe {
-                CoTaskMemFree(value.cast());
-            }
-            match AllowedRoot::absolute(&path).and_then(|root| root.discovery_children()) {
-                Ok((children, omitted)) => {
-                    if omitted {
-                        self.coverage
-                            .push(format!("{source}-redirected-or-invalid-entries-omitted"));
-                    }
-                    for (name, directory) in children {
-                        if directory {
-                            self.coverage
-                                .push(format!("{source}-nested-groups-unobserved"));
-                        }
-                        if !directory && name.to_ascii_lowercase().ends_with(".lnk") {
-                            self.registrations.push(Registration {
-                                name,
-                                source: InventorySource::StartMenu,
-                                provenance: vec![source.into()],
-                                publisher: None,
-                                package_family: None,
-                                installation_exists: None,
-                                runtime_present: None,
-                                exclusive_container: false,
-                            });
-                        }
-                    }
-                }
-                Err(_) => self.coverage.push(format!("{source}-unavailable")),
-            }
+        let (records, coverage) = crate::win32_identity::shortcuts();
+        self.coverage.extend(coverage);
+        for record in records {
+            self.registrations.push(Registration {
+                name: record.name.clone(),
+                source: InventorySource::StartMenu,
+                provenance: vec!["local-start-menu-target".into()],
+                publisher: None,
+                package_family: None,
+                installation_exists: None,
+                runtime_present: None,
+                exclusive_container: false,
+            });
+            std::rc::Rc::get_mut(&mut self.win32)
+                .expect("collecting snapshot")
+                .registrations
+                .push(record);
         }
     }
     fn packages(&mut self) {

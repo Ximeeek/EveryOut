@@ -24,6 +24,8 @@ impl ReviewedManifest {
     }
 }
 struct Found {
+    candidate_name: String,
+    application_executable: Option<PhysicalIdentity>,
     provider_id: Option<String>,
     detection: Detection,
     stores: Vec<Vec<PhysicalIdentity>>,
@@ -103,6 +105,24 @@ pub fn scan_with_aliases(
     manifests: &[ReviewedManifest],
     aliases: &[ReviewedBrowserAlias],
     cancelled: &dyn Fn() -> bool,
+) -> ScanReport {
+    scan_with_runtime(
+        resolver,
+        inventory,
+        manifests,
+        aliases,
+        cancelled,
+        &mut everyout_platform_windows::win32_identity::UsageBudget::default(),
+    )
+}
+/// Trusted read-only observation injection for isolated fixtures, not a provider factory.
+pub fn scan_with_runtime(
+    resolver: &dyn RootResolver,
+    inventory: &InstalledInventory,
+    manifests: &[ReviewedManifest],
+    aliases: &[ReviewedBrowserAlias],
+    cancelled: &dyn Fn() -> bool,
+    runtime: &mut dyn everyout_platform_windows::win32_identity::RuntimeObserver,
 ) -> ScanReport {
     let mut report = ScanReport {
         coverage: inventory.coverage.clone(),
@@ -240,7 +260,36 @@ pub fn scan_with_aliases(
             }
         }
     }
+    correlate_win32(
+        resolver,
+        inventory,
+        manifests,
+        &mut found,
+        &mut report.coverage,
+        cancelled,
+        runtime,
+    );
     resolve_overlaps(&mut found);
+    for item in &found {
+        if item.detection.decision.evidence.storage_ownership.state
+            == StorageOwnership::SharedConflict
+        {
+            if let Some(app) = inventory
+                .win32
+                .applications
+                .iter()
+                .find(|a| Some(a.executable.physical) == item.application_executable)
+            {
+                for path in &item._paths {
+                    inventory.win32.remember_storage(
+                        app,
+                        path,
+                        item.detection.decision.evidence.storage_ownership.clone(),
+                    );
+                }
+            }
+        }
+    }
     for item in found {
         if item.detection.origin == DetectionOrigin::KnownProvider
             && item.detection.category.is_some()
@@ -253,7 +302,7 @@ pub fn scan_with_aliases(
     report.coverage.extend(
         [
             "s8-unverified-heuristic-preselection-blocked",
-            "registry-install-mapping-and-profile-configuration-blocked",
+            "profile-configuration-and-authentication-discovery-blocked",
         ]
         .map(str::to_owned),
     );
@@ -341,8 +390,11 @@ fn layouts(
             limitations.push("exclusive-owner-unresolved".into());
         }
         found.push(Found {
+            candidate_name: candidate.rsplit('/').next().unwrap_or(candidate).into(),
+            application_executable: None,
             provider_id: None,
             detection: Detection {
+                application_label: None,
                 decision: ScopeEvidence {
                     application_identity: EvidenceState::new(
                         if installed {
@@ -623,8 +675,11 @@ fn manifest(
             }
         }
         found.push(Found {
+            candidate_name: manifest.name.clone(),
+            application_executable: None,
             provider_id: Some(manifest.id.clone()),
             detection: Detection {
+                application_label: None,
                 decision: everyout_providers::evidence::assess(manifest, resolver),
                 id: format!("{}-instance-{index}", manifest.id),
                 origin: DetectionOrigin::KnownProvider,
@@ -650,6 +705,281 @@ fn manifest(
         });
     }
 }
+fn correlate_win32(
+    resolver: &dyn RootResolver,
+    inventory: &InstalledInventory,
+    manifests: &[ReviewedManifest],
+    found: &mut Vec<Found>,
+    coverage: &mut Vec<String>,
+    cancelled: &dyn Fn() -> bool,
+    runtime: &mut dyn everyout_platform_windows::win32_identity::RuntimeObserver,
+) {
+    use everyout_platform_windows::win32_identity::RuntimeUsage;
+    let snapshot = &inventory.win32;
+    for item in found.iter_mut() {
+        if cancelled() {
+            coverage.push("cancelled".into());
+            return;
+        }
+        let manifest = item
+            .provider_id
+            .as_ref()
+            .and_then(|id| manifests.iter().find(|m| &m.0.id == id))
+            .map(|m| &m.0);
+        // The fixed adapter keeps its independent executable hash and preservation gates.
+        if manifest.is_some_and(|m| m.id == "spotify") {
+            continue;
+        }
+        let app = if let Some(m) = manifest {
+            snapshot.matching_product(&m.identity.process_names, &m.name)
+        } else {
+            let mut apps = snapshot
+                .applications
+                .iter()
+                .filter(|a| a.storage_name_hint(&item.candidate_name));
+            let first = apps.next();
+            if apps.next().is_none() {
+                first
+            } else {
+                None
+            }
+        };
+        let Some(app) = app else {
+            continue;
+        };
+        item.application_executable = Some(app.executable.physical);
+        item.detection.application_label = Some(app.label());
+        let mut evidence = item.detection.decision.evidence.clone();
+        evidence.application_identity = app.identity();
+        if let Some(candidate) = item._paths.first() {
+            let usage = runtime.observe(candidate, snapshot);
+            coverage.extend(usage.coverage.clone());
+            let layout = item
+                .detection
+                .observations
+                .iter()
+                .any(|o| o.present == Some(true));
+            evidence.storage_ownership =
+                app.storage_evidence(app.storage_name_hint(&item.candidate_name), layout, &usage);
+            if manifest.is_some_and(|m| m.category == Category::Browser) {
+                evidence.storage_ownership = EvidenceState::new(
+                    StorageOwnership::SharedConflict,
+                    "browser-profile",
+                    "browser-profile-shared-storage",
+                );
+            }
+            snapshot.remember_storage(app, candidate, evidence.storage_ownership.clone());
+        }
+        item.detection.decision = if let Some(m) = manifest {
+            everyout_providers::evidence::decision(m, evidence, &[])
+        } else {
+            evidence.decide(
+                Support::Candidate,
+                &["discovery-only-no-provider".into()],
+                LossAssessment::Unknown,
+                &[],
+                &[],
+            )
+        };
+        if manifest.is_none() {
+            item.detection.owner = Some(
+                manifests
+                    .iter()
+                    .find(|m| {
+                        snapshot
+                            .matching_product(&m.0.identity.process_names, &m.0.name)
+                            .is_some_and(|a| a.executable.physical == app.executable.physical)
+                    })
+                    .map(|m| m.0.id.clone())
+                    .unwrap_or_else(|| app.label()),
+            );
+            item.detection.category = Some(Category::Application);
+        }
+    }
+    // Installation identity remains visible even when no framework/storage layout exists.
+    for (index, app) in snapshot.applications.iter().enumerate() {
+        if found.len() >= MAX_DETECTIONS || cancelled() {
+            break;
+        }
+        if found
+            .iter()
+            .any(|f| f.application_executable == Some(app.executable.physical))
+        {
+            continue;
+        }
+        // A catalog-backed fixed adapter has its own row and evidence, never a generic provider.
+        if manifests
+            .iter()
+            .any(|m| m.0.id == "spotify" && app.matches_names(&m.0.identity.process_names))
+        {
+            continue;
+        }
+        let mut paths = Vec::new();
+        let mut stores = Vec::new();
+        let mut observations = Vec::new();
+        let names = [
+            app.executable
+                .canonical_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            app.label(),
+        ];
+        for base in [KnownFolder::RoamingAppData, KnownFolder::LocalAppData] {
+            let Ok(root) = resolver.resolve(base) else {
+                continue;
+            };
+            for name in &names {
+                let Ok(path) = root.path(name) else {
+                    continue;
+                };
+                if path
+                    .probe_shallow()
+                    .is_ok_and(|m| m.exists && m.is_directory)
+                {
+                    if let Ok(Some(chain)) = path.physical_chain() {
+                        if !stores
+                            .iter()
+                            .any(|c: &Vec<PhysicalIdentity>| c.last() == chain.last())
+                        {
+                            let (_, signals) = storage(&root, name);
+                            observations.extend(signals);
+                            stores.push(chain);
+                            paths.push(path);
+                        }
+                    }
+                }
+            }
+        }
+        // Reviewed installation slots supply metadata candidates only, never executable scopes.
+        for m in manifests.iter().filter(|m| {
+            snapshot
+                .matching_product(&m.0.identity.process_names, &m.0.name)
+                .is_some_and(|a| a.executable.physical == app.executable.physical)
+        }) {
+            for artifact in &m.0.session_locations {
+                if artifact.name_prefix.is_some()
+                    || !m.0.roots.iter().any(|r| {
+                        r.id() == artifact.root && matches!(r, Root::ReviewedInstallation { .. })
+                    })
+                {
+                    continue;
+                }
+                if let Ok(path) = app.installation_metadata(&artifact.relative) {
+                    if path
+                        .probe_shallow()
+                        .is_ok_and(|m| m.exists && !m.is_directory)
+                    {
+                        observations.push(SignalObservation {
+                            id: "catalog-installation-candidate-present".into(),
+                            present: Some(true),
+                            size: path.probe_shallow().ok().and_then(|m| m.size),
+                        });
+                        if let Ok(Some(chain)) = path.physical_chain() {
+                            stores.push(chain);
+                            paths.push(path);
+                        }
+                    }
+                }
+            }
+        }
+        // Adjacent WebView2 UDF is a candidate even with no AppData registration.
+        let udf = format!(
+            "{}.WebView2",
+            app.executable
+                .canonical_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+        );
+        if let Ok(path) = app.installation_metadata(&udf) {
+            if path
+                .probe_shallow()
+                .is_ok_and(|m| m.exists && m.is_directory)
+            {
+                if let Ok(Some(chain)) = path.physical_chain() {
+                    stores.push(chain);
+                    paths.push(path);
+                }
+            }
+        }
+        let mut evidence = ScopeEvidence {
+            application_identity: app.identity(),
+            ..Default::default()
+        };
+        let mut ownerships = Vec::new();
+        for path in &paths {
+            let observed = runtime.observe(path, snapshot);
+            let layout = path.probe_shallow().is_ok_and(|m| !m.is_directory)
+                || [
+                    "Local Storage",
+                    "IndexedDB",
+                    "Network/Cookies",
+                    "state.db",
+                    "EBWebView/Default/Network/Cookies",
+                    "Default/Network/Cookies",
+                ]
+                .iter()
+                .any(|relative| {
+                    path.metadata_descendant(relative)
+                        .and_then(|p| p.probe_shallow())
+                        .is_ok_and(|m| m.exists)
+                });
+            let ownership = app.storage_evidence(true, layout, &observed);
+            snapshot.remember_storage(app, path, ownership.clone());
+            ownerships.push(ownership);
+            coverage.extend(observed.coverage);
+        }
+        evidence.storage_ownership = ownerships
+            .iter()
+            .find(|o| o.state == StorageOwnership::SharedConflict)
+            .cloned()
+            .or_else(|| {
+                (!ownerships.is_empty()
+                    && ownerships
+                        .iter()
+                        .all(|o| o.state == StorageOwnership::Corroborated))
+                .then(|| ownerships[0].clone())
+            })
+            .unwrap_or_else(|| {
+                app.storage_evidence(!paths.is_empty(), false, &RuntimeUsage::default())
+            });
+        found.push(Found {
+            candidate_name: app.label(),
+            application_executable: Some(app.executable.physical),
+            provider_id: None,
+            detection: Detection {
+                application_label: Some(app.label()),
+                decision: evidence.decide(
+                    Support::Candidate,
+                    &["discovery-only-no-provider".into()],
+                    LossAssessment::Unknown,
+                    &[],
+                    &[],
+                ),
+                id: format!("win32-application-{index}"),
+                origin: DetectionOrigin::Heuristic,
+                confidence: Confidence::Low,
+                points: None,
+                signals: vec!["win32-application-identity".into()],
+                observations,
+                owner: Some(app.label()),
+                category: Some(Category::Application),
+                selected: false,
+                executable: false,
+                aliases: vec![],
+                limitations: vec![
+                    "win32-storage-candidates-only".into(),
+                    "no-authentication-or-cleaning-scope-proof".into(),
+                ],
+            },
+            stores,
+            _paths: paths,
+        });
+    }
+}
+
 fn inventory_key_present(key: &str, inventory: &InstalledInventory) -> bool {
     let normalized = key.replace('/', "\\").to_ascii_lowercase();
     for (source, kind) in [
@@ -708,7 +1038,16 @@ fn resolve_overlaps(found: &mut Vec<Found>) {
                 continue;
             }
             let exact = exact_stores(&left.stores, &right.stores);
-            if exact
+            let same_application_view = left.application_executable.is_some()
+                && left.application_executable == right.application_executable
+                && (left.provider_id.is_some() != right.provider_id.is_some());
+            let compatible_identity =
+                match (left.application_executable, right.application_executable) {
+                    (Some(left), Some(right)) => left == right,
+                    _ => true,
+                };
+            if (exact || same_application_view)
+                && compatible_identity
                 && left.detection.owner.is_some()
                 && left.detection.owner == right.detection.owner
                 && left.detection.category == right.detection.category

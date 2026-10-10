@@ -227,7 +227,13 @@ pub fn serve(mut worker: crate::bridge::Worker) {
                     .collect()
             })
             .unwrap_or_default();
-        let resolver = CurrentUserFolders;
+        let identity = RefCell::new(std::rc::Rc::new(
+            everyout_platform_windows::win32_identity::Win32Snapshot::default(),
+        ));
+        let resolver = everyout_platform_windows::IdentityFolders {
+            folders: &CurrentUserFolders,
+            identity: &identity,
+        };
         let cancelled = worker.cancellation();
         let gates: Vec<_> = catalog
             .iter()
@@ -273,18 +279,15 @@ pub fn serve(mut worker: crate::bridge::Worker) {
             .collect();
         let session = CurrentSession::new(&router, entries);
         let discovery = || {
+            let inventory = InstalledInventory::collect_current_user();
+            identity.replace(inventory.win32.clone());
             let reviewed: Vec<_> = catalog
                 .iter()
                 .filter_map(|(json, _)| {
                     everyout_detection::scanner::ReviewedManifest::load(json).ok()
                 })
                 .collect();
-            everyout_detection::scanner::scan(
-                &resolver,
-                &InstalledInventory::collect_current_user(),
-                &reviewed,
-                &*cancelled,
-            )
+            everyout_detection::scanner::scan(&resolver, &inventory, &reviewed, &*cancelled)
         };
         // Rc/RefCell-backed executors and all borrowed capabilities remain on this worker.
         match worker.serve(session, discovery, unavailable) {

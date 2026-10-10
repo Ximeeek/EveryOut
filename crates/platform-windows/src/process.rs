@@ -169,6 +169,13 @@ fn creation(handle: HANDLE) -> Result<u64> {
     }
     Ok((u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime))
 }
+pub(crate) fn observer_start_identity() -> Result<(u32, u64)> {
+    // The pseudo handle pins this process; PID alone is never an exclusion identity.
+    Ok((
+        unsafe { GetCurrentProcessId() },
+        creation(unsafe { GetCurrentProcess() })?,
+    ))
+}
 fn image(handle: HANDLE) -> Result<PathBuf> {
     let mut buffer = vec![0u16; 32768];
     let mut len = buffer.len() as u32;
@@ -195,7 +202,34 @@ fn open(pid: u32, rights: u32) -> Result<Handle> {
 /// Lists metadata without opening process memory. Other sessions/users are excluded.
 /// Access-denied ownership remains explicitly unknown in `unavailable`.
 pub fn enumerate_current_user() -> Result<ProcessInventory> {
-    enumerate(None, &[])
+    enumerate(None, &[], None)
+}
+pub(crate) fn enumerate_current_user_bounded(limit: usize) -> Result<ProcessInventory> {
+    enumerate(None, &[], Some(limit))
+}
+pub(crate) fn observe_current_user(pid: u32) -> Result<Option<Process>> {
+    if pid == 0 {
+        return Err(PlatformError::new(ErrorKind::ScopeViolation));
+    }
+    observe(pid, None, session(unsafe { GetCurrentProcessId() })?)
+}
+fn observe(pid: u32, owner: Option<&str>, current_session: u32) -> Result<Option<Process>> {
+    let target_session = session(pid)?;
+    if owner.is_none() && target_session != current_session {
+        return Ok(None);
+    }
+    let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE)?;
+    if !same_owner(handle.0, owner)? {
+        return Ok(None);
+    }
+    Ok(Some(Process {
+        pid,
+        image: image(handle.0)?,
+        session_id: target_session,
+        creation: creation(handle.0)?,
+        handle,
+        owner_sid: owner.map(str::to_owned),
+    }))
 }
 /// Narrow candidates before opening ownership handles. Access denial for an
 /// unrelated protected program must not block the selected application's scope.
@@ -204,22 +238,26 @@ pub fn enumerate_current_user_matches(names: &[String]) -> Result<ProcessInvento
     if names.is_empty() {
         return Err(PlatformError::new(ErrorKind::ScopeViolation));
     }
-    enumerate(None, names)
+    enumerate(None, names, None)
 }
 /// Helper-only metadata enumeration for one owner across sessions. Revalidation
 /// pins SID, session, image and creation time. S6 desktop access is UNVERIFIED.
 pub fn enumerate_account(profile: &crate::accounts::AccountProfile) -> Result<ProcessInventory> {
     profile.revalidate(&crate::accounts::NativeProfiles)?;
-    enumerate(Some(profile.sid()), &[])
+    enumerate(Some(profile.sid()), &[], None)
 }
 pub fn enumerate_account_matches(
     profile: &crate::accounts::AccountProfile,
     names: &[String],
 ) -> Result<ProcessInventory> {
     profile.revalidate(&crate::accounts::NativeProfiles)?;
-    enumerate(Some(profile.sid()), names)
+    enumerate(Some(profile.sid()), names, None)
 }
-fn enumerate(owner: Option<&str>, names: &[String]) -> Result<ProcessInventory> {
+fn enumerate(
+    owner: Option<&str>,
+    names: &[String],
+    limit: Option<usize>,
+) -> Result<ProcessInventory> {
     // SAFETY: snapshot requests only process entries, no modules/heaps/threads.
     let raw = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if raw == INVALID_HANDLE_VALUE {
@@ -238,6 +276,7 @@ fn enumerate(owner: Option<&str>, names: &[String]) -> Result<ProcessInventory> 
     };
     // SAFETY: snapshot handle is live; output structure declares its correct size.
     let mut found = unsafe { Process32FirstW(snapshot.0, &mut entry) };
+    let mut attempted = 0;
     loop {
         if found == 0 {
             let e = last_error();
@@ -256,25 +295,14 @@ fn enumerate(owner: Option<&str>, names: &[String]) -> Result<ProcessInventory> 
         if pid != 0
             && (names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(&candidate)))
         {
-            let observed = (|| -> Result<Option<Process>> {
-                let target_session = session(pid)?;
-                if owner.is_none() && target_session != current_session {
-                    return Ok(None);
-                }
-                let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE)?;
-                if !same_owner(handle.0, owner)? {
-                    return Ok(None);
-                }
-                let process = Process {
-                    pid,
-                    image: image(handle.0)?,
-                    session_id: target_session,
-                    creation: creation(handle.0)?,
-                    handle,
-                    owner_sid: owner.map(str::to_owned),
-                };
-                Ok(Some(process))
-            })();
+            if limit.is_some_and(|limit| attempted >= limit) {
+                inventory
+                    .unavailable
+                    .push((0, PlatformError::new(ErrorKind::Unsupported)));
+                break;
+            }
+            attempted += 1;
+            let observed = observe(pid, owner, current_session);
             match observed {
                 Ok(Some(p)) => inventory.processes.push(p),
                 Ok(None) => {}

@@ -75,8 +75,8 @@ impl Drop for Handle {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Identity {
-    volume: u32,
-    index: u64,
+    pub(crate) volume: u32,
+    pub(crate) index: u64,
 }
 pub(crate) struct Info {
     pub identity: Identity,
@@ -248,14 +248,39 @@ fn open_child(
     )
 }
 
-// Only fixed, compiled adapters may request content rights. Generic metadata
-// callers continue through child(), which passes zero content access.
+// Compiled executable metadata readers and fixed adapters may request content rights.
+// Runtime pins request read sharing rights without consuming payloads. Generic filesystem
+// metadata callers continue through child(), which passes zero content access.
 pub(crate) fn open_checked_child(
     parent: &Handle,
     name: &OsStr,
     directory: Option<bool>,
     delete: bool,
     content_access: u32,
+) -> Result<Handle> {
+    open_child_with_sharing(parent, name, directory, delete, content_access, false)
+}
+/// Read-only runtime observation can coexist with a writer, but never with deletion.
+/// Uses the same handle-relative no-reparse grammar and physical identity checks.
+pub(crate) fn runtime_child(parent: &Handle, name: &OsStr, directory: bool) -> Result<Handle> {
+    // Attribute-only handles do not enforce share-delete exclusion on Windows.
+    // Request read access solely to pin the representative object; no payload reads.
+    open_child_with_sharing(
+        parent,
+        name,
+        Some(directory),
+        false,
+        if directory { 0 } else { FILE_READ_DATA },
+        true,
+    )
+}
+fn open_child_with_sharing(
+    parent: &Handle,
+    name: &OsStr,
+    directory: Option<bool>,
+    delete: bool,
+    content_access: u32,
+    runtime_observation: bool,
 ) -> Result<Handle> {
     parent.info()?;
     let mut name = wide(name);
@@ -304,7 +329,7 @@ pub(crate) fn open_checked_child(
     // SAFETY: parent is alive, the name is a single validated component, the Unicode
     // string/buffers live for the synchronous open. FILE_OPEN cannot create anything.
     let sharing = FILE_SHARE_READ
-        | if directory == Some(true) && !delete {
+        | if (directory == Some(true) || runtime_observation) && !delete {
             FILE_SHARE_WRITE
         } else {
             0
@@ -331,6 +356,21 @@ pub(crate) fn open_checked_child(
     let handle = Handle(handle);
     handle.info()?;
     Ok(handle)
+}
+
+pub(crate) fn metadata_path(handle: &Handle) -> Result<std::path::PathBuf> {
+    handle.info()?;
+    let mut buffer = vec![0u16; 32768];
+    // SAFETY: retained checked handle and bounded UTF-16 output, no filesystem mutation.
+    let len =
+        unsafe { GetFinalPathNameByHandleW(handle.0, buffer.as_mut_ptr(), buffer.len() as u32, 0) };
+    if len == 0 || len as usize >= buffer.len() {
+        return Err(last_error());
+    }
+    let path = String::from_utf16(&buffer[..len as usize])
+        .map_err(|_| PlatformError::new(ErrorKind::ScopeViolation))?;
+    let path = path.strip_prefix("\\\\?\\").unwrap_or(&path);
+    Ok(std::path::PathBuf::from(path))
 }
 
 /// Sole content exception: fixed non-secret configuration, bounded and opened

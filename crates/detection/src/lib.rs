@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Detection {
+    /// Recognized executable label is independent from a storage ownership conflict.
+    #[serde(default)]
+    pub application_label: Option<String>,
     #[serde(default)]
     pub decision: everyout_core_model::DecisionTrace,
     pub id: String,
