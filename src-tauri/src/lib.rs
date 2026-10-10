@@ -8,10 +8,12 @@ mod catalog_tests;
 mod commands;
 mod diagnostics;
 pub mod dto;
+mod mutation_gate;
 mod native;
 pub mod reports;
 pub mod settings;
 pub mod teach;
+pub mod validation;
 use tauri::Manager;
 include!(concat!(env!("OUT_DIR"), "/helper_pin.rs"));
 
@@ -19,6 +21,11 @@ include!(concat!(env!("OUT_DIR"), "/helper_pin.rs"));
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            app.manage(
+                validation::ValidationBridge::start(app.path().app_config_dir()?).map_err(|e| {
+                    std::io::Error::other(format!("validation initialization: {e:?}"))
+                })?,
+            );
             app.manage(
                 teach::TeachBridge::start(app.path().app_config_dir()?).map_err(|e| {
                     std::io::Error::other(format!("observation initialization: {e:?}"))
@@ -31,6 +38,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::teach,
+            commands::validation,
             commands::scan,
             commands::check_catalog_updates,
             commands::activate_catalog_update,

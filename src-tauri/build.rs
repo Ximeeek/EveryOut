@@ -83,6 +83,7 @@ fn main() {
             .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest())
             .app_manifest(tauri_build::AppManifest::new().commands(&[
                 "teach",
+                "validation",
                 "close_reviewed",
                 "check_catalog_updates",
                 "activate_catalog_update",

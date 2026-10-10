@@ -12,13 +12,15 @@ export type ActionStatus = "would-apply" | "applied" | "already-absent" | "skipp
 
 export type AggregateStatus = "complete-local-scope" | "partial" | "blocked" | "failed" | "cancelled" | "dry-run" | "not-requested";
 
+export type AppOutcome = "signed-in" | "signed-out" | "unclear";
+
 export type ApplicationBinding = { identity: EvidenceState<ApplicationIdentity>, executable_path: string, executable: FileIdentity, executable_size: string, executable_write_ticks: string, publisher: string | null, signature: string | null, signature_status: string, version: string | null, channel: string | null, framework: Array<string>, framework_fingerprint: Array<FrameworkFingerprint>, selected_process: ProcessBinding | null, };
 
 export type ApplicationIdentity = "exact" | "corroborated" | "weak" | "unknown";
 
 export type ArtifactClass = "correlated-auth-candidate" | "persistent-app-state" | "background-noise";
 
-export type AuthenticationScope = "validated" | "observed" | "framework-hint" | "unknown";
+export type AuthenticationScope = "validated" | "locally-validated" | "observed" | "framework-hint" | "unknown";
 
 export type CatalogIdentityDto = { version: string, digest: string, };
 
@@ -27,6 +29,8 @@ export type CatalogUpdateDto = { installed_version: string, proposed_version: st
 export type Category = "application" | "browser" | "windows-microsoft-and-dev-tools";
 
 export type CategoryToken = { account: string, category: Category, token: string, };
+
+export type CausalResult = "sufficient" | "insufficient" | "inconclusive" | "failed-restore-or-external-state-change";
 
 export type CommandError = "busy" | "stale-plan" | "invalid-selection" | "confirmation-required" | "settings-io" | "helper-unavailable" | "worker-unavailable" | "cancelled" | "report-io";
 
@@ -62,6 +66,8 @@ export type ExportFormat = "json" | "text";
 
 export type FamilyObservation = { family: string, class: ArtifactClass, verdict: ObservationVerdict, cycles: Array<CycleDifferential>, };
 
+export type FamilyScope = { root: string, family: string, };
+
 export type FileIdentity = { volume: number, index: string, };
 
 export type FrameworkFingerprint = { artifact: string, identity: FileIdentity, size: string, write_ticks: string, };
@@ -72,6 +78,10 @@ export type LearnedObservation = { session_id: string, binding: ApplicationBindi
 
 export type LearnedStatus = "candidate" | "observed" | "needs-reobservation" | "stale";
 
+export type LocalArtifactBinding = { scope: FamilyScope, relative: string, physical: FileIdentity | null, parent: FileIdentity, };
+
+export type LocalValidatedRule = { id: string, observation_id: string, binding: ApplicationBinding, roots: Array<RootObservation>, scope: Array<FamilyScope>, artifacts: Array<LocalArtifactBinding>, trials: Array<TrialEvidence>, repetitions: number, preservation: PreservationState, accepted_bounded_losses: boolean, stale: boolean, };
+
 export type LossAssessment = "known" | "none" | "unknown";
 
 export type ModeFailure = "uac-declined" | "start-failed" | "authentication-failed" | "timeout" | "trust-pin-unavailable";
@@ -80,11 +90,11 @@ export type ModeResult = { effective_mode: AccountMode, requires_fresh_review: b
 
 export type ObservationVerdict = "strongly-observed" | "observed" | "inconclusive" | "noise";
 
-export type OperationAuthority = "unreviewed" | "reviewed-catalog" | "spotify-saved-login";
+export type OperationAuthority = "unreviewed" | "reviewed-catalog" | "spotify-saved-login" | "local-bounded";
 
 export type PlanDto = { plan_id: string, category_tokens: Array<CategoryToken>, report: ReportDto, };
 
-export type PreservationState = "validated" | "known-losses" | "unknown";
+export type PreservationState = "validated" | "known-losses" | "bounded-known-losses" | "no-abnormal-collateral-mutation-observed" | "unknown";
 
 export type ProcessBinding = { pid: number, creation_ticks: string, };
 
@@ -134,7 +144,21 @@ export type TeachStage = "discovering" | "ready" | "focused" | "finished" | "sta
 
 export type TeachView = { id: string, application: string, stage: TeachStage, next_phase: TeachPhase | null, completeness: Completeness, candidate_roots: Array<string>, completed_cycles: number, diagnostics: Array<string>, result: LearnedObservation | null, };
 
+export type TrialEvidence = { scope: Array<FamilyScope>, purpose: TrialPurpose, a1: AppOutcome, b: AppOutcome, a2: AppOutcome, rollback_verified: boolean, complete_metadata: boolean, collateral_families: Array<FamilyScope>, result: CausalResult, };
+
+export type TrialPurpose = "search" | "final-repeat";
+
 export type Uncertainty = "unknown" | "unsupported" | "not-requested";
+
+export type ValidationReply = { "kind": "view", "data": ValidationView } | { "kind": "status", "data": ValidationStatus } | { "kind": "applied", "data": { rule_id: string, objects: number, } };
+
+export type ValidationRequest = { "operation": "status" } | { "operation": "start", observation_id: string, accept_session_policy: boolean, } | { "operation": "get", id: string, } | { "operation": "begin-trial", id: string, } | { "operation": "launch", id: string, } | { "operation": "outcome", id: string, outcome: AppOutcome, } | { "operation": "accept-losses", id: string, } | { "operation": "abort", id: string, } | { "operation": "recover" } | { "operation": "apply", rule_id: string, accept_bounded_losses: boolean, };
+
+export type ValidationStage = "ready-control" | "control" | "intervention" | "reversal" | "awaiting-acceptance" | "complete" | "failed" | "stale" | "recovery-blocked";
+
+export type ValidationStatus = { recovery_required: boolean, pending_sessions: Array<string>, diagnostics: Array<string>, rules: Array<LocalValidatedRule>, active: ValidationView | null, };
+
+export type ValidationView = { id: string, stage: ValidationStage, scope: Array<FamilyScope>, trials: Array<TrialEvidence>, diagnostics: Array<string>, rule: LocalValidatedRule | null, };
 
 export type VerificationStatus = "target-absent" | "target-present" | "inaccessible" | "unknown" | "not-performed";
 

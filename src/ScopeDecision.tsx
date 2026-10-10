@@ -15,6 +15,7 @@ const ownership = {
 };
 const login = {
   validated: "Verified for the reviewed scope",
+  "locally-validated": "Causally verified for this installation",
   observed: "Observed; needs validation",
   "framework-hint": "Possible login storage; not validated",
   unknown: "Unknown",
@@ -22,6 +23,10 @@ const login = {
 const preservation = {
   validated: "Reviewed",
   "known-losses": "Known effects require review",
+  "bounded-known-losses":
+    "Entire bounded families will be removed; content semantics unknown",
+  "no-abnormal-collateral-mutation-observed":
+    "No abnormal changes observed outside scope; bounded losses still apply",
   unknown: "Unknown or mixed data",
 };
 const version = {

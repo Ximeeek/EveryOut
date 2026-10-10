@@ -7,7 +7,19 @@ import type { TeachPhase, TeachView } from "./api";
 import TeachMode from "./TeachMode";
 
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: vi.fn(() => true) }));
-vi.mock("./api", () => ({ teach: vi.fn() }));
+vi.mock("./api", () => ({
+  teach: vi.fn(),
+  validation: vi.fn(async () => ({
+    kind: "status",
+    data: {
+      recovery_required: false,
+      pending_sessions: [],
+      diagnostics: [],
+      rules: [],
+      active: null,
+    },
+  })),
+}));
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isTauri).mockReturnValue(true);

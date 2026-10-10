@@ -219,6 +219,9 @@ fn observe(pid: u32, owner: Option<&str>, current_session: u32) -> Result<Option
         return Ok(None);
     }
     let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE)?;
+    if unsafe { WaitForSingleObject(handle.0, 0) } == WAIT_OBJECT_0 {
+        return Ok(None);
+    }
     if !same_owner(handle.0, owner)? {
         return Ok(None);
     }
@@ -246,49 +249,79 @@ pub fn enumerate_bound_tree(
     executable: &Path,
     retained: &[everyout_core_model::observation::ProcessBinding],
 ) -> Result<ProcessInventory> {
-    let name = executable.file_name().and_then(|n| n.to_str())
+    let name = executable
+        .file_name()
+        .and_then(|n| n.to_str())
         .ok_or_else(|| PlatformError::new(ErrorKind::ScopeViolation))?;
     let mut inventory = enumerate_current_user_matches(&[name.into()])?;
-    inventory.processes.retain(|p| p.image_path().as_os_str().eq_ignore_ascii_case(executable.as_os_str()));
-    if !inventory.unavailable.is_empty() { return Err(PlatformError::new(ErrorKind::Locked)); }
+    inventory.processes.retain(|p| {
+        p.image_path()
+            .as_os_str()
+            .eq_ignore_ascii_case(executable.as_os_str())
+    });
+    if !inventory.unavailable.is_empty() {
+        return Err(PlatformError::new(ErrorKind::Locked));
+    }
     for id in retained {
         match observe_current_user(id.pid) {
             Ok(Some(p)) if p.creation == id.creation_ticks => {
-                if !inventory.processes.iter().any(|other| other.pid == p.pid) { inventory.processes.push(p); }
+                if !inventory.processes.iter().any(|other| other.pid == p.pid) {
+                    inventory.processes.push(p);
+                }
             }
-            Ok(_) => {},
-            Err(e) if matches!(e.os_code, Some(ERROR_INVALID_PARAMETER)) => {},
+            Ok(_) => {}
+            Err(e) if matches!(e.os_code, Some(ERROR_INVALID_PARAMETER)) => {}
             Err(e) => return Err(e),
         }
     }
     let raw = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
-    if raw == INVALID_HANDLE_VALUE { return Err(last_error()); }
+    if raw == INVALID_HANDLE_VALUE {
+        return Err(last_error());
+    }
     let snapshot = Handle(raw);
-    let mut entry = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+    let mut entry = PROCESSENTRY32W {
+        dwSize: size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
     let mut links = Vec::new();
     let mut found = unsafe { Process32FirstW(snapshot.0, &mut entry) };
     while found != 0 {
         links.push((entry.th32ProcessID, entry.th32ParentProcessID));
-        if links.len() > 32_768 { return Err(PlatformError::new(ErrorKind::Unsupported)); }
+        if links.len() > 32_768 {
+            return Err(PlatformError::new(ErrorKind::Unsupported));
+        }
         found = unsafe { Process32NextW(snapshot.0, &mut entry) };
     }
-    if unsafe { GetLastError() } != ERROR_NO_MORE_FILES { return Err(last_error()); }
+    if unsafe { GetLastError() } != ERROR_NO_MORE_FILES {
+        return Err(last_error());
+    }
     loop {
         let mut added = false;
         for (pid, parent) in &links {
-            if inventory.processes.iter().any(|p| p.pid == *pid) { continue; }
-            let Some(parent) = inventory.processes.iter().find(|p| p.pid == *parent) else { continue; };
+            if inventory.processes.iter().any(|p| p.pid == *pid) {
+                continue;
+            }
+            let Some(parent) = inventory.processes.iter().find(|p| p.pid == *parent) else {
+                continue;
+            };
             let parent_start = parent.creation;
             match observe_current_user(*pid) {
-                Ok(Some(p)) if p.creation > parent_start => { inventory.processes.push(p); added = true; },
+                Ok(Some(p)) if p.creation > parent_start => {
+                    inventory.processes.push(p);
+                    added = true;
+                }
                 Ok(None) => return Err(PlatformError::new(ErrorKind::OwnershipConflict)),
-                Ok(_) => {}, // older process: reused parent PID, unrelated child
-                Err(e) if e.os_code == Some(ERROR_INVALID_PARAMETER) => {},
+                Ok(_) => {} // older process: reused parent PID, unrelated child
+                Err(e) if e.os_code == Some(ERROR_INVALID_PARAMETER) => {}
                 Err(e) => return Err(e),
             }
         }
-        if !added { break; }
-        if inventory.processes.len() > 128 { return Err(PlatformError::new(ErrorKind::Unsupported)); }
+        if !added {
+            break;
+        }
+        if inventory.processes.len() > 128 {
+            return Err(PlatformError::new(ErrorKind::Unsupported));
+        }
     }
     Ok(inventory)
 }
@@ -464,8 +497,12 @@ fn request(
         validate(process, handle)?;
         let mut pid = 0;
         // SAFETY: metadata query only; recheck HWND owner immediately before posting.
-        unsafe {
-            GetWindowThreadProcessId(hwnd, &mut pid);
+        let window_thread = unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+        if window_thread == 0 && pid == 0 {
+            // An earlier WM_CLOSE can destroy other enumerated windows before
+            // the process object becomes signaled. Send nothing to a vanished
+            // window; the retained process must still pass the exit wait below.
+            continue;
         }
         if pid != process.pid {
             return Err(PlatformError::new(ErrorKind::StalePlan));

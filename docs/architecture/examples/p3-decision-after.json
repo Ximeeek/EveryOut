@@ -1,0 +1,62 @@
+{
+  "action_allowed": true,
+  "blocked_by": [],
+  "confirmations_required": ["local-bounded-losses"],
+  "evidence": {
+    "application_identity": {
+      "provenance": [
+        {
+          "reason_code": "win32-executable-physical-binding",
+          "source": "physical-identity"
+        },
+        {
+          "reason_code": "selected-physical-executable",
+          "source": "selected-executable"
+        },
+        {
+          "reason_code": "static-product-metadata",
+          "source": "pe-metadata"
+        }
+      ],
+      "state": "exact"
+    },
+    "authentication_scope": {
+      "provenance": [
+        {
+          "reason_code": "repeated-causal-aba",
+          "source": "local-controlled-validation"
+        }
+      ],
+      "state": "locally-validated"
+    },
+    "authority": "local-bounded",
+    "preservation": {
+      "provenance": [
+        {
+          "reason_code": "bounded-content-semantics-unknown",
+          "source": "local-controlled-validation"
+        }
+      ],
+      "state": "no-abnormal-collateral-mutation-observed"
+    },
+    "storage_ownership": {
+      "provenance": [
+        {
+          "reason_code": "bound-root-ownership",
+          "source": "local-controlled-validation"
+        }
+      ],
+      "state": "corroborated"
+    },
+    "version_applicability": {
+      "provenance": [
+        {
+          "reason_code": "installation-version-layout-binding",
+          "source": "local-controlled-validation"
+        }
+      ],
+      "state": "current"
+    }
+  },
+  "support": "candidate"
+}

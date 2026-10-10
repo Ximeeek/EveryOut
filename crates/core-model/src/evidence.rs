@@ -171,14 +171,21 @@ impl ScopeEvidence {
             }
             _ => {}
         }
-        if !matches!(self.authentication_scope.state, AuthenticationScope::Validated | AuthenticationScope::LocallyValidated) {
+        if !matches!(
+            self.authentication_scope.state,
+            AuthenticationScope::Validated | AuthenticationScope::LocallyValidated
+        ) {
             blocked.insert("unknown-authentication-closure".into());
         }
         if self.preservation.state == PreservationState::Unknown {
             blocked.insert("unreviewed-preservation".into());
         }
-        if matches!(self.preservation.state, PreservationState::KnownLosses | PreservationState::BoundedKnownLosses | PreservationState::NoAbnormalCollateralMutationObserved)
-            && loss != LossAssessment::Known
+        if matches!(
+            self.preservation.state,
+            PreservationState::KnownLosses
+                | PreservationState::BoundedKnownLosses
+                | PreservationState::NoAbnormalCollateralMutationObserved
+        ) && loss != LossAssessment::Known
         {
             blocked.insert("preservation-loss-assessment-mismatch".into());
         }
@@ -239,7 +246,11 @@ impl ScopeEvidence {
         if self.authority == OperationAuthority::LocalBounded
             && (self.application_identity.state != ApplicationIdentity::Exact
                 || self.authentication_scope.state != AuthenticationScope::LocallyValidated
-                || !matches!(self.preservation.state, PreservationState::BoundedKnownLosses | PreservationState::NoAbnormalCollateralMutationObserved))
+                || !matches!(
+                    self.preservation.state,
+                    PreservationState::BoundedKnownLosses
+                        | PreservationState::NoAbnormalCollateralMutationObserved
+                ))
         {
             blocked.insert("local-validation-gates-incomplete".into());
         }

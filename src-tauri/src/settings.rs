@@ -6,6 +6,9 @@ pub struct SettingsStore {
     path: PathBuf,
 }
 impl SettingsStore {
+    pub(crate) fn directory(&self) -> &std::path::Path {
+        self.path.parent().expect("config directory")
+    }
     pub fn catalog_directory(&self) -> Result<PathBuf, CommandError> {
         let parent = self.path.parent().ok_or(CommandError::SettingsIo)?;
         fs::create_dir_all(parent).map_err(|_| CommandError::SettingsIo)?;

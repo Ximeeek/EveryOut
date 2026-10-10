@@ -15,6 +15,8 @@ export type * from "./types";
 export const scan = () => invoke<ScanDto>("scan");
 export const teach = (request: import("./types").TeachRequest) =>
   invoke<import("./types").TeachReply>("teach", { request });
+export const validation = (request: import("./types").ValidationRequest) =>
+  invoke<import("./types").ValidationReply>("validation", { request });
 export const checkCatalogUpdates = () =>
   invoke<CatalogUpdateDto>("check_catalog_updates");
 export const activateCatalogUpdate = (digest: string) =>

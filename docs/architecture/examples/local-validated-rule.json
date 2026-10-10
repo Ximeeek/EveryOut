@@ -1,0 +1,202 @@
+{
+  "accepted_bounded_losses": true,
+  "artifacts": [
+    {
+      "parent": {
+        "index": "1",
+        "volume": 1
+      },
+      "physical": {
+        "index": "2",
+        "volume": 1
+      },
+      "relative": "UnknownProfile-a3376285df5d1c4be57c65ec8f98b0fa/Local Storage",
+      "scope": {
+        "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+        "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+      }
+    }
+  ],
+  "binding": {
+    "channel": null,
+    "executable": {
+      "index": "3",
+      "volume": 1
+    },
+    "executable_path": "C:\\Synthetic\\EveryOut\\installation\\TotallyUnknownApp-476a4477a4b08c4c10dbbee05e63b9ab.exe",
+    "executable_size": "3638784",
+    "executable_write_ticks": "134361137842208231",
+    "framework": [],
+    "framework_fingerprint": [],
+    "identity": {
+      "provenance": [
+        {
+          "reason_code": "win32-executable-physical-binding",
+          "source": "physical-identity"
+        },
+        {
+          "reason_code": "selected-physical-executable",
+          "source": "selected-executable"
+        },
+        {
+          "reason_code": "static-product-metadata",
+          "source": "pe-metadata"
+        }
+      ],
+      "state": "exact"
+    },
+    "publisher": null,
+    "selected_process": {
+      "creation_ticks": "134361137844125468",
+      "pid": 8928
+    },
+    "signature": null,
+    "signature_status": "unsigned",
+    "version": "1.0.0"
+  },
+  "id": "ece03b66d432caa4eac55ab33f73baf2",
+  "observation_id": "7d7bdfa4a239c99e14c6abe22dd25d00",
+  "preservation": "no-abnormal-collateral-mutation-observed",
+  "repetitions": 2,
+  "roots": [
+    {
+      "families": [
+        {
+          "class": "background-noise",
+          "cycles": [
+            {
+              "changed": [true, true, true, true, true, true],
+              "complete": true,
+              "login_logout": false,
+              "persisted": false
+            },
+            {
+              "changed": [true, true, true, true, true, true],
+              "complete": true,
+              "login_logout": false,
+              "persisted": false
+            }
+          ],
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/cache",
+          "verdict": "noise"
+        },
+        {
+          "class": "correlated-auth-candidate",
+          "cycles": [
+            {
+              "changed": [false, true, false, false, true, false],
+              "complete": true,
+              "login_logout": true,
+              "persisted": true
+            },
+            {
+              "changed": [false, true, false, false, true, false],
+              "complete": true,
+              "login_logout": true,
+              "persisted": true
+            }
+          ],
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+          "verdict": "strongly-observed"
+        },
+        {
+          "class": "background-noise",
+          "cycles": [
+            {
+              "changed": [true, true, true, true, true, true],
+              "complete": true,
+              "login_logout": false,
+              "persisted": false
+            },
+            {
+              "changed": [true, true, true, true, true, true],
+              "complete": true,
+              "login_logout": false,
+              "persisted": false
+            }
+          ],
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/logs",
+          "verdict": "noise"
+        }
+      ],
+      "layout": [
+        "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa",
+        "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/cache",
+        "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+        "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage/leveldb",
+        "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/logs"
+      ],
+      "ownership": {
+        "provenance": [
+          {
+            "reason_code": "repeated-focused-root-correlation",
+            "source": "teach-observation"
+          }
+        ],
+        "state": "corroborated"
+      },
+      "physical": {
+        "index": "4",
+        "volume": 1
+      },
+      "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+    }
+  ],
+  "scope": [
+    {
+      "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+      "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+    }
+  ],
+  "stale": false,
+  "trials": [
+    {
+      "a1": "signed-in",
+      "a2": "signed-in",
+      "b": "signed-out",
+      "collateral_families": [],
+      "complete_metadata": true,
+      "purpose": "search",
+      "result": "sufficient",
+      "rollback_verified": true,
+      "scope": [
+        {
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+          "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+        }
+      ]
+    },
+    {
+      "a1": "signed-in",
+      "a2": "signed-in",
+      "b": "signed-out",
+      "collateral_families": [],
+      "complete_metadata": true,
+      "purpose": "final-repeat",
+      "result": "sufficient",
+      "rollback_verified": true,
+      "scope": [
+        {
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+          "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+        }
+      ]
+    },
+    {
+      "a1": "signed-in",
+      "a2": "signed-in",
+      "b": "signed-out",
+      "collateral_families": [],
+      "complete_metadata": true,
+      "purpose": "final-repeat",
+      "result": "sufficient",
+      "rollback_verified": true,
+      "scope": [
+        {
+          "family": "unknownprofile-a3376285df5d1c4be57c65ec8f98b0fa/local storage",
+          "root": "C:\\Synthetic\\EveryOut\\UnknownRoot-fd1b21440a130d3a7f662311dfc6a00e"
+        }
+      ]
+    }
+  ]
+}

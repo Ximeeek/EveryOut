@@ -17,7 +17,8 @@ fn command_acl_allows_only_local_main_window() {
             commands::get_settings,
             commands::check_catalog_updates,
             commands::activate_catalog_update,
-            commands::teach
+            commands::teach,
+            commands::validation
         ])
         .build(tauri::generate_context!())
         .unwrap();
@@ -45,7 +46,12 @@ fn command_acl_allows_only_local_main_window() {
     );
     assert!(get_ipc_response(&foreign, request("http://tauri.localhost")).is_err());
     assert!(get_ipc_response(&main, request("https://example.com")).is_err());
-    for cmd in ["check_catalog_updates", "activate_catalog_update", "teach"] {
+    for cmd in [
+        "check_catalog_updates",
+        "activate_catalog_update",
+        "teach",
+        "validation",
+    ] {
         let mut foreign_request = request("http://tauri.localhost");
         foreign_request.cmd = cmd.into();
         assert!(get_ipc_response(&foreign, foreign_request).is_err());
@@ -55,7 +61,7 @@ fn command_acl_allows_only_local_main_window() {
     }
     let capability: serde_json::Value =
         serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
-    assert_eq!(capability["permissions"].as_array().unwrap().len(), 22);
+    assert_eq!(capability["permissions"].as_array().unwrap().len(), 23);
     assert!(capability["permissions"]
         .as_array()
         .unwrap()

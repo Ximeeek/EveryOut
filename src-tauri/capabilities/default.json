@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "allow-teach",
+    "allow-validation",
     "allow-check-catalog-updates",
     "allow-activate-catalog-update",
     "allow-scan",

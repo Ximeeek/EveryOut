@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { teach } from "./api";
+import ControlledValidation from "./ControlledValidation";
 import type {
   LearnedObservation,
   TeachPhase,
@@ -299,6 +300,19 @@ export default function TeachMode({ disabled }: { disabled: boolean }) {
           <ObservationResult key={record.session_id} record={record} />
         ))}
       </details>
+      <ControlledValidation
+        disabled={blocked || !!active}
+        observations={
+          view?.result
+            ? [
+                view.result,
+                ...history.filter(
+                  (r) => r.session_id !== view.result?.session_id,
+                ),
+              ]
+            : history
+        }
+      />
     </section>
   );
 }

@@ -40,3 +40,6 @@ $RECYCLE.BIN/
 .env
 .env.*
 !.env.example
+
+# Keep local-language implementation reports out of the repository
+**/p[0-9]-report.md

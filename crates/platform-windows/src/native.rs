@@ -11,8 +11,9 @@ use windows_sys::{
     Wdk::{
         Foundation::OBJECT_ATTRIBUTES,
         Storage::FileSystem::{
-            NtCreateFile, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_OPEN,
-            FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
+            FileRenameInformation, NtCreateFile, NtSetInformationFile, FILE_DIRECTORY_FILE,
+            FILE_NON_DIRECTORY_FILE, FILE_OPEN, FILE_OPEN_REPARSE_POINT, FILE_RENAME_INFORMATION,
+            FILE_SYNCHRONOUS_IO_NONALERT,
         },
     },
     Win32::{Foundation::*, Storage::FileSystem::*, System::IO::IO_STATUS_BLOCK},
@@ -92,23 +93,37 @@ impl Handle {
     /// parent. The filesystem cannot copy across volumes or replace a destination.
     pub(crate) fn rename(&self, parent: &Handle, name: &str) -> Result<()> {
         crate::components(name)?;
-        if name.contains(['/', '\\']) || self.info()?.identity.volume != parent.info()?.identity.volume {
+        if name.contains(['/', '\\'])
+            || self.info()?.identity.volume != parent.info()?.identity.volume
+        {
             return Err(PlatformError::new(ErrorKind::ScopeViolation));
         }
         let name: Vec<u16> = OsStr::new(name).encode_wide().collect();
-        let offset = offset_of!(FILE_RENAME_INFO, FileName);
+        let offset = offset_of!(FILE_RENAME_INFORMATION, FileName);
         let length = offset + name.len() * 2;
         let mut buffer = vec![0usize; length.div_ceil(size_of::<usize>())];
-        let rename = buffer.as_mut_ptr().cast::<FILE_RENAME_INFO>();
+        let rename = buffer.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
         // SAFETY: aligned, initialized variable-length structure; both handles
         // remain alive. ReplaceIfExists=false; RootDirectory is the pinned parent.
         unsafe {
             (*rename).Anonymous.ReplaceIfExists = false;
             (*rename).RootDirectory = parent.0;
             (*rename).FileNameLength = (name.len() * 2) as u32;
-            ptr::copy_nonoverlapping(name.as_ptr(), buffer.as_mut_ptr().cast::<u8>().add(offset).cast(), name.len());
-            if SetFileInformationByHandle(self.0, FileRenameInfo, rename.cast(), length as u32) == 0 {
-                return Err(last_error());
+            ptr::copy_nonoverlapping(
+                name.as_ptr(),
+                buffer.as_mut_ptr().cast::<u8>().add(offset).cast(),
+                name.len(),
+            );
+            let mut io = IO_STATUS_BLOCK::default();
+            let status = NtSetInformationFile(
+                self.0,
+                &mut io,
+                rename.cast(),
+                length as u32,
+                FileRenameInformation,
+            );
+            if status < 0 {
+                return Err(error(RtlNtStatusToDosError(status)));
             }
         }
         Ok(())

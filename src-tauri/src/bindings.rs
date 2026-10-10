@@ -29,6 +29,8 @@ pub fn typescript() -> String {
     types.visit::<ExportFormat>();
     types.visit::<crate::teach::TeachRequest>();
     types.visit::<crate::teach::TeachReply>();
+    types.visit::<crate::validation::ValidationRequest>();
+    types.visit::<crate::validation::ValidationReply>();
     types.visit::<CatalogUpdateDto>();
     types.visit::<Settings>();
     types.visit::<ScanDto>();

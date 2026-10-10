@@ -111,6 +111,18 @@ struct TeachWorker {
     saved: bool,
     save_failed: bool,
 }
+pub(crate) fn history(
+    directory: &Path,
+    revalidate: bool,
+) -> Result<Vec<LearnedObservation>, CommandError> {
+    TeachWorker {
+        directory: directory.join("observations"),
+        controller: None,
+        saved: false,
+        save_failed: false,
+    }
+    .history(revalidate)
+}
 impl TeachWorker {
     fn handle(&mut self, request: TeachRequest) -> Result<TeachReply, CommandError> {
         if matches!(request, TeachRequest::History) {
@@ -389,7 +401,7 @@ fn platform_error(error: everyout_platform_windows::PlatformError) -> CommandErr
         _ => CommandError::InvalidSelection,
     }
 }
-fn local_root(path: &str) -> Option<AllowedRoot> {
+pub(crate) fn local_root(path: &str) -> Option<AllowedRoot> {
     let path = path.strip_prefix("\\\\?\\").unwrap_or(path);
     let target = Path::new(path);
     let mut bases: Vec<_> = [KnownFolder::LocalAppData, KnownFolder::RoamingAppData]

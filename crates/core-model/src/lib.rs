@@ -5,8 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod evidence;
-pub mod observation;
 pub mod local_validation;
+pub mod observation;
 mod product_validation;
 pub use evidence::*;
 pub use product_validation::*;

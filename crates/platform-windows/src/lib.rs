@@ -13,8 +13,6 @@ mod native;
 #[cfg(windows)]
 pub mod observation;
 #[cfg(windows)]
-pub mod validation;
-#[cfg(windows)]
 pub mod process;
 #[cfg(windows)]
 mod registry;
@@ -22,6 +20,8 @@ mod registry;
 mod resolver;
 #[cfg(windows)]
 mod spotify;
+#[cfg(windows)]
+pub mod validation;
 #[cfg(windows)]
 pub mod win32_identity;
 

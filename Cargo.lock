@@ -970,6 +970,8 @@ dependencies = [
  "everyout-core-model",
  "everyout-platform-windows",
  "everyout-test-support",
+ "serde",
+ "serde_json",
  "sha2",
  "tempfile",
  "windows",

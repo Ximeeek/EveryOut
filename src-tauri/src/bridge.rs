@@ -75,6 +75,7 @@ struct Envelope {
     reply: ResponseSender,
 }
 struct Shared {
+    admission: crate::mutation_gate::Admission,
     cancelled: AtomicBool,
     active: Mutex<Option<String>>,
     settings: Mutex<Settings>,
@@ -114,6 +115,7 @@ impl Bridge {
     ) -> Result<(Self, Worker), CommandError> {
         let settings = store.load()?;
         let shared = Arc::new(Shared {
+            admission: crate::mutation_gate::Admission::for_directory(store.directory())?,
             cancelled: AtomicBool::new(false),
             active: Mutex::new(None),
             settings: Mutex::new(settings),
@@ -147,6 +149,7 @@ impl Bridge {
                 return Err(CommandError::Busy);
             }
             if let Request::Execute(request, _) | Request::Close(request) = &request {
+                self.shared.admission.begin_wipe()?;
                 *active = Some(request.plan_id.clone());
                 self.shared.cancelled.store(false, Ordering::Release);
             }
@@ -159,6 +162,7 @@ impl Bridge {
                 .is_err()
             {
                 *active = None;
+                self.shared.admission.end_wipe();
                 return Err(CommandError::WorkerUnavailable);
             }
         }
@@ -717,6 +721,9 @@ impl Worker {
                     *active = None;
                     self.shared.cancelled.store(false, Ordering::Release);
                 }
+            }
+            if executing {
+                self.shared.admission.end_wipe();
             }
             if !acknowledged {
                 let _ = envelope.reply.send(result);
