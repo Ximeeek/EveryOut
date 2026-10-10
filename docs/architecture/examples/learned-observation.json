@@ -1,0 +1,98 @@
+{
+  "session_id": "synthetic-two-cycle-example",
+  "binding": {
+    "identity": {
+      "state": "exact",
+      "provenance": [
+        {
+          "source": "selected-executable",
+          "reason_code": "selected-physical-executable"
+        }
+      ]
+    },
+    "executable_path": "C:\\synthetic\\TotallyUnknownApp-5e18.exe",
+    "executable": { "volume": 1, "index": "100" },
+    "executable_size": "2048",
+    "executable_write_ticks": "100000",
+    "publisher": null,
+    "signature": null,
+    "signature_status": "unsigned",
+    "version": "1.0",
+    "channel": null,
+    "framework": [],
+    "framework_fingerprint": [],
+    "selected_process": { "pid": 42, "creation_ticks": "123456" }
+  },
+  "roots": [
+    {
+      "root": "C:\\synthetic\\LocalAppData\\SomeVendor",
+      "physical": { "volume": 1, "index": "200" },
+      "layout": [
+        "randomprofile82",
+        "randomprofile82/cache",
+        "randomprofile82/local storage",
+        "randomprofile82/local storage/leveldb"
+      ],
+      "families": [
+        {
+          "family": "randomprofile82/local storage",
+          "class": "correlated-auth-candidate",
+          "verdict": "strongly-observed",
+          "cycles": [
+            {
+              "complete": true,
+              "changed": [false, true, false, false, true, false],
+              "persisted": true,
+              "login_logout": true
+            },
+            {
+              "complete": true,
+              "changed": [false, true, false, false, true, false],
+              "persisted": true,
+              "login_logout": true
+            }
+          ]
+        },
+        {
+          "family": "randomprofile82/cache",
+          "class": "background-noise",
+          "verdict": "noise",
+          "cycles": [
+            {
+              "complete": true,
+              "changed": [true, true, true, true, true, true],
+              "persisted": false,
+              "login_logout": false
+            },
+            {
+              "complete": true,
+              "changed": [true, true, true, true, true, true],
+              "persisted": false,
+              "login_logout": false
+            }
+          ]
+        }
+      ],
+      "ownership": {
+        "state": "corroborated",
+        "provenance": [
+          {
+            "source": "teach-observation",
+            "reason_code": "repeated-focused-root-correlation"
+          }
+        ]
+      }
+    }
+  ],
+  "status": "observed",
+  "completeness": "complete",
+  "cycles": 2,
+  "recorded_at_ms": "1791583200000",
+  "provenance": [
+    { "source": "teach-session", "reason_code": "metadata-only-observation" },
+    {
+      "source": "teach-discovery",
+      "reason_code": "short-broad-pass-before-focused-cycles"
+    }
+  ]
+}

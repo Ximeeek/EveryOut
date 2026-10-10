@@ -1,6 +1,14 @@
 use crate::{bridge::Bridge, dto::*};
 use tauri::{ipc::Channel, State};
 #[tauri::command]
+pub async fn teach(
+    state: State<'_, crate::teach::TeachBridge>,
+    request: crate::teach::TeachRequest,
+) -> Result<crate::teach::TeachReply, CommandError> {
+    let state = state.inner().clone();
+    background(move || state.call(request)).await
+}
+#[tauri::command]
 pub async fn check_catalog_updates(
     state: State<'_, Bridge>,
 ) -> Result<CatalogUpdateDto, CommandError> {

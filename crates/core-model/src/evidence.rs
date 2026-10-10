@@ -21,12 +21,15 @@ state!(StorageOwnership {
 });
 state!(AuthenticationScope {
     Validated,
+    LocallyValidated,
     Observed,
     FrameworkHint
 });
 state!(PreservationState {
     Validated,
-    KnownLosses
+    KnownLosses,
+    BoundedKnownLosses,
+    NoAbnormalCollateralMutationObserved
 });
 state!(VersionApplicability { Current, Stale });
 
@@ -69,6 +72,7 @@ pub enum OperationAuthority {
     Unreviewed,
     ReviewedCatalog,
     SpotifySavedLogin,
+    LocalBounded,
 }
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, ts_rs::TS)]
 #[serde(deny_unknown_fields)]
@@ -167,13 +171,13 @@ impl ScopeEvidence {
             }
             _ => {}
         }
-        if self.authentication_scope.state != AuthenticationScope::Validated {
+        if !matches!(self.authentication_scope.state, AuthenticationScope::Validated | AuthenticationScope::LocallyValidated) {
             blocked.insert("unknown-authentication-closure".into());
         }
         if self.preservation.state == PreservationState::Unknown {
             blocked.insert("unreviewed-preservation".into());
         }
-        if self.preservation.state == PreservationState::KnownLosses
+        if matches!(self.preservation.state, PreservationState::KnownLosses | PreservationState::BoundedKnownLosses | PreservationState::NoAbnormalCollateralMutationObserved)
             && loss != LossAssessment::Known
         {
             blocked.insert("preservation-loss-assessment-mismatch".into());
@@ -228,8 +232,16 @@ impl ScopeEvidence {
             (support, self.authority),
             (Support::Validated, OperationAuthority::ReviewedCatalog)
                 | (Support::Candidate, OperationAuthority::SpotifySavedLogin)
+                | (Support::Candidate, OperationAuthority::LocalBounded)
         ) {
             blocked.insert("automatic-cleanup-unverified".into());
+        }
+        if self.authority == OperationAuthority::LocalBounded
+            && (self.application_identity.state != ApplicationIdentity::Exact
+                || self.authentication_scope.state != AuthenticationScope::LocallyValidated
+                || !matches!(self.preservation.state, PreservationState::BoundedKnownLosses | PreservationState::NoAbnormalCollateralMutationObserved))
+        {
+            blocked.insert("local-validation-gates-incomplete".into());
         }
         if loss == LossAssessment::Unknown || flags.contains(&RiskFlag::Unknown) {
             blocked.insert("unknown-permanent-loss".into());

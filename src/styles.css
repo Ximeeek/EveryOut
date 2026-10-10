@@ -1400,3 +1400,26 @@ main.overview-content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Metadata-only Teach Mode follows the existing settings surface. */
+.teach-mode input {
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+}
+.teach-mode label {
+  display: block;
+}
+.teach-mode button {
+  margin: 0.5rem 0.75rem 0.5rem 0;
+}
+.teach-mode li {
+  overflow-wrap: anywhere;
+}
+.teach-result {
+  padding: 1rem 0;
+  border-top: 1px solid currentColor;
+}

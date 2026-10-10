@@ -11,6 +11,7 @@ pub mod dto;
 mod native;
 pub mod reports;
 pub mod settings;
+pub mod teach;
 use tauri::Manager;
 include!(concat!(env!("OUT_DIR"), "/helper_pin.rs"));
 
@@ -18,12 +19,18 @@ include!(concat!(env!("OUT_DIR"), "/helper_pin.rs"));
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            app.manage(
+                teach::TeachBridge::start(app.path().app_config_dir()?).map_err(|e| {
+                    std::io::Error::other(format!("observation initialization: {e:?}"))
+                })?,
+            );
             let state = bridge::Bridge::start(app.path().app_config_dir()?, HELPER_PIN)
                 .map_err(|e| std::io::Error::other(format!("application initialization: {e:?}")))?;
             app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::teach,
             commands::scan,
             commands::check_catalog_updates,
             commands::activate_catalog_update,

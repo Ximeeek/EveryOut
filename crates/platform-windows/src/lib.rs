@@ -11,6 +11,10 @@ pub mod inventory;
 #[cfg(windows)]
 mod native;
 #[cfg(windows)]
+pub mod observation;
+#[cfg(windows)]
+pub mod validation;
+#[cfg(windows)]
 pub mod process;
 #[cfg(windows)]
 mod registry;

@@ -90,6 +90,18 @@ pub fn discover(
     inventory: &InstalledInventory,
     cancelled: &dyn Fn() -> bool,
 ) -> (Vec<StorageDiscovery>, Vec<String>) {
+    let (discoveries, coverage, _) = discover_with_roots(resolver, inventory, cancelled);
+    (discoveries, coverage)
+}
+
+/// Read-only observation hints using the existing bounded scanner. No ownership
+/// or authentication authority accompanies the retained root capabilities.
+pub fn discover_with_roots(
+    resolver: &dyn RootResolver,
+    inventory: &InstalledInventory,
+    cancelled: &dyn Fn() -> bool,
+) -> (Vec<StorageDiscovery>, Vec<String>, Vec<AllowedRoot>) {
+    let mut observation_roots = Vec::new();
     let mut coverage = Vec::new();
     let mut groups = BTreeMap::<String, StorageDiscovery>::new();
     let mut visited = 0;
@@ -174,7 +186,11 @@ pub fn discover(
                 coverage.push("storage-directory-unavailable".into());
                 continue;
             };
-            inspect(&directory, pending, &mut queue, &mut groups, &mut coverage);
+            if inspect(&directory, pending, &mut queue, &mut groups, &mut coverage)
+                && observation_roots.len() < MAX_CANDIDATES
+            {
+                observation_roots.push(directory);
+            }
         }
         if visited >= MAX_DIRECTORIES {
             break;
@@ -186,7 +202,7 @@ pub fn discover(
     ]);
     coverage.sort();
     coverage.dedup();
-    (groups.into_values().collect(), coverage)
+    (groups.into_values().collect(), coverage, observation_roots)
 }
 
 fn enqueue(queue: &mut VecDeque<Pending>, pending: Pending, coverage: &mut Vec<String>) {
@@ -209,10 +225,10 @@ fn inspect(
     queue: &mut VecDeque<Pending>,
     groups: &mut BTreeMap<String, StorageDiscovery>,
     coverage: &mut Vec<String>,
-) {
+) -> bool {
     let Ok((children, omitted)) = directory.discovery_children() else {
         coverage.push("storage-enumeration-incomplete".into());
-        return;
+        return false;
     };
     if omitted {
         coverage.push("storage-entries-omitted".into());
@@ -228,6 +244,7 @@ fn inspect(
         }
     };
     let observed = signals(&children, network_cookies);
+    let candidate = !observed.is_empty();
     if !observed.is_empty() {
         if groups.len() < MAX_CANDIDATES || groups.contains_key(&pending.group) {
             let discovery =
@@ -271,4 +288,5 @@ fn inspect(
             coverage,
         );
     }
+    candidate
 }

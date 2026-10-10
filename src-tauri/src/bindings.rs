@@ -27,6 +27,8 @@ pub fn typescript() -> String {
         visited: HashSet::new(),
     };
     types.visit::<ExportFormat>();
+    types.visit::<crate::teach::TeachRequest>();
+    types.visit::<crate::teach::TeachReply>();
     types.visit::<CatalogUpdateDto>();
     types.visit::<Settings>();
     types.visit::<ScanDto>();

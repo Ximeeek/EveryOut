@@ -17,6 +17,7 @@ import Home from "./Home";
 import RollingCount from "./RollingCount";
 import WipeFlow from "./WipeFlow";
 import CatalogUpdates from "./CatalogUpdates";
+import TeachMode from "./TeachMode";
 import {
   emptyHome,
   defaultSelection,
@@ -497,6 +498,10 @@ export default function App() {
                   setBusy={setBusy}
                   invalidate={invalidate}
                 />
+              </details>
+              <details>
+                <summary>Learn an application</summary>
+                <TeachMode disabled={busy || scanning} />
               </details>
               <details>
                 <summary>Privacy & supported coverage</summary>

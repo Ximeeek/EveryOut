@@ -9,6 +9,9 @@ license.workspace = true
 everyout-core-model = { path = "../core-model" }
 sha2 = "0.10"
 zeroize = "1"
+serde.workspace = true
+serde_json.workspace = true
+tempfile = "3"
 everyout-test-support = { path = "../test-support", optional = true }
 
 [target.'cfg(windows)'.dependencies]

@@ -33,6 +33,9 @@ function finish(report: ReportDto) {
 }
 
 export const demo: typeof native = {
+  async teach() {
+    throw "invalid-selection";
+  },
   async getSettings() {
     return { ...settings };
   },

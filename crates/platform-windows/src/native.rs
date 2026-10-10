@@ -83,8 +83,36 @@ pub(crate) struct Info {
     pub directory: bool,
     pub size: u64,
     pub modified_ticks: u64,
+    pub created_ticks: u64,
+    pub change_ticks: u64,
+    pub attributes: u32,
 }
 impl Handle {
+    /// Rename the opened physical object to one checked component in a retained
+    /// parent. The filesystem cannot copy across volumes or replace a destination.
+    pub(crate) fn rename(&self, parent: &Handle, name: &str) -> Result<()> {
+        crate::components(name)?;
+        if name.contains(['/', '\\']) || self.info()?.identity.volume != parent.info()?.identity.volume {
+            return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        let name: Vec<u16> = OsStr::new(name).encode_wide().collect();
+        let offset = offset_of!(FILE_RENAME_INFO, FileName);
+        let length = offset + name.len() * 2;
+        let mut buffer = vec![0usize; length.div_ceil(size_of::<usize>())];
+        let rename = buffer.as_mut_ptr().cast::<FILE_RENAME_INFO>();
+        // SAFETY: aligned, initialized variable-length structure; both handles
+        // remain alive. ReplaceIfExists=false; RootDirectory is the pinned parent.
+        unsafe {
+            (*rename).Anonymous.ReplaceIfExists = false;
+            (*rename).RootDirectory = parent.0;
+            (*rename).FileNameLength = (name.len() * 2) as u32;
+            ptr::copy_nonoverlapping(name.as_ptr(), buffer.as_mut_ptr().cast::<u8>().add(offset).cast(), name.len());
+            if SetFileInformationByHandle(self.0, FileRenameInfo, rename.cast(), length as u32) == 0 {
+                return Err(last_error());
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn info(&self) -> Result<Info> {
         let mut data = BY_HANDLE_FILE_INFORMATION::default();
         // SAFETY: valid owned handle and writable structure of the documented size.
@@ -93,6 +121,18 @@ impl Handle {
         }
         if data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 || data.nNumberOfLinks > 1 {
             return Err(PlatformError::new(ErrorKind::ScopeViolation));
+        }
+        let mut basic = FILE_BASIC_INFO::default();
+        if unsafe {
+            GetFileInformationByHandleEx(
+                self.0,
+                FileBasicInfo,
+                (&mut basic as *mut FILE_BASIC_INFO).cast(),
+                size_of::<FILE_BASIC_INFO>() as u32,
+            )
+        } == 0
+        {
+            return Err(last_error());
         }
         Ok(Info {
             identity: Identity {
@@ -103,6 +143,9 @@ impl Handle {
             size: (u64::from(data.nFileSizeHigh) << 32) | u64::from(data.nFileSizeLow),
             modified_ticks: (u64::from(data.ftLastWriteTime.dwHighDateTime) << 32)
                 | u64::from(data.ftLastWriteTime.dwLowDateTime),
+            created_ticks: basic.CreationTime as u64,
+            change_ticks: basic.ChangeTime as u64,
+            attributes: data.dwFileAttributes,
         })
     }
     pub(crate) fn delete(&self, dry_run: bool) -> Result<()> {

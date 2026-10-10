@@ -12,7 +12,11 @@ export type ActionStatus = "would-apply" | "applied" | "already-absent" | "skipp
 
 export type AggregateStatus = "complete-local-scope" | "partial" | "blocked" | "failed" | "cancelled" | "dry-run" | "not-requested";
 
+export type ApplicationBinding = { identity: EvidenceState<ApplicationIdentity>, executable_path: string, executable: FileIdentity, executable_size: string, executable_write_ticks: string, publisher: string | null, signature: string | null, signature_status: string, version: string | null, channel: string | null, framework: Array<string>, framework_fingerprint: Array<FrameworkFingerprint>, selected_process: ProcessBinding | null, };
+
 export type ApplicationIdentity = "exact" | "corroborated" | "weak" | "unknown";
+
+export type ArtifactClass = "correlated-auth-candidate" | "persistent-app-state" | "background-noise";
 
 export type AuthenticationScope = "validated" | "observed" | "framework-hint" | "unknown";
 
@@ -26,9 +30,13 @@ export type CategoryToken = { account: string, category: Category, token: string
 
 export type CommandError = "busy" | "stale-plan" | "invalid-selection" | "confirmation-required" | "settings-io" | "helper-unavailable" | "worker-unavailable" | "cancelled" | "report-io";
 
+export type Completeness = "complete" | "recovered-by-rescan" | "incomplete";
+
 export type Confidence = "high" | "medium" | "low";
 
 export type ConfirmationId = string;
+
+export type CycleDifferential = { complete: boolean, changed: [boolean, boolean, boolean, boolean, boolean, boolean], persisted: boolean, login_logout: boolean, };
 
 export type DecisionTrace = { evidence: ScopeEvidence, support: Support,
 /**
@@ -52,7 +60,17 @@ export type ExecutionMode = "dry-run" | "apply";
 
 export type ExportFormat = "json" | "text";
 
+export type FamilyObservation = { family: string, class: ArtifactClass, verdict: ObservationVerdict, cycles: Array<CycleDifferential>, };
+
+export type FileIdentity = { volume: number, index: string, };
+
+export type FrameworkFingerprint = { artifact: string, identity: FileIdentity, size: string, write_ticks: string, };
+
 export type ItemDto = { decision: DecisionTrace, instance: string, provider: string | null, loss: LossAssessment, locked: boolean, affected_data: Array<string>, status: AggregateStatus, actions: Array<ActionDto>, risks: Array<RiskFlag>, confirmations: Array<string>, profiles: Array<string>, processes: Array<string>, limitations: Array<string>, issues: Array<string>, identity: Uncertainty, sync: Uncertainty, authentication: Uncertainty, remote_revocation: Uncertainty, silent_sso: Uncertainty, };
+
+export type LearnedObservation = { session_id: string, binding: ApplicationBinding, roots: Array<RootObservation>, status: LearnedStatus, completeness: Completeness, cycles: number, recorded_at_ms: string, provenance: Array<EvidenceProvenance>, };
+
+export type LearnedStatus = "candidate" | "observed" | "needs-reobservation" | "stale";
 
 export type LossAssessment = "known" | "none" | "unknown";
 
@@ -60,11 +78,15 @@ export type ModeFailure = "uac-declined" | "start-failed" | "authentication-fail
 
 export type ModeResult = { effective_mode: AccountMode, requires_fresh_review: boolean, reason: ModeFailure | null, };
 
+export type ObservationVerdict = "strongly-observed" | "observed" | "inconclusive" | "noise";
+
 export type OperationAuthority = "unreviewed" | "reviewed-catalog" | "spotify-saved-login";
 
 export type PlanDto = { plan_id: string, category_tokens: Array<CategoryToken>, report: ReportDto, };
 
 export type PreservationState = "validated" | "known-losses" | "unknown";
+
+export type ProcessBinding = { pid: number, creation_ticks: string, };
 
 export type ProcessClosePolicy = "ask" | "hard-kill-after2s";
 
@@ -75,6 +97,8 @@ export type ReportDto = { catalog?: CatalogIdentityDto, skipped: Array<SkippedIt
 export type RiskAcceptance = { account: string, instance: string, flags: Array<RiskFlag>, confirmations: Array<string>, };
 
 export type RiskFlag = "local-only-documents" | "drafts-or-offline-messages" | "settings-or-profiles" | "wallet-or-key-material" | "vault-or-2fa-recovery" | "saved-passwords-passkeys-autofill-history" | "shared-store" | "unknown";
+
+export type RootObservation = { root: string, physical: FileIdentity, layout: Array<string>, families: Array<FamilyObservation>, ownership: EvidenceState<StorageOwnership>, };
 
 export type RunStarted = { run_id: string, };
 
@@ -99,6 +123,16 @@ export type Stage = "scan" | "selection" | "dry-run" | "review" | "closing" | "c
 export type StorageOwnership = "exclusive" | "corroborated" | "shared-conflict" | "unknown";
 
 export type Support = "candidate" | "validated";
+
+export type TeachPhase = "closed-baseline" | "launch-logged-out" | "login" | "settled-logged-in" | "restart-persistence" | "vendor-logout" | "closed-logged-out";
+
+export type TeachReply = { "kind": "view", "data": TeachView } | { "kind": "history", "data": Array<LearnedObservation> };
+
+export type TeachRequest = { "operation": "start", executable: string, channel: string | null, } | { "operation": "get", id: string, } | { "operation": "discover", id: string, } | { "operation": "begin-cycle", id: string, } | { "operation": "advance", id: string, signed_in: boolean, } | { "operation": "finish", id: string, } | { "operation": "history" };
+
+export type TeachStage = "discovering" | "ready" | "focused" | "finished" | "stale";
+
+export type TeachView = { id: string, application: string, stage: TeachStage, next_phase: TeachPhase | null, completeness: Completeness, candidate_roots: Array<string>, completed_cycles: number, diagnostics: Array<string>, result: LearnedObservation | null, };
 
 export type Uncertainty = "unknown" | "unsupported" | "not-requested";
 

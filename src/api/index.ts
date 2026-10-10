@@ -13,6 +13,8 @@ import type {
 } from "./types";
 export type * from "./types";
 export const scan = () => invoke<ScanDto>("scan");
+export const teach = (request: import("./types").TeachRequest) =>
+  invoke<import("./types").TeachReply>("teach", { request });
 export const checkCatalogUpdates = () =>
   invoke<CatalogUpdateDto>("check_catalog_updates");
 export const activateCatalogUpdate = (digest: string) =>

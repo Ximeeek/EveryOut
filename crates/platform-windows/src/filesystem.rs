@@ -28,6 +28,11 @@ pub struct AllowedRoot {
     chain: Rc<Vec<Handle>>,
 }
 impl AllowedRoot {
+    /// Canonical path of this retained metadata capability; grants no new access.
+    pub fn metadata_path(&self) -> Result<std::path::PathBuf> {
+        self.validate()?;
+        native::metadata_path(self.handle())
+    }
     /// A pinned, live-reviewed desktop build. No manifest-supplied executable
     /// name or digest is accepted by this fixed adapter.
     pub fn spotify_reviewed_build(&self) -> Result<()> {
@@ -294,6 +299,11 @@ impl PhysicalIdentity {
     }
 }
 impl SafePath {
+    pub(crate) fn observation_info(&self) -> Result<Option<Info>> {
+        self.open(false)?
+            .map(|chain| chain.last().expect("metadata target").info())
+            .transpose()
+    }
     pub(crate) fn retain_executable_image(&self) -> Result<Handle> {
         self.retain_metadata_file(".exe")
     }
